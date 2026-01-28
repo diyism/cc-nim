@@ -10,17 +10,19 @@ enabling Claude Code CLI to utilize NIM models with full support for:
 - Fast prefix detection for CLI policy specifications
 """
 
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, field_validator
-from typing import List, Dict, Any, Optional, Union, Literal
 import os
 import json
 import logging
+import uuid
+from typing import List, Dict, Any, Optional, Union, Literal
+from pydantic import BaseModel, field_validator
 from providers.nvidia_nim import NvidiaNimProvider, ProviderConfig
+from providers.exceptions import ProviderError
 import uvicorn
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.responses import StreamingResponse, JSONResponse
 
 # Load environment variables
 load_dotenv()
@@ -210,13 +212,21 @@ provider_config = ProviderConfig(
     rate_limit=int(os.getenv("NVIDIA_NIM_RATE_LIMIT", "40")),
     rate_window=int(os.getenv("NVIDIA_NIM_RATE_WINDOW", "60")),
 )
-provider = NvidiaNimProvider(provider_config)
+
+# Global provider instance for DI
+_provider: Optional[NvidiaNimProvider] = None
+
+
+def get_provider() -> NvidiaNimProvider:
+    global _provider
+    if _provider is None:
+        _provider = NvidiaNimProvider(provider_config)
+    return _provider
+
 
 # =============================================================================
 # FastAPI App
 # =============================================================================
-
-FAST_PREFIX_DETECTION = os.getenv("FAST_PREFIX_DETECTION", "true").lower() == "true"
 
 
 @asynccontextmanager
@@ -224,11 +234,44 @@ async def lifespan(app: FastAPI):
     logger.info("Server starting up...")
     yield
     logger.info("Server shutting down...")
-    if hasattr(provider, "_client"):
-        await provider._client.aclose()
+    global _provider
+    if _provider and hasattr(_provider, "_client"):
+        await _provider._client.aclose()
+
+
+FAST_PREFIX_DETECTION = os.getenv("FAST_PREFIX_DETECTION", "true").lower() == "true"
 
 
 app = FastAPI(title="Claude Code Proxy", version="2.0.0", lifespan=lifespan)
+
+
+@app.exception_handler(ProviderError)
+async def provider_error_handler(request: Request, exc: ProviderError):
+    """Handle provider-specific errors and return Anthropic format."""
+    logger.error(f"Provider Error: {exc.error_type} - {exc.message}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.to_anthropic_format(),
+    )
+
+
+@app.exception_handler(Exception)
+async def general_error_handler(request: Request, exc: Exception):
+    """Handle general errors and return Anthropic format."""
+    logger.error(f"General Error: {str(exc)}")
+    import traceback
+
+    logger.error(traceback.format_exc())
+    return JSONResponse(
+        status_code=500,
+        content={
+            "type": "error",
+            "error": {
+                "type": "api_error",
+                "message": "An unexpected error occurred.",
+            },
+        },
+    )
 
 
 def extract_command_prefix(command: str) -> str:
@@ -380,7 +423,11 @@ def log_request_details(request_data: MessagesRequest):
 
 
 @app.post("/v1/messages")
-async def create_message(request_data: MessagesRequest, raw_request: Request):
+async def create_message(
+    request_data: MessagesRequest,
+    raw_request: Request,
+    provider: NvidiaNimProvider = Depends(get_provider),
+):
     try:
         if FAST_PREFIX_DETECTION:
             is_prefix_req, command = is_prefix_detection_request(request_data)

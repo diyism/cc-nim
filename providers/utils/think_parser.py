@@ -69,17 +69,27 @@ class ThinkTagParser:
         think_start = self._buffer.find(self.OPEN_TAG)
 
         if think_start == -1:
-            # No tag found - check for partial at end
-            if len(self._buffer) > self.OPEN_TAG_LEN - 1:
-                # Check if buffer ends with start of a potential tag
-                if self._buffer[-(self.OPEN_TAG_LEN - 1) :].startswith("<"):
-                    emit = self._buffer[: -(self.OPEN_TAG_LEN - 1)]
-                    self._buffer = self._buffer[-(self.OPEN_TAG_LEN - 1) :]
-                else:
-                    emit = self._buffer
-                    self._buffer = ""
-                if emit:
-                    return ContentChunk(ContentType.TEXT, emit)
+            # No tag found - check for partial tag at end
+            # We buffer any trailing '<' and subsequent characters that could be part of <think>
+            last_bracket = self._buffer.rfind("<")
+            if (
+                last_bracket != -1
+                and len(self._buffer) - last_bracket < self.OPEN_TAG_LEN
+            ):
+                # Check if the partial string could be the start of <think>
+                potential_tag = self._buffer[last_bracket:]
+                if self.OPEN_TAG.startswith(potential_tag):
+                    emit = self._buffer[:last_bracket]
+                    self._buffer = self._buffer[last_bracket:]
+                    if emit:
+                        return ContentChunk(ContentType.TEXT, emit)
+                    return None
+
+            # No partial tag found or it's irrelevant
+            emit = self._buffer
+            self._buffer = ""
+            if emit:
+                return ContentChunk(ContentType.TEXT, emit)
             return None
         else:
             # Found <think> tag
@@ -97,16 +107,24 @@ class ThinkTagParser:
 
         if think_end == -1:
             # No closing tag - check for partial at end
-            if len(self._buffer) > self.CLOSE_TAG_LEN - 1:
-                # Check if buffer ends with start of a potential closing tag
-                if self._buffer[-(self.CLOSE_TAG_LEN - 1) :].startswith("<"):
-                    emit = self._buffer[: -(self.CLOSE_TAG_LEN - 1)]
-                    self._buffer = self._buffer[-(self.CLOSE_TAG_LEN - 1) :]
-                else:
-                    emit = self._buffer
-                    self._buffer = ""
-                if emit:
-                    return ContentChunk(ContentType.THINKING, emit)
+            last_bracket = self._buffer.rfind("<")
+            if (
+                last_bracket != -1
+                and len(self._buffer) - last_bracket < self.CLOSE_TAG_LEN
+            ):
+                # Check if the partial string could be the start of </think>
+                potential_tag = self._buffer[last_bracket:]
+                if self.CLOSE_TAG.startswith(potential_tag):
+                    emit = self._buffer[:last_bracket]
+                    self._buffer = self._buffer[last_bracket:]
+                    if emit:
+                        return ContentChunk(ContentType.THINKING, emit)
+                    return None
+
+            emit = self._buffer
+            self._buffer = ""
+            if emit:
+                return ContentChunk(ContentType.THINKING, emit)
             return None
         else:
             # Found </think> tag

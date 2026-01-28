@@ -20,6 +20,13 @@ from .utils import (
     extract_reasoning_from_delta,
     AnthropicToOpenAIConverter,
 )
+from .exceptions import (
+    AuthenticationError,
+    InvalidRequestError,
+    RateLimitError,
+    OverloadedError,
+    APIError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +256,27 @@ class NvidiaNimProvider(BaseProvider):
         yield sse.message_stop()
         yield sse.done()
 
+    def _map_error(self, response_status: int, error_text: str) -> Exception:
+        """Map HTTP status and error body to specific ProviderError."""
+        try:
+            error_data = json.loads(error_text)
+            message = error_data.get("error", {}).get("message", error_text)
+        except Exception:
+            message = error_text
+
+        if response_status == 401:
+            return AuthenticationError(message, raw_error=error_text)
+        if response_status == 429:
+            return RateLimitError(message, raw_error=error_text)
+        if response_status in (400, 422):
+            return InvalidRequestError(message, raw_error=error_text)
+        if response_status >= 500:
+            if "overloaded" in message.lower() or "capacity" in message.lower():
+                return OverloadedError(message, raw_error=error_text)
+            return APIError(message, status_code=response_status, raw_error=error_text)
+
+        return APIError(message, status_code=response_status, raw_error=error_text)
+
     async def _stream_chunks(self, headers: dict, body: dict):
         """Generator that yields parsed SSE data chunks from the API."""
         async with self._client.stream(
@@ -256,8 +284,9 @@ class NvidiaNimProvider(BaseProvider):
         ) as response:
             if response.status_code != 200:
                 error_text = await response.aread()
-                raise Exception(
-                    f"API error {response.status_code}: {error_text.decode('utf-8', errors='replace')}"
+                raise self._map_error(
+                    response_status=response.status_code,
+                    error_text=error_text.decode("utf-8", errors="replace"),
                 )
 
             buffer = ""
@@ -353,7 +382,10 @@ class NvidiaNimProvider(BaseProvider):
         response = await self._client.post(
             f"{self._base_url}/chat/completions", headers=headers, json=body
         )
-        response.raise_for_status()
+        if response.status_code != 200:
+            raise self._map_error(
+                response_status=response.status_code, error_text=response.text
+            )
         return response.json()
 
     def convert_response(self, response_json: dict, original_request: Any) -> dict:
