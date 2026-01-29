@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
-from server import app, get_provider
+from api.app import app
+from api.dependencies import get_provider
 from unittest.mock import AsyncMock, MagicMock
 from providers.nvidia_nim import NvidiaNimProvider
 
@@ -63,11 +64,8 @@ def test_model_mapping():
         "max_tokens": 100,
     }
     client.post("/v1/messages", json=payload_haiku)
-    # The actual call to provider should use the mapped model
     args, _ = mock_provider.complete.call_args
-    # It should not be the original model
     assert args[0].model != "claude-3-haiku-20240307"
-    # It should have original_model set
     assert args[0].original_model == "claude-3-haiku-20240307"
 
 

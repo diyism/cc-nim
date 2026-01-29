@@ -2,6 +2,11 @@ import pytest
 import os
 import sys
 
+# Set mock environment BEFORE any imports that use Settings
+os.environ.setdefault("NVIDIA_NIM_API_KEY", "test_key")
+os.environ.setdefault("BIG_MODEL", "test-model")
+os.environ.setdefault("SMALL_MODEL", "test-model")
+
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
