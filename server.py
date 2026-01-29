@@ -29,13 +29,16 @@ from providers.claude_cli import CLIParser
 from providers.cli_session_manager import CLISessionManager
 from providers.logging_utils import log_request_compact
 
+import re
+
 # Optional: telethon for the bot
 try:
-    from telethon import TelegramClient, events, errors
+    from telethon import TelegramClient, events, errors, Button
 except ImportError:
     TelegramClient = None
     events = None
     errors = None
+    Button = None
 
 # Initialize tokenizer
 ENCODER = tiktoken.get_encoding("cl100k_base")
@@ -411,7 +414,7 @@ def register_bot_handlers(client: "TelegramClient"):
             result = "\n".join(lines)
             return safe_markdown_truncate(result)
 
-        async def update_bot_ui(status=None, force=False):
+        async def update_bot_ui(status=None, force=False, buttons=None):
             nonlocal last_ui_update, global_flood_wait_until, flood_alert_sent
             now = time.time()
 
@@ -433,7 +436,9 @@ def register_bot_handlers(client: "TelegramClient"):
             try:
                 display = build_unified_message(status)
                 if display:
-                    await status_msg.edit(display, parse_mode="markdown")
+                    await status_msg.edit(
+                        display, parse_mode="markdown", buttons=buttons
+                    )
                     last_ui_update = now
             except errors.FloodWaitError as e:
                 # Telegram specific flood wait
@@ -582,7 +587,15 @@ def register_bot_handlers(client: "TelegramClient"):
                     else:
                         if not message_parts:
                             message_parts.append(("content", "Done."))
-                        await update_bot_ui("✅ **Complete**", force=True)
+
+                        buttons = None
+                        if Button and captured_session_id:
+                            btn_data = f"continue_{captured_session_id}".encode()
+                            buttons = [Button.inline("Continue", btn_data)]
+
+                        await update_bot_ui(
+                            "✅ **Complete**", force=True, buttons=buttons
+                        )
 
                     # Update session's last message so replies to THIS response also work
                     if captured_session_id and status_msg:
@@ -616,6 +629,40 @@ def register_bot_handlers(client: "TelegramClient"):
                 )
             except:
                 await send_error_to_user(chat_id, str(e), "task execution")
+
+    @client.on(events.CallbackQuery(data=re.compile(b"continue_.*")))
+    async def handle_continue_callback(event):
+        sender_id = str(event.sender_id)
+        target_id = str(ALLOWED_USER_ID).strip()
+        if sender_id != target_id:
+            return
+
+        await event.answer()
+        session_id = event.data.decode().split("_", 1)[1]
+        logger.info(f"BOT: Continue callback for session {session_id}")
+
+        # Send a new status message
+        try:
+            status_msg = await event.reply("🔄 **Continuing conversation...**")
+        except Exception as e:
+            logger.error(f"Failed to send status message for callback: {e}")
+            return
+
+        # Create a synthetic queued message
+        queued_msg = QueuedMessage(
+            prompt="Continue",
+            chat_id=event.chat_id,
+            msg_id=event.message_id,  # Use the ID of the message the button was on
+            reply_msg_id=status_msg.id,
+            event=event,
+        )
+
+        # Enqueue the task
+        await message_queue.enqueue(
+            session_id=session_id,
+            message=queued_msg,
+            processor=process_claude_task,
+        )
 
     @client.on(events.NewMessage())
     async def handle_telegram_message(event):
