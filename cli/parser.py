@@ -10,7 +10,7 @@ class CLIParser:
     """Helper to structure raw CLI events."""
 
     @staticmethod
-    def parse_event(event: Dict) -> Optional[Dict]:
+    def parse_event(event: Dict) -> List[Dict]:
         """
         Parse a CLI event and return a structured result.
 
@@ -18,12 +18,13 @@ class CLIParser:
             event: Raw event dictionary from CLI
 
         Returns:
-            Parsed event dict or None if not a recognized event type
+            List of parsed event dicts. Empty list if not recognized.
         """
         if not isinstance(event, dict):
-            return None
+            return []
 
         etype = event.get("type")
+        results = []
 
         # 1. Handle full messages (assistant or result)
         msg_obj = None
@@ -53,6 +54,13 @@ class CLIParser:
                     elif ctype == "tool_use":
                         tool_calls.append(c)
 
+                # Prioritize thinking first
+                if thinking_parts:
+                    results.append(
+                        {"type": "thinking", "text": "\n".join(thinking_parts)}
+                    )
+
+                # Then tools or subagents
                 if tool_calls:
                     # Check for subagents (Task tool)
                     subagents = [
@@ -61,28 +69,25 @@ class CLIParser:
                         if t.get("name") == "Task"
                     ]
                     if subagents:
-                        return {"type": "subagent_start", "tasks": subagents}
-                    return {"type": "tool_start", "tools": tool_calls}
+                        results.append({"type": "subagent_start", "tasks": subagents})
+                    else:
+                        results.append({"type": "tool_start", "tools": tool_calls})
 
-                # Return combined result if we have content
-                result = {}
-                if thinking_parts:
-                    result["thinking"] = "\n".join(thinking_parts)
+                # Then text content if any
                 if parts:
-                    result["text"] = "".join(parts)
-                if result:
-                    result["type"] = "content"
-                    return result
+                    results.append({"type": "content", "text": "".join(parts)})
+
+                if results:
+                    return results
 
         # 2. Handle streaming deltas
         if etype == "content_block_delta":
             delta = event.get("delta", {})
-            if not isinstance(delta, dict):
-                return None
-            if delta.get("type") == "text_delta":
-                return {"type": "content", "text": delta.get("text", "")}
-            if delta.get("type") == "thinking_delta":
-                return {"type": "thinking", "text": delta.get("thinking", "")}
+            if isinstance(delta, dict):
+                if delta.get("type") == "text_delta":
+                    return [{"type": "content", "text": delta.get("text", "")}]
+                if delta.get("type") == "thinking_delta":
+                    return [{"type": "thinking", "text": delta.get("thinking", "")}]
 
         # 3. Handle tool usage start
         if etype == "content_block_start":
@@ -90,18 +95,20 @@ class CLIParser:
             if isinstance(block, dict) and block.get("type") == "tool_use":
                 if block.get("name") == "Task":
                     desc = block.get("input", {}).get("description", "Subagent")
-                    return {"type": "subagent_start", "tasks": [desc]}
-                return {"type": "tool_start", "tools": [block]}
+                    return [{"type": "subagent_start", "tasks": [desc]}]
+                return [{"type": "tool_start", "tools": [block]}]
 
         # 4. Handle errors and exit
         if etype == "error":
             err = event.get("error")
             msg = err.get("message") if isinstance(err, dict) else str(err)
-            return {"type": "error", "message": msg}
+            return [{"type": "error", "message": msg}]
         elif etype == "exit":
-            return {
-                "type": "complete",
-                "status": "success" if event.get("code") == 0 else "failed",
-            }
+            return [
+                {
+                    "type": "complete",
+                    "status": "success" if event.get("code") == 0 else "failed",
+                }
+            ]
 
-        return None
+        return []

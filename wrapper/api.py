@@ -61,9 +61,10 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # Start Claude session and stream events back
             async for event in session.start_task(task):
-                parsed = CLIParser.parse_event(event)
-                if parsed:
-                    await websocket.send_json(parsed)
+                parsed_list = CLIParser.parse_event(event)
+                if parsed_list:
+                    for parsed in parsed_list:
+                        await websocket.send_json(parsed)
                 else:
                     # Send raw for debugging if it's unknown but relevant
                     if event.get("type") in ["system", "result"]:

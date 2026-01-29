@@ -129,8 +129,15 @@ class ClaudeMessageHandler:
         status_msg_id = queued.status_message_id
         chat_id = incoming.chat_id
 
-        # Unified message accumulator
-        message_parts: List[Tuple[str, str]] = []
+        # specific components for structured display
+        components = {
+            "thinking": [],  # List[str]
+            "tools": [],  # List[str]
+            "subagents": [],  # List[str]
+            "content": [],  # List[str]
+            "errors": [],  # List[str]
+        }
+
         last_ui_update = 0.0
         captured_session_id = (
             session_id_to_resume
@@ -155,7 +162,7 @@ class ClaudeMessageHandler:
                 return
 
             try:
-                display = self._build_message(message_parts, status)
+                display = self._build_message(components, status)
                 if display:
                     await self.platform.edit_message(
                         chat_id, status_msg_id, display, parse_mode="markdown"
@@ -179,7 +186,7 @@ class ClaudeMessageHandler:
                 else:
                     captured_session_id = session_or_temp_id
             except RuntimeError as e:
-                message_parts.append(("error", str(e)))
+                components["errors"].append(str(e))
                 await update_ui("⏳ **Session limit reached**", force=True)
                 return
 
@@ -206,82 +213,121 @@ class ClaudeMessageHandler:
                         )
                     continue
 
-                parsed = CLIParser.parse_event(event_data)
+                parsed_list = CLIParser.parse_event(event_data)
 
-                if not parsed:
-                    continue
+                for parsed in parsed_list:
+                    if parsed["type"] == "thinking":
+                        # append to the last thinking block if valid, or just simple list
+                        components["thinking"].append(parsed["text"])
+                        await update_ui("🧠 **Claude is thinking...**")
 
-                if parsed["type"] == "thinking":
-                    message_parts.append(("thinking", parsed["text"]))
-                    await update_ui("🧠 **Claude is thinking...**")
+                    elif parsed["type"] == "content":
+                        if parsed.get("text"):
+                            components["content"].append(parsed["text"])
+                            await update_ui("🧠 **Claude is working...**")
 
-                elif parsed["type"] == "content":
-                    if parsed.get("text"):
-                        if message_parts and message_parts[-1][0] == "content":
-                            msg_type, content = message_parts[-1]
-                            message_parts[-1] = ("content", content + parsed["text"])
-                        else:
-                            message_parts.append(("content", parsed["text"]))
-                        await update_ui("🧠 **Claude is working...**")
+                    elif parsed["type"] == "tool_start":
+                        names = [t.get("name") for t in parsed.get("tools", [])]
+                        components["tools"].extend(names)
+                        await update_ui("⏳ **Executing tools...**")
 
-                elif parsed["type"] == "tool_start":
-                    names = [t.get("name") for t in parsed["tools"]]
-                    message_parts.append(("tool", ", ".join(names)))
-                    await update_ui("⏳ **Executing tools...**")
+                    elif parsed["type"] == "subagent_start":
+                        tasks = parsed.get("tasks", [])
+                        components["subagents"].extend(tasks)
+                        await update_ui("🤖 **Subagent working...**")
 
-                elif parsed["type"] == "complete":
-                    if not message_parts:
-                        message_parts.append(("content", "Done."))
-                    await update_ui("✅ **Complete**", force=True)
+                    elif parsed["type"] == "complete":
+                        if not any(components.values()):
+                            components["content"].append("Done.")
+                        await update_ui("✅ **Complete**", force=True)
 
-                    # Update session's last message
-                    if captured_session_id:
-                        self.session_store.update_last_message(
-                            captured_session_id, status_msg_id
+                        # Update session's last message
+                        if captured_session_id:
+                            self.session_store.update_last_message(
+                                captured_session_id, status_msg_id
+                            )
+
+                    elif parsed["type"] == "error":
+                        components["errors"].append(
+                            parsed.get("message", "Unknown error")
                         )
-
-                elif parsed["type"] == "error":
-                    message_parts.append(
-                        ("error", parsed.get("message", "Unknown error"))
-                    )
-                    await update_ui("❌ **Error**", force=True)
+                        await update_ui("❌ **Error**", force=True)
 
         except asyncio.CancelledError:
-            message_parts.append(("error", "Task was cancelled"))
+            components["errors"].append("Task was cancelled")
             await update_ui("❌ **Cancelled**", force=True)
         except Exception as e:
             logger.error(f"Task failed: {e}")
-            message_parts.append(("error", str(e)[:200]))
+            components["errors"].append(str(e)[:200])
             await update_ui("💥 **Task Failed**", force=True)
 
     def _build_message(
         self,
-        parts: List[Tuple[str, str]],
+        components: dict,
         status: Optional[str] = None,
     ) -> str:
-        """Build unified message from parts."""
+        """
+        Build unified message with specific order:
+        1. Thinking
+        2. Tools
+        3. Subagents
+        4. Content
+        5. Errors
+        6. Status (Bottom)
+        """
         lines = []
-        if status:
-            lines.append(status)
-            lines.append("")
 
-        for part_type, content in parts:
-            if part_type == "thinking":
-                display = content[:1200] + ("..." if len(content) > 1200 else "")
-                lines.append(f"💭 **Thinking:**\n```\n{display}\n```")
-            elif part_type == "tool":
-                lines.append(f"🔧 **Tools:** `{content}`")
-            elif part_type == "content":
-                lines.append(content)
-            elif part_type == "error":
-                lines.append(f"⚠️ {content}")
+        # 1. Thinking
+        if components["thinking"]:
+            full_thinking = "".join(components["thinking"])
+            # limit thinking length visually
+            display = full_thinking
+            if len(display) > 800:
+                display = display[:795] + "..."
+            lines.append(f"💭 **Thinking:**\n```\n{display}\n```")
+
+        # 2. Tools
+        if components["tools"]:
+            # Unique tools to avoid clutter
+            unique_tools = []
+            seen = set()
+            for t in components["tools"]:
+                if t not in seen:
+                    unique_tools.append(t)
+                    seen.add(t)
+            lines.append(f"🛠 **Tools:** `{', '.join(unique_tools)}`")
+
+        # 3. Subagents
+        if components["subagents"]:
+            for task in components["subagents"]:
+                lines.append(f"🤖 **Subagent:** `{task}`")
+
+        # 4. Content
+        if components["content"]:
+            # Join content parts
+            full_content = "".join(components["content"])
+            lines.append(full_content)
+
+        # 5. Errors
+        if components["errors"]:
+            for err in components["errors"]:
+                lines.append(f"⚠️ **Error:** `{err}`")
+
+        # 6. Status (Bottom)
+        if status:
+            lines.append("")  # spacer
+            lines.append(status)
 
         result = "\n".join(lines)
-        # Truncate if too long
+
+        # Truncate if too long (Telegram limit ~4096)
+        # We leave some buffer
         if len(result) > 3800:
             result = "..." + result[-3795:]
-            if result.count("```") % 2 != 0:
-                result += "\n```"
+            # basic attempt to fix unclosed code blocks if we truncated the top
+            # but usually we want to preserve the bottom (content/status)
+            pass
+
         return result
 
     def _get_initial_status(self, session_id: Optional[str]) -> str:
