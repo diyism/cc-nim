@@ -245,6 +245,7 @@ def get_provider() -> NvidiaNimProvider:
 
 # Internal storage path for bot data (sessions, etc.) - defined early for lifespan
 INTERNAL_DATA_PATH = os.path.abspath(os.getenv("CLAUDE_WORKSPACE", "agent_workspace"))
+os.makedirs(INTERNAL_DATA_PATH, exist_ok=True)
 
 tele_client: Optional["TelegramClient"] = None
 
@@ -308,6 +309,8 @@ if ALLOWED_DIR:
 else:
     # Fallback to internal data path if no ALLOWED_DIR specified
     CLI_WORKSPACE = INTERNAL_DATA_PATH
+
+os.makedirs(CLI_WORKSPACE, exist_ok=True)
 
 # Internal URL for the CLI to use (points to this server)
 INTERNAL_API_URL = "http://localhost:8082/v1"
