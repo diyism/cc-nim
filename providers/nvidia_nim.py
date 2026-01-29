@@ -462,9 +462,9 @@ class NvidiaNimProvider(BaseProvider):
                 )
 
         if not content:
-            content.append({"type": "text", "text": ""})
-            # Mistral models in NIM (like Devstral) require content to be non-empty
-            # even in sequences of messages.
+            # NIM models (especially Mistral-based) often require non-empty content.
+            # Adding a single space satisfies this requirement while avoiding
+            # the "(no content)" display issue in Claude Code.
             content.append({"type": "text", "text": " "})
 
         usage = response_json.get("usage", {})
