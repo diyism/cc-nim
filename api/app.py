@@ -1,5 +1,6 @@
 """FastAPI application factory and configuration."""
 
+import os
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -32,26 +33,73 @@ async def lifespan(app: FastAPI):
 
     # Initialize messaging platform if configured
     messaging_platform = None
+    message_handler = None
+    cli_manager = None
+
     try:
         if settings.telegram_api_id and settings.telegram_api_hash:
             from messaging.telegram import TelegramPlatform
+            from messaging.handler import ClaudeMessageHandler
+            from messaging.session import SessionStore
+            from messaging.queue import MessageQueueManager
+            from cli.manager import CLISessionManager
 
+            # Setup workspace
+            workspace = os.path.abspath(settings.claude_workspace)
+            os.makedirs(workspace, exist_ok=True)
+
+            # Initialize CLI manager
+            allowed_dirs = [settings.allowed_dir] if settings.allowed_dir else []
+            cli_manager = CLISessionManager(
+                workspace_path=workspace,
+                api_url="http://localhost:8082/v1",
+                allowed_dirs=allowed_dirs,
+                max_sessions=settings.max_cli_sessions,
+            )
+
+            # Initialize session store and queue
+            session_store = SessionStore(
+                storage_path=os.path.join(workspace, "sessions.json")
+            )
+            message_queue = MessageQueueManager()
+
+            # Create Telegram platform
             messaging_platform = TelegramPlatform()
+
+            # Create and register message handler
+            message_handler = ClaudeMessageHandler(
+                platform=messaging_platform,
+                cli_manager=cli_manager,
+                session_store=session_store,
+                message_queue=message_queue,
+            )
+
+            # Wire up the handler
+            messaging_platform.on_message(message_handler.handle_message)
+
+            # Start the platform
             await messaging_platform.start()
-            logger.info("Telegram platform started")
-    except ImportError:
-        logger.warning("Messaging module not yet available, skipping Telegram init")
+            logger.info("Telegram platform started with message handler")
+
+    except ImportError as e:
+        logger.warning(f"Messaging module import error: {e}")
     except Exception as e:
         logger.error(f"Failed to start messaging platform: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
 
     # Store in app state for access in routes
     app.state.messaging_platform = messaging_platform
+    app.state.cli_manager = cli_manager
 
     yield
 
     # Cleanup
     if messaging_platform:
         await messaging_platform.stop()
+    if cli_manager:
+        await cli_manager.stop_all()
     await cleanup_provider()
     logger.info("Server shutting down...")
 
