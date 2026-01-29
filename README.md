@@ -25,8 +25,8 @@ Edit `.env`:
 
 ```dotenv
 NVIDIA_NIM_API_KEY=nvapi-your-key-here
-BIG_MODEL=moonshotai/kimi-k2-instruct
-SMALL_MODEL=moonshotai/kimi-k2-instruct
+BIG_MODEL=moonshotai/kimi-k2-thinking
+SMALL_MODEL=moonshotai/kimi-k2-thinking
 ```
 Set Claude-Code to Sonnet for `BIG_MODEL` and Haiku for `SMALL_MODEL` 
 
