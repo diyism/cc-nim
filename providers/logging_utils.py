@@ -27,6 +27,7 @@ def _get_debug_handler() -> RotatingFileHandler:
             maxBytes=10 * 1024 * 1024,  # 10MB
             backupCount=3,
             encoding="utf-8",
+            mode='w'
         )
         _debug_handler.setLevel(logging.DEBUG)
     return _debug_handler
