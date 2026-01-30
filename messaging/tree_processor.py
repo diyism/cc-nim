@@ -26,6 +26,15 @@ class TreeQueueProcessor:
         processor: Callable[[str, MessageNode], Awaitable[None]],
     ) -> None:
         """Process a single node and then check the queue."""
+        # Skip if already in terminal state (e.g. from error propagation)
+        if node.state.value == MessageState.ERROR.value:
+            logger.info(
+                f"Skipping node {node.node_id} as it is already in state {node.state}"
+            )
+            # Still need to check for next messages
+            await self._process_next(tree, processor)
+            return
+
         try:
             await processor(node.node_id, node)
         except asyncio.CancelledError:

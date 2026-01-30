@@ -1,0 +1,107 @@
+import pytest
+from messaging.event_parser import parse_cli_event
+
+
+def test_parse_cli_event_assistant_content():
+    event = {
+        "type": "assistant",
+        "message": {
+            "content": [
+                {"type": "thinking", "thinking": "Internal thought"},
+                {"type": "text", "text": "Hello user"},
+            ]
+        },
+    }
+    results = parse_cli_event(event)
+    assert len(results) == 2
+    assert results[0] == {"type": "thinking", "text": "Internal thought"}
+    assert results[1] == {"type": "content", "text": "Hello user"}
+
+
+def test_parse_cli_event_assistant_tools():
+    event = {
+        "type": "assistant",
+        "message": {
+            "content": [{"type": "tool_use", "name": "ls", "input": {"path": "."}}]
+        },
+    }
+    results = parse_cli_event(event)
+    assert len(results) == 1
+    assert results[0]["type"] == "tool_start"
+    assert results[0]["tools"][0]["name"] == "ls"
+
+
+def test_parse_cli_event_assistant_subagent():
+    event = {
+        "type": "assistant",
+        "message": {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "Task",
+                    "input": {"description": "Fix bug"},
+                }
+            ]
+        },
+    }
+    results = parse_cli_event(event)
+    assert len(results) == 1
+    assert results[0]["type"] == "subagent_start"
+    assert results[0]["tasks"] == ["Fix bug"]
+
+
+def test_parse_cli_event_content_block_delta():
+    # Text delta
+    event_text = {
+        "type": "content_block_delta",
+        "delta": {"type": "text_delta", "text": " more"},
+    }
+    results_text = parse_cli_event(event_text)
+    assert results_text == [{"type": "content", "text": " more"}]
+
+    # Thinking delta
+    event_think = {
+        "type": "content_block_delta",
+        "delta": {"type": "thinking_delta", "thinking": " more thought"},
+    }
+    results_think = parse_cli_event(event_think)
+    assert results_think == [{"type": "thinking", "text": " more thought"}]
+
+
+def test_parse_cli_event_content_block_start():
+    event = {
+        "type": "content_block_start",
+        "content_block": {
+            "type": "tool_use",
+            "name": "Task",
+            "input": {"description": "deploy"},
+        },
+    }
+    results = parse_cli_event(event)
+    assert results == [{"type": "subagent_start", "tasks": ["deploy"]}]
+
+
+def test_parse_cli_event_error():
+    event = {"type": "error", "error": {"message": "something failed"}}
+    results = parse_cli_event(event)
+    assert results == [{"type": "error", "message": "something failed"}]
+
+
+def test_parse_cli_event_exit_success():
+    event = {"type": "exit", "code": 0}
+    results = parse_cli_event(event)
+    assert results == [{"type": "complete", "status": "success"}]
+
+
+def test_parse_cli_event_exit_failure():
+    event = {"type": "exit", "code": 1, "stderr": "fatal error"}
+    results = parse_cli_event(event)
+    assert len(results) == 2
+    assert results[0] == {"type": "error", "message": "fatal error"}
+    assert results[1] == {"type": "complete", "status": "failed"}
+
+
+def test_parse_cli_event_invalid_input():
+    assert parse_cli_event(None) == []
+    assert parse_cli_event("not a dict") == []
+    assert parse_cli_event({"type": "unknown"}) == []

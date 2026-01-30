@@ -9,8 +9,12 @@ os.environ.setdefault("MODEL", "test-model")
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from unittest.mock import AsyncMock, MagicMock
 from providers.base import ProviderConfig
 from providers.nvidia_nim import NvidiaNimProvider
+from messaging.base import CLISession, SessionManagerInterface, MessagingPlatform
+from messaging.models import IncomingMessage
+from messaging.session import SessionStore
 
 
 @pytest.fixture
@@ -26,3 +30,59 @@ def provider_config():
 @pytest.fixture
 def nim_provider(provider_config):
     return NvidiaNimProvider(provider_config)
+
+
+@pytest.fixture
+def mock_cli_session():
+    session = MagicMock(spec=CLISession)
+    session.start_task = MagicMock()  # This will return an async generator
+    session.is_busy = False
+    return session
+
+
+@pytest.fixture
+def mock_cli_manager():
+    manager = MagicMock(spec=SessionManagerInterface)
+    manager.get_or_create_session = AsyncMock()
+    manager.register_real_session_id = AsyncMock(return_value=True)
+    manager.stop_all = AsyncMock()
+    manager.get_stats = MagicMock(
+        return_value={"active_sessions": 0, "max_sessions": 5}
+    )
+    return manager
+
+
+@pytest.fixture
+def mock_platform():
+    platform = MagicMock(spec=MessagingPlatform)
+    platform.send_message = AsyncMock(return_value="msg_123")
+    platform.edit_message = AsyncMock()
+    platform.queue_send_message = AsyncMock(return_value="msg_123")
+    platform.queue_edit_message = AsyncMock()
+    platform.fire_and_forget = MagicMock()
+    return platform
+
+
+@pytest.fixture
+def mock_session_store():
+    store = MagicMock(spec=SessionStore)
+    store.save_tree = MagicMock()
+    store.get_tree = MagicMock(return_value=None)
+    store.register_node = MagicMock()
+    return store
+
+
+@pytest.fixture
+def incoming_message_factory():
+    def _create(**kwargs):
+        defaults = {
+            "text": "hello",
+            "chat_id": "chat_1",
+            "user_id": "user_1",
+            "message_id": "msg_1",
+            "platform": "telegram",
+        }
+        defaults.update(kwargs)
+        return IncomingMessage(**defaults)
+
+    return _create
