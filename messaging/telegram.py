@@ -1,7 +1,7 @@
 """
 Telegram Platform Adapter
 
-Implements MessagingPlatform for Telegram using Telethon.
+Implements MessagingPlatform for Telegram using python-telegram-bot.
 """
 
 import asyncio
@@ -14,71 +14,86 @@ from .models import IncomingMessage
 
 logger = logging.getLogger(__name__)
 
-# Optional import - Telethon may not be installed
+# Optional import - python-telegram-bot may not be installed
 try:
-    from telethon import TelegramClient, events, errors
+    from telegram import Update, Bot
+    from telegram.ext import (
+        Application,
+        CommandHandler,
+        MessageHandler,
+        ContextTypes,
+        filters,
+    )
+    from telegram.error import TelegramError, RetryAfter, NetworkError
 
-    TELETHON_AVAILABLE = True
+    TELEGRAM_AVAILABLE = True
 except ImportError:
-    TelegramClient = None
-    events = None
-    errors = None
-    TELETHON_AVAILABLE = False
+    TELEGRAM_AVAILABLE = False
 
 
 class TelegramPlatform(MessagingPlatform):
     """
     Telegram messaging platform adapter.
 
-    Uses Telethon for Telegram API access.
-    Designed for personal use (sending messages to yourself).
+    Uses python-telegram-bot (BoT API) for Telegram access.
+    Requires a Bot Token from @BotFather.
     """
 
     name = "telegram"
 
     def __init__(
         self,
-        api_id: Optional[str] = None,
-        api_hash: Optional[str] = None,
+        bot_token: Optional[str] = None,
         allowed_user_id: Optional[str] = None,
-        session_path: str = "claude_bot.session",
     ):
-        if not TELETHON_AVAILABLE:
+        if not TELEGRAM_AVAILABLE:
             raise ImportError(
-                "Telethon is required for Telegram support. Install with: pip install telethon"
+                "python-telegram-bot is required. Install with: pip install python-telegram-bot"
             )
 
-        self.api_id = api_id or os.getenv("TELEGRAM_API_ID")
-        self.api_hash = api_hash or os.getenv("TELEGRAM_API_HASH")
+        self.bot_token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN")
         self.allowed_user_id = allowed_user_id or os.getenv("ALLOWED_TELEGRAM_USER_ID")
-        self.session_path = session_path
 
-        self._client: Optional[TelegramClient] = None
+        if not self.bot_token:
+            # We don't raise here to allow instantiation for testing/conditional logic,
+            # but start() will fail.
+            logger.warning("TELEGRAM_BOT_TOKEN not set")
+
+        self._application: Optional[Application] = None
         self._message_handler: Optional[
             Callable[[IncomingMessage], Awaitable[None]]
         ] = None
         self._connected = False
-        # Cache entity objects to avoid flood wait errors
-        self._entity_cache: Dict[str, Any] = {}
-        self._limiter: Optional[GlobalRateLimiter] = None
+        self._limiter: Optional[Any] = None  # Will be GlobalRateLimiter
 
     async def start(self) -> None:
         """Initialize and connect to Telegram."""
-        if not self.api_id or not self.api_hash:
-            raise ValueError("TELEGRAM_API_ID and TELEGRAM_API_HASH are required")
+        if not self.bot_token:
+            raise ValueError("TELEGRAM_BOT_TOKEN is required")
 
-        self._client = TelegramClient(
-            self.session_path,
-            int(self.api_id),
-            self.api_hash,
+        # Build Application
+        builder = Application.builder().token(self.bot_token)
+        self._application = builder.build()
+
+        # Register Internal Handlers
+        # We catch ALL text messages and commands to forward them
+        self._application.add_handler(
+            MessageHandler(filters.TEXT & (~filters.COMMAND), self._on_telegram_message)
+        )
+        self._application.add_handler(CommandHandler("start", self._on_start_command))
+        # Catch-all for other commands if needed, or let them fall through
+        self._application.add_handler(
+            MessageHandler(filters.COMMAND, self._on_telegram_message)
         )
 
-        # Register event handler
-        @self._client.on(events.NewMessage())
-        async def on_new_message(event):
-            await self._handle_event(event)
+        # Initialize internal components
+        await self._application.initialize()
+        await self._application.start()
 
-        await self._client.start()
+        # Start polling (non-blocking way for integration)
+        # allowed_updates=None (all)
+        await self._application.updater.start_polling(drop_pending_updates=False)
+
         self._connected = True
 
         # Initialize rate limiter
@@ -86,64 +101,53 @@ class TelegramPlatform(MessagingPlatform):
 
         self._limiter = await GlobalRateLimiter.get_instance()
 
-        # Run in background
-        asyncio.create_task(self._client.run_until_disconnected())
-
         # Send startup notification
         try:
-            # Use allowed_user_id if set, otherwise "me"
-            target = self.allowed_user_id if self.allowed_user_id else "me"
-            await self.send_message(target, "🚀 **Claude Code Proxy is online!**")
+            target = self.allowed_user_id
+            if target:
+                await self.send_message(
+                    target, "🚀 **Claude Code Proxy is online!** (Bot API)"
+                )
         except Exception as e:
             logger.warning(f"Could not send startup message: {e}")
 
-        logger.info("Telegram platform started")
+        logger.info("Telegram platform started (Bot API)")
 
     async def stop(self) -> None:
-        """Disconnect from Telegram."""
-        if self._client:
-            await self._client.disconnect()
+        """Stop the bot."""
+        if self._application:
+            await self._application.updater.stop()
+            await self._application.stop()
+            await self._application.shutdown()
+
         self._connected = False
         logger.info("Telegram platform stopped")
-
-    async def _get_entity(self, chat_id: str) -> Any:
-        """Get entity object for a chat_id, using cache to avoid flood wait errors."""
-        if chat_id in self._entity_cache:
-            return self._entity_cache[chat_id]
-
-        # Handle special IDs like "me"
-        try:
-            peer = int(chat_id)
-            entity = await self._client.get_input_entity(peer=peer)
-        except (ValueError, TypeError):
-            # Probably "me" or a username
-            entity = await self._client.get_input_entity(chat_id)
-
-        self._entity_cache[chat_id] = entity
-        return entity
 
     async def send_message(
         self,
         chat_id: str,
         text: str,
         reply_to: Optional[str] = None,
-        parse_mode: Optional[str] = None,
+        parse_mode: Optional[str] = "Markdown",
     ) -> str:
         """Send a message to a chat."""
-        if not self._client:
-            raise RuntimeError("Telegram client not connected")
+        if not self._application:
+            raise RuntimeError("Telegram application not initialized")
 
         try:
-            entity = await self._get_entity(chat_id)
-            msg = await self._client.send_message(
-                entity,
-                text,
-                reply_to=int(reply_to) if reply_to else None,
+            msg = await self._application.bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                reply_to_message_id=int(reply_to) if reply_to else None,
                 parse_mode=parse_mode,
             )
-            return str(msg.id)
-        except errors.FloodWaitError as e:
-            logger.error(f"Telegram flood wait: {e.seconds}s")
+            return str(msg.message_id)
+        except RetryAfter as e:
+            logger.warning(f"Rate limited by Telegram, retry in {e.retry_after}s")
+            # In a real system, we might sleep, but for now we propagate or let the caller handle
+            raise
+        except TelegramError as e:
+            logger.error(f"Telegram API Error: {e}")
             raise
 
     async def edit_message(
@@ -151,36 +155,39 @@ class TelegramPlatform(MessagingPlatform):
         chat_id: str,
         message_id: str,
         text: str,
-        parse_mode: Optional[str] = None,
+        parse_mode: Optional[str] = "Markdown",
     ) -> None:
         """Edit an existing message."""
-        if not self._client:
-            raise RuntimeError("Telegram client not connected")
+        if not self._application:
+            raise RuntimeError("Telegram application not initialized")
 
         try:
-            entity = await self._get_entity(chat_id)
-            await self._client.edit_message(
-                entity,
-                int(message_id),
-                text,
+            await self._application.bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=int(message_id),
+                text=text,
                 parse_mode=parse_mode,
             )
-        except errors.FloodWaitError as e:
-            logger.error(f"Telegram flood wait on edit: {e.seconds}s")
+        except RetryAfter as e:
+            logger.warning(f"Rate limited on edit, retry in {e.retry_after}s")
             raise
-        except errors.MessageNotModifiedError:
-            # Message content unchanged, ignore
-            pass
+        except TelegramError as e:
+            if "Message is not modified" in str(e):
+                pass
+            else:
+                logger.error(f"Telegram Edit Error: {e}")
+                raise
 
     async def queue_send_message(
         self,
         chat_id: str,
         text: str,
         reply_to: Optional[str] = None,
-        parse_mode: Optional[str] = None,
+        parse_mode: Optional[str] = "Markdown",
         fire_and_forget: bool = True,
     ) -> Optional[str]:
-        """Enqueue a message to be sent."""
+        """Enqueue a message to be sent (using limiter)."""
+        # Note: Bot API handles limits better, but we still use our limiter for nice queuing
         if not self._limiter:
             return await self.send_message(chat_id, text, reply_to, parse_mode)
 
@@ -198,7 +205,7 @@ class TelegramPlatform(MessagingPlatform):
         chat_id: str,
         message_id: str,
         text: str,
-        parse_mode: Optional[str] = None,
+        parse_mode: Optional[str] = "Markdown",
         fire_and_forget: bool = True,
     ) -> None:
         """Enqueue a message edit."""
@@ -227,37 +234,46 @@ class TelegramPlatform(MessagingPlatform):
 
     @property
     def is_connected(self) -> bool:
-        """Check if connected to Telegram."""
-        return self._connected and self._client is not None
+        """Check if connected."""
+        return self._connected
 
-    async def _handle_event(self, event: Any) -> None:
-        """Handle incoming Telegram event."""
+    async def _on_start_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """Handle /start command."""
+        await update.message.reply_text("👋 Hello! I am the Claude Code Proxy Bot.")
+        # We can also treat this as a message if we want it to trigger something
+        await self._on_telegram_message(update, context)
+
+    async def _on_telegram_message(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """Handle incoming updates."""
+        if not update.message or not update.message.text:
+            return
+
+        user_id = str(update.effective_user.id)
+        chat_id = str(update.effective_chat.id)
+
         # Security check
         if self.allowed_user_id:
-            if str(event.sender_id) != str(self.allowed_user_id).strip():
-                logger.debug(
-                    f"Ignored message from unauthorized user: {event.sender_id}"
-                )
+            if user_id != str(self.allowed_user_id).strip():
+                logger.warning(f"Unauthorized access attempt from {user_id}")
                 return
 
-        if not event.text:
-            return
-
         if not self._message_handler:
-            logger.warning("No message handler registered")
             return
 
-        # Convert to platform-agnostic message
         incoming = IncomingMessage(
-            text=event.text,
-            chat_id=str(event.chat_id),
-            user_id=str(event.sender_id),
-            message_id=str(event.id),
+            text=update.message.text,
+            chat_id=chat_id,
+            user_id=user_id,
+            message_id=str(update.message.message_id),
             platform="telegram",
-            reply_to_message_id=str(event.reply_to_msg_id)
-            if event.reply_to_msg_id
+            reply_to_message_id=str(update.message.reply_to_message.message_id)
+            if update.message.reply_to_message
             else None,
-            raw_event=event,
+            raw_event=update,
         )
 
         try:
@@ -266,7 +282,7 @@ class TelegramPlatform(MessagingPlatform):
             logger.error(f"Error handling message: {e}")
             try:
                 await self.send_message(
-                    incoming.chat_id,
+                    chat_id,
                     f"❌ **Error:** {str(e)[:200]}",
                     reply_to=incoming.message_id,
                 )

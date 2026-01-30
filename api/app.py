@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
     cli_manager = None
 
     try:
-        if settings.telegram_api_id and settings.telegram_api_hash:
+        if settings.telegram_bot_token:
             from messaging.telegram import TelegramPlatform
             from messaging.handler import ClaudeMessageHandler
             from messaging.session import SessionStore
@@ -71,7 +71,8 @@ async def lifespan(app: FastAPI):
 
             # Create Telegram platform
             messaging_platform = TelegramPlatform(
-                session_path=os.path.join(data_path, "claude_bot.session")
+                bot_token=settings.telegram_bot_token,
+                allowed_user_id=settings.allowed_telegram_user_id,
             )
 
             # Create and register message handler

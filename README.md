@@ -28,7 +28,8 @@ NVIDIA_NIM_API_KEY=nvapi-your-key-here
 BIG_MODEL=moonshotai/kimi-k2-thinking
 SMALL_MODEL=moonshotai/kimi-k2-thinking
 ```
-Set Claude-Code to Sonnet for `BIG_MODEL` and Haiku for `SMALL_MODEL` 
+
+Set Claude-Code to Sonnet for `BIG_MODEL` and Haiku for `SMALL_MODEL`
 
 ---
 
@@ -56,17 +57,16 @@ Control Claude Code remotely via Telegram! Send tasks from your phone and watch 
 
 #### Setup
 
-1. **Get Telegram API credentials** from [my.telegram.org](https://my.telegram.org):
-   - Log in with your phone number
-   - Go to "API Development Tools"
-   - Create an app and copy your `api_id` and `api_hash`
+1. **Get a Bot Token**:
+   - Open Telegram and message [@BotFather](https://t.me/BotFather)
+   - Send `/newbot` and follow the prompts
+   - Copy the **HTTP API Token**
 
 2. **Add to `.env`:**
 
 ```dotenv
-TELEGRAM_API_ID=12345678
-TELEGRAM_API_HASH=your_api_hash_here
-TELEGRAM_USER_ID=your_telegram_user_id
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+ALLOWED_TELEGRAM_USER_ID=your_telegram_user_id
 ```
 
 > 💡 To find your Telegram user ID, message [@userinfobot](https://t.me/userinfobot) on Telegram.
@@ -84,11 +84,9 @@ ALLOWED_DIRS=C:/Users/yourname/projects
 uv run uvicorn server:app --host 0.0.0.0 --port 8082
 ```
 
-5. **Authenticate Telegram** (first run only):
-   - The server will prompt for your phone number and code
-   - This creates a `claude_bot.session` file for future runs
-
-#### Usage
+5. **Usage**:
+   - Send `/start` to your bot
+   - Send any text prompt to start a task
 
 - **Send a message** to yourself on Telegram with a task
 - Claude will respond with:
