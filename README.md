@@ -123,7 +123,7 @@ curl "https://integrate.api.nvidia.com/v1/models" > nvidia_nim_models.json
 | `MAX_CLI_SESSIONS`         | Max concurrent CLI sessions   | `10`                                  |
 | `TELEGRAM_BOT_TOKEN`       | Telegram Bot Token            | `""`                                  |
 | `ALLOWED_TELEGRAM_USER_ID` | Allowed Telegram User ID      | `""`                                  |
-| `MESSAGING_RATE_LIMIT`     | Telegram messages per window  | `10`                                  |
+| `MESSAGING_RATE_LIMIT`     | Telegram messages per window  | `1`                                  |
 | `MESSAGING_RATE_WINDOW`    | Messaging window (seconds)    | `1`                                   |
 | `NVIDIA_NIM_RATE_LIMIT`    | API requests per window       | `40`                                  |
 | `NVIDIA_NIM_RATE_WINDOW`   | Rate limit window (seconds)   | `60`                                  |
