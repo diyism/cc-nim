@@ -10,7 +10,7 @@ Use **Claude Code CLI for free** with NVIDIA NIM's free unlimited 40 reqs/min AP
 2. Install [claude-code](https://github.com/anthropics/claude-code)
 3. Install [uv](https://github.com/astral-sh/uv)
 
-### 2. Install & Configure
+### 2. Clone & Configure
 
 ```bash
 git clone https://github.com/Alishahryar1/cc-nim.git
