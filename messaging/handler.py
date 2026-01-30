@@ -96,9 +96,7 @@ class ClaudeMessageHandler:
         status_msg_id = await self.platform.send_message(
             incoming.chat_id,
             status_text,
-            reply_to=incoming.message_id
-            if incoming.message_id != incoming.message_id
-            else None,
+            reply_to=incoming.message_id if incoming.message_id != incoming.message_id else None,
         )
 
         # Create or extend tree
@@ -184,26 +182,37 @@ class ClaudeMessageHandler:
             nonlocal last_ui_update
             now = time.time()
 
-            # Match UI debounce with platform rate limits to prevent queue bloat
-            # Default to 1.0s if rate_window is not available
-            debounce = getattr(self.platform, "rate_window", 1.0)
-            if not force and now - last_ui_update < debounce:
+            # Small 1s debounce for UI sanity (not a hard rate limit)
+            if not force and now - last_ui_update < 1.0:
                 return
 
-            try:
-                display = self._build_message(components, status)
-                if display:
-                    # The platform is wrapped in RateLimitedPlatform, so it will wait
-                    # if globally rate limited or paused.
-                    await self.platform.edit_message(
-                        chat_id, status_msg_id, display, parse_mode="markdown"
-                    )
-                    last_ui_update = now
-            except Exception as e:
-                # Log error but don't crash the handler
-                logger.error(f"UI update failed: {e}")
-                # Don't immediate retry, wait for next scheduled update
-                last_ui_update = now
+            # Retry logic for flood wait errors
+            max_retries = 3 if not force else 5
+            for attempt in range(max_retries):
+                try:
+                    display = self._build_message(components, status)
+                    if display:
+                        await self.platform.edit_message(
+                            chat_id, status_msg_id, display, parse_mode="markdown"
+                        )
+                        last_ui_update = now
+                        return  # Success, exit retry loop
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    is_flood_error = "flood" in error_msg or "wait" in error_msg
+                    
+                    if is_flood_error and attempt < max_retries - 1:
+                        # Wait before retry on flood error
+                        wait_time = 2 ** attempt  # Exponential backoff: 2s, 4s, 8s
+                        logger.warning(f"Flood wait on edit (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        # Log and give up after retries or if not a flood error
+                        if is_flood_error:
+                            last_ui_update = now + 10  # Skip for 10s on persistent flood error
+                        logger.error(f"UI update failed after {attempt + 1} attempts: {e}")
+                        return
 
         try:
             # Get or create CLI session
@@ -235,9 +244,7 @@ class ClaudeMessageHandler:
                 incoming.text, session_id=captured_session_id
             ):
                 if not isinstance(event_data, dict):
-                    logger.warning(
-                        f"HANDLER: Non-dict event received: {type(event_data)}"
-                    )
+                    logger.warning(f"HANDLER: Non-dict event received: {type(event_data)}")
                     continue
                 event_count += 1
                 if event_count % 10 == 0:
@@ -295,9 +302,7 @@ class ClaudeMessageHandler:
 
                     elif parsed["type"] == "error":
                         error_msg = parsed.get("message", "Unknown error")
-                        logger.error(
-                            f"HANDLER: Error event received: {error_msg[:200]}"
-                        )
+                        logger.error(f"HANDLER: Error event received: {error_msg[:200]}")
                         components["errors"].append(error_msg)
                         logger.info(f"HANDLER: Updating UI with error status")
                         # Always force error status to bypass flood wait
@@ -341,9 +346,7 @@ class ClaudeMessageHandler:
                     except Exception as e:
                         logger.error(f"Failed to update child status: {e}")
         except Exception as e:
-            logger.error(
-                f"HANDLER: Task failed with exception: {type(e).__name__}: {e}"
-            )
+            logger.error(f"HANDLER: Task failed with exception: {type(e).__name__}: {e}")
             error_msg = str(e)[:200]
             components["errors"].append(error_msg)
             # Always force error status to bypass flood wait
@@ -365,9 +368,7 @@ class ClaudeMessageHandler:
                     except Exception as e:
                         logger.error(f"Failed to update child status: {e}")
         finally:
-            logger.info(
-                f"HANDLER: _process_node completed for node {node_id}, errors={len(components['errors'])}"
-            )
+            logger.info(f"HANDLER: _process_node completed for node {node_id}, errors={len(components['errors'])}")
 
     def _build_message(
         self,
