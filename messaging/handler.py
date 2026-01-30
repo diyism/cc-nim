@@ -44,7 +44,6 @@ class ClaudeMessageHandler:
         self.cli_manager = cli_manager
         self.session_store = session_store
         self.tree_queue = TreeQueueManager()
-        self._flood_wait_until = 0
 
     async def handle_message(self, incoming: IncomingMessage) -> None:
         """
@@ -183,9 +182,7 @@ class ClaudeMessageHandler:
             nonlocal last_ui_update
             now = time.time()
 
-            if now < self._flood_wait_until:
-                return
-
+            # Small 1s debounce for UI sanity (not a hard rate limit)
             if not force and now - last_ui_update < 1.0:
                 return
 
@@ -197,6 +194,10 @@ class ClaudeMessageHandler:
                     )
                     last_ui_update = now
             except Exception as e:
+                # Log but don't crash the task
+                if "flood" in str(e).lower() or "wait" in str(e).lower():
+                    # Set a temporary skip to avoid spamming the log if we're flooded
+                    last_ui_update = now + 10  # Skip for 10s on flood error
                 logger.error(f"UI update failed: {e}")
 
         try:
@@ -277,32 +278,66 @@ class ClaudeMessageHandler:
                             self.session_store.save_tree(tree.root_id, tree.to_dict())
 
                     elif parsed["type"] == "error":
-                        components["errors"].append(
-                            parsed.get("message", "Unknown error")
-                        )
+                        error_msg = parsed.get("message", "Unknown error")
+                        components["errors"].append(error_msg)
                         await update_ui("❌ **Error**", force=True)
                         if tree:
-                            await tree.update_state(
-                                node_id,
-                                MessageState.ERROR,
-                                error_message=parsed.get("message"),
+                            # Mark this node and propagate to pending children
+                            affected = await self.tree_queue.mark_node_error(
+                                node_id, error_msg, propagate_to_children=True
                             )
+                            # Update status messages for all affected children
+                            for child in affected[1:]:  # Skip first (current node)
+                                try:
+                                    await self.platform.edit_message(
+                                        child.incoming.chat_id,
+                                        child.status_message_id,
+                                        f"❌ **Cancelled:** Parent task failed",
+                                        parse_mode="markdown",
+                                    )
+                                except Exception as e:
+                                    logger.error(f"Failed to update child status: {e}")
 
         except asyncio.CancelledError:
             components["errors"].append("Task was cancelled")
             await update_ui("❌ **Cancelled**", force=True)
             if tree:
-                await tree.update_state(
-                    node_id, MessageState.ERROR, error_message="Cancelled"
+                # Mark this node and propagate to pending children
+                affected = await self.tree_queue.mark_node_error(
+                    node_id, "Cancelled by user", propagate_to_children=True
                 )
+                # Update status messages for all affected children
+                for child in affected[1:]:
+                    try:
+                        await self.platform.edit_message(
+                            child.incoming.chat_id,
+                            child.status_message_id,
+                            f"❌ **Cancelled:** Parent task was stopped",
+                            parse_mode="markdown",
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to update child status: {e}")
         except Exception as e:
             logger.error(f"Task failed: {e}")
-            components["errors"].append(str(e)[:200])
+            error_msg = str(e)[:200]
+            components["errors"].append(error_msg)
             await update_ui("💥 **Task Failed**", force=True)
             if tree:
-                await tree.update_state(
-                    node_id, MessageState.ERROR, error_message=str(e)[:200]
+                # Mark this node and propagate to pending children
+                affected = await self.tree_queue.mark_node_error(
+                    node_id, error_msg, propagate_to_children=True
                 )
+                # Update status messages for all affected children
+                for child in affected[1:]:
+                    try:
+                        await self.platform.edit_message(
+                            child.incoming.chat_id,
+                            child.status_message_id,
+                            f"❌ **Cancelled:** Parent task failed",
+                            parse_mode="markdown",
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to update child status: {e}")
 
     def _build_message(
         self,
@@ -388,12 +423,22 @@ class ClaudeMessageHandler:
     async def stop_all_tasks(self) -> int:
         """
         Stop all pending and in-progress tasks.
-        Updates status messages for all affected nodes.
+
+        Order of operations:
+        1. Stop CLI sessions first (kills subprocesses, unblocks I/O)
+        2. Cancel async tasks in tree queue
+        3. Update UI for all affected nodes
         """
-        cancelled_nodes = await self.tree_queue.cancel_all()
+        # 1. Stop CLI sessions FIRST - this kills subprocess and unblocks I/O
+        logger.info("Stopping all CLI sessions...")
         await self.cli_manager.stop_all()
 
-        # Update UI for all cancelled nodes
+        # 2. Cancel tree queue tasks (now they should unblock immediately)
+        logger.info("Cancelling tree queue tasks...")
+        cancelled_nodes = await self.tree_queue.cancel_all()
+        logger.info(f"Cancelled {len(cancelled_nodes)} nodes")
+
+        # 3. Update UI for all cancelled nodes
         for node in cancelled_nodes:
             try:
                 await self.platform.edit_message(

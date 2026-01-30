@@ -11,7 +11,6 @@ from httpx import TimeoutException, ReadTimeout, ConnectTimeout
 
 from .base import BaseProvider, ProviderConfig
 from .utils import (
-    SlidingWindowRateLimiter,
     SSEBuilder,
     map_stop_reason,
     ThinkTagParser,
@@ -28,6 +27,7 @@ from .exceptions import (
     OverloadedError,
     APIError,
 )
+from .rate_limit import GlobalRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +43,7 @@ class NvidiaNimProvider(BaseProvider):
             or os.getenv("NVIDIA_NIM_BASE_URL", "https://integrate.api.nvidia.com/v1")
         ).rstrip("/")
         self._nim_params = self._load_nim_params()
-        self._rate_limiter = SlidingWindowRateLimiter(
-            rate_limit=config.rate_limit or 40,
-            window_seconds=config.rate_window or 60,
-        )
+        self._global_rate_limiter = GlobalRateLimiter.get_instance()
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(300.0, connect=30.0, read=60.0),
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
@@ -110,7 +107,8 @@ class NvidiaNimProvider(BaseProvider):
         self, request: Any, input_tokens: int = 0
     ) -> AsyncIterator[str]:
         """Stream response in Anthropic SSE format."""
-        await self._rate_limiter.acquire()
+        # Wait if globally rate limited
+        await self._global_rate_limiter.wait_if_blocked()
 
         body = self._build_request_body(request, stream=True)
         # Log compact request summary
@@ -289,6 +287,8 @@ class NvidiaNimProvider(BaseProvider):
         if response_status == 401:
             return AuthenticationError(message, raw_error=error_text)
         if response_status == 429:
+            # Trigger global rate limit block
+            self._global_rate_limiter.set_blocked(60)  # Default 60s cooldown
             return RateLimitError(message, raw_error=error_text)
         if response_status in (400, 422):
             return InvalidRequestError(message, raw_error=error_text)
@@ -390,7 +390,8 @@ class NvidiaNimProvider(BaseProvider):
 
     async def complete(self, request: Any) -> dict:
         """Make a non-streaming completion request."""
-        await self._rate_limiter.acquire()
+        # Wait if globally rate limited
+        await self._global_rate_limiter.wait_if_blocked()
 
         body = self._build_request_body(request, stream=False)
         # Log compact request summary

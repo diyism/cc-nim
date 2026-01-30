@@ -104,11 +104,16 @@ class CLIParser:
             msg = err.get("message") if isinstance(err, dict) else str(err)
             return [{"type": "error", "message": msg}]
         elif etype == "exit":
-            return [
-                {
-                    "type": "complete",
-                    "status": "success" if event.get("code") == 0 else "failed",
-                }
-            ]
+            code = event.get("code", 0)
+            stderr = event.get("stderr")
+            if code == 0:
+                return [{"type": "complete", "status": "success"}]
+            else:
+                # Non-zero exit is an error
+                error_msg = stderr if stderr else f"Process exited with code {code}"
+                return [
+                    {"type": "error", "message": error_msg},
+                    {"type": "complete", "status": "failed"},
+                ]
 
         return []

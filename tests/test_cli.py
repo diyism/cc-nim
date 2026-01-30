@@ -124,13 +124,20 @@ class TestCLIParser:
         assert result[0]["status"] == "success"
 
     def test_parse_exit_failure(self):
-        """Test parsing exit event with failure."""
+        """Test parsing exit event with failure returns error then complete."""
         from cli.parser import CLIParser
 
         event = {"type": "exit", "code": 1}
         result = CLIParser.parse_event(event)
-        assert result[0]["type"] == "complete"
-        assert result[0]["status"] == "failed"
+        # Non-zero exit now returns error first, then complete
+        assert len(result) == 2
+        assert result[0]["type"] == "error"
+        assert (
+            "exit" in result[0]["message"].lower()
+            or "code" in result[0]["message"].lower()
+        )
+        assert result[1]["type"] == "complete"
+        assert result[1]["status"] == "failed"
 
     def test_parse_invalid_event(self):
         """Test parsing returns empty list for unrecognized event."""

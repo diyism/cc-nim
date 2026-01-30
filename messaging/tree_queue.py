@@ -542,12 +542,77 @@ class TreeQueueManager:
         tree = self.get_tree_for_node(node_id)
         return tree.get_queue_size() if tree else 0
 
-    def cancel_tree(self, root_id: str) -> List[MessageNode]:
+    def get_pending_children(self, node_id: str) -> List[MessageNode]:
         """
-        Cancel all queued messages in a tree.
+        Get all pending child nodes (recursively) of a given node.
+
+        Used for error propagation - when a node fails, its pending
+        children should also be marked as failed.
+        """
+        tree = self.get_tree_for_node(node_id)
+        if not tree:
+            return []
+
+        pending = []
+        node = tree.get_node(node_id)
+        if not node:
+            return []
+
+        for child_id in node.children_ids:
+            child = tree.get_node(child_id)
+            if child and child.state == MessageState.PENDING:
+                pending.append(child)
+                # Recursively get children of pending children
+                pending.extend(self.get_pending_children(child_id))
+
+        return pending
+
+    async def mark_node_error(
+        self,
+        node_id: str,
+        error_message: str,
+        propagate_to_children: bool = True,
+    ) -> List[MessageNode]:
+        """
+        Mark a node as ERROR and optionally propagate to pending children.
+
+        Args:
+            node_id: The node to mark as error
+            error_message: Error description
+            propagate_to_children: If True, also mark pending children as error
 
         Returns:
-            List of cancelled nodes
+            List of all nodes marked as error (including children)
+        """
+        tree = self.get_tree_for_node(node_id)
+        if not tree:
+            return []
+
+        affected = []
+        node = tree.get_node(node_id)
+        if node:
+            await tree.update_state(
+                node_id, MessageState.ERROR, error_message=error_message
+            )
+            affected.append(node)
+
+            if propagate_to_children:
+                pending_children = self.get_pending_children(node_id)
+                for child in pending_children:
+                    await tree.update_state(
+                        child.node_id,
+                        MessageState.ERROR,
+                        error_message=f"Parent failed: {error_message}",
+                    )
+                    affected.append(child)
+
+        return affected
+
+    def cancel_tree(self, root_id: str) -> List[MessageNode]:
+        """
+        Cancel all queued and in-progress messages in a tree.
+
+        Updates node states to ERROR and returns list of affected nodes.
         """
         tree = self._trees.get(root_id)
         if not tree:
@@ -560,18 +625,32 @@ class TreeQueueManager:
             tree._current_task.cancel()
             if tree._current_node_id:
                 node = tree.get_node(tree._current_node_id)
-                if node:
+                if node and node.state not in (
+                    MessageState.COMPLETED,
+                    MessageState.ERROR,
+                ):
+                    node.state = MessageState.ERROR
+                    node.error_message = "Cancelled by user"
                     cancelled_nodes.append(node)
 
-        # Clear queue
+        # Clear queue and update states
         while not tree._queue.empty():
             try:
                 node_id = tree._queue.get_nowait()
                 node = tree.get_node(node_id)
                 if node:
+                    node.state = MessageState.ERROR
+                    node.error_message = "Cancelled by user"
                     cancelled_nodes.append(node)
             except asyncio.QueueEmpty:
                 break
+
+        # Also cancel any PENDING nodes that weren't in queue
+        for node in tree.all_nodes():
+            if node.state == MessageState.PENDING and node not in cancelled_nodes:
+                node.state = MessageState.ERROR
+                node.error_message = "Cancelled by user"
+                cancelled_nodes.append(node)
 
         tree._is_processing = False
         tree._current_node_id = None

@@ -139,16 +139,25 @@ class CLISession:
                                     session_id_extracted = True
                                 yield event
 
+                stderr_text = None
                 if self.process.stderr:
                     stderr_output = await self.process.stderr.read()
                     if stderr_output:
-                        logger.error(
-                            f"Claude CLI Stderr: {stderr_output.decode('utf-8', errors='replace')}"
-                        )
+                        stderr_text = stderr_output.decode(
+                            "utf-8", errors="replace"
+                        ).strip()
+                        logger.error(f"Claude CLI Stderr: {stderr_text}")
+                        # Yield stderr as error event so it shows in UI
+                        if stderr_text:
+                            yield {"type": "error", "error": {"message": stderr_text}}
 
                 return_code = await self.process.wait()
                 logger.info(f"Claude CLI exited with code {return_code}")
-                yield {"type": "exit", "code": return_code}
+                yield {
+                    "type": "exit",
+                    "code": return_code,
+                    "stderr": stderr_text,
+                }
             finally:
                 self._is_busy = False
 
