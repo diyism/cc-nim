@@ -7,7 +7,7 @@ import uuid
 from typing import Dict, Any, AsyncIterator
 
 import httpx
-from httpx import TimeoutException, ReadTimeout, ConnectTimeout
+from httpx import TimeoutException, ConnectTimeout
 
 from .base import BaseProvider, ProviderConfig
 from .utils import (
@@ -107,21 +107,19 @@ class NvidiaNimProvider(BaseProvider):
         self, request: Any, input_tokens: int = 0
     ) -> AsyncIterator[str]:
         """Stream response in Anthropic SSE format."""
-        # Wait if globally rate limited
-        blocked = await self._global_rate_limiter.wait_if_blocked()
-        if blocked:
-            # Yield error event for rate limit blocking
+        # Wait if globally rate limited (proactive throttle + reactive block)
+        waited_reactively = await self._global_rate_limiter.wait_if_blocked()
+
+        if waited_reactively:
+            # Yield error event for reactive rate limit blocking (user feedback)
             message_id = f"msg_{uuid.uuid4()}"
             sse = SSEBuilder(message_id, request.model, input_tokens)
-            error_msg = "⏱️ Rate limit exceeded. Please try again in a minute."
-            logger.warning(f"NIM_STREAM: Rate limit blocked, yielding error event")
+            error_msg = "⏱️ Global rate limit active. Resuming now..."
+            logger.info(f"NIM_STREAM: Reactive block detected, notified user")
             yield sse.message_start()
             for event in sse.emit_error(error_msg):
                 yield event
-            yield sse.message_delta("stop", 0)
-            yield sse.message_stop()
-            yield sse.done()
-            return
+            # After notification, we continue to the actual request
 
         body = self._build_request_body(request, stream=True)
         # Log compact request summary
@@ -228,13 +226,13 @@ class NvidiaNimProvider(BaseProvider):
             logger.error(f"NIM_ERROR: {type(e).__name__}: {e}")
             error_occurred = True
             error_message = str(e)
-            logger.info(f"NIM_STREAM: Emitting SSE error event for exception")
+            logger.info("NIM_STREAM: Emitting SSE error event for exception")
 
         # Handle errors
         if error_occurred:
             for event in sse.emit_error(error_message):
                 yield event
-            logger.info(f"NIM_STREAM: Error event yielded, total events emitted")
+            logger.info("NIM_STREAM: Error event yielded, total events emitted")
 
         # Flush remaining content from parsers
         remaining = think_parser.flush()
@@ -406,13 +404,8 @@ class NvidiaNimProvider(BaseProvider):
 
     async def complete(self, request: Any) -> dict:
         """Make a non-streaming completion request."""
-        # Wait if globally rate limited
-        wait_time = await self._global_rate_limiter.wait_if_blocked()
-        if wait_time > 0:
-            # Raise error for rate limit blocking in non-streaming mode
-            error_msg = "⏱️ Rate limit exceeded. Please try again in a minute."
-            logger.warning(f"NIM_COMPLETE: Rate limit blocked for {wait_time:.1f}s, raising error")
-            raise APIError(error_msg, status_code=429)
+        # Wait if globally rate limited (proactive throttle + reactive block)
+        await self._global_rate_limiter.wait_if_blocked()
 
         body = self._build_request_body(request, stream=False)
         # Log compact request summary

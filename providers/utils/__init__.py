@@ -1,6 +1,5 @@
 """Utility modules for providers."""
 
-from .rate_limiter import SlidingWindowRateLimiter
 from .sse_builder import SSEBuilder, ContentBlockManager, map_stop_reason
 from .think_parser import (
     ThinkTagParser,
@@ -17,7 +16,6 @@ from .message_converter import (
 )
 
 __all__ = [
-    "SlidingWindowRateLimiter",
     "SSEBuilder",
     "ContentBlockManager",
     "map_stop_reason",
