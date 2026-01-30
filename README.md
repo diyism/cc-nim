@@ -25,11 +25,10 @@ Edit `.env`:
 
 ```dotenv
 NVIDIA_NIM_API_KEY=nvapi-your-key-here
-BIG_MODEL=moonshotai/kimi-k2-thinking
-SMALL_MODEL=moonshotai/kimi-k2-thinking
+MODEL=moonshotai/kimi-k2-thinking
 ```
 
-Set Claude-Code to Sonnet for `BIG_MODEL` and Haiku for `SMALL_MODEL`
+All Claude Code model requests are mapped to `MODEL`.
 
 ---
 
@@ -118,14 +117,22 @@ curl "https://integrate.api.nvidia.com/v1/models" > nvidia_nim_models.json
 
 ## Configuration
 
-| Variable                 | Description                    | Default                               |
-| ------------------------ | ------------------------------ | ------------------------------------- |
-| `NVIDIA_NIM_API_KEY`     | Your NVIDIA API key            | required                              |
-| `BIG_MODEL`              | Model for Sonnet/Opus requests | `moonshotai/kimi-k2-thinking`         |
-| `SMALL_MODEL`            | Model for Haiku requests       | `moonshotai/kimi-k2-thinking`         |
-| `NVIDIA_NIM_BASE_URL`    | NIM endpoint                   | `https://integrate.api.nvidia.com/v1` |
-| `NVIDIA_NIM_RATE_LIMIT`  | Requests per window            | `40`                                  |
-| `NVIDIA_NIM_RATE_WINDOW` | Rate limit window (seconds)    | `60`                                  |
+| Variable                   | Description                   | Default                               |
+| -------------------------- | ----------------------------- | ------------------------------------- |
+| `NVIDIA_NIM_API_KEY`       | Your NVIDIA API key           | required                              |
+| `MODEL`                    | Model to use for all requests | `moonshotai/kimi-k2-thinking`         |
+| `NVIDIA_NIM_BASE_URL`      | NIM endpoint                  | `https://integrate.api.nvidia.com/v1` |
+| `CLAUDE_WORKSPACE`         | Directory for agent workspace | `./agent_workspace`                   |
+| `ALLOWED_DIR`              | Allowed directories for agent | `""`                                  |
+| `MAX_CLI_SESSIONS`         | Max concurrent CLI sessions   | `10`                                  |
+| `TELEGRAM_BOT_TOKEN`       | Telegram Bot Token            | `""`                                  |
+| `ALLOWED_TELEGRAM_USER_ID` | Allowed Telegram User ID      | `""`                                  |
+| `MESSAGING_RATE_LIMIT`     | Telegram messages per window  | `10`                                  |
+| `MESSAGING_RATE_WINDOW`    | Messaging window (seconds)    | `1`                                   |
+| `NVIDIA_NIM_RATE_LIMIT`    | API requests per window       | `40`                                  |
+| `NVIDIA_NIM_RATE_WINDOW`   | Rate limit window (seconds)   | `60`                                  |
+| `NVIDIA_NIM_TEMPERATURE`   | Model temperature             | `1.0`                                 |
+| `NVIDIA_NIM_MAX_TOKENS`    | Max tokens for generation     | `81920`                               |
 
 See [`.env.example`](.env.example) for all supported parameters.
 
