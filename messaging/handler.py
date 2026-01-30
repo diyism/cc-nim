@@ -100,6 +100,11 @@ class ClaudeMessageHandler:
         # Determine session ID for queuing
         if session_id_to_resume:
             queue_session_id = session_id_to_resume
+            # Index current messages immediately so they can be replied to even while queued
+            self.session_store.update_last_message(
+                queue_session_id, incoming.message_id
+            )
+            self.session_store.update_last_message(queue_session_id, status_msg_id)
         else:
             # New session - use temp ID
             queue_session_id = f"pending_{incoming.message_id}"
@@ -139,14 +144,19 @@ class ClaudeMessageHandler:
         }
 
         last_ui_update = 0.0
-        captured_session_id = (
-            session_id_to_resume
-            if not session_id_to_resume.startswith("pending_")
-            else None
-        )
+        captured_session_id = None
+        if session_id_to_resume:
+            if session_id_to_resume.startswith("pending_"):
+                # Check if it was already resolved earlier
+                captured_session_id = await self.cli_manager.get_real_session_id(
+                    session_id_to_resume
+                )
+            else:
+                captured_session_id = session_id_to_resume
+
         temp_session_id = (
             session_id_to_resume
-            if session_id_to_resume.startswith("pending_")
+            if session_id_to_resume and session_id_to_resume.startswith("pending_")
             else None
         )
 
@@ -201,16 +211,16 @@ class ClaudeMessageHandler:
                 if event_data.get("type") == "session_info":
                     real_session_id = event_data.get("session_id")
                     if real_session_id and temp_session_id:
+                        # 1. Update CLI Manager mapping
                         await self.cli_manager.register_real_session_id(
                             temp_session_id, real_session_id
                         )
-                        captured_session_id = real_session_id
-                        self.session_store.save_session(
-                            session_id=real_session_id,
-                            chat_id=chat_id,
-                            initial_msg_id=incoming.message_id,
-                            platform=incoming.platform,
+                        # 2. Update Session Store (properly migrates all messages)
+                        self.session_store.rename_session(
+                            temp_session_id, real_session_id
                         )
+                        captured_session_id = real_session_id
+                        temp_session_id = None  # Resolved
                     continue
 
                 parsed_list = CLIParser.parse_event(event_data)

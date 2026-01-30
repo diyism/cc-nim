@@ -179,6 +179,36 @@ class SessionStore:
             self._save()
             logger.debug(f"Updated session {session_id} last_msg to {msg_id}")
 
+    def rename_session(self, old_id: str, new_id: str) -> bool:
+        """
+        Rename a session ID, migrating all message mappings.
+
+        This is crucial for handing over "pending_" sessions to real Claude session IDs.
+        """
+        with self._lock:
+            if old_id not in self._sessions:
+                logger.warning(f"Session {old_id} not found for rename to {new_id}")
+                return False
+
+            # Transfer record
+            record = self._sessions.pop(old_id)
+            record.session_id = new_id
+            record.updated_at = datetime.utcnow().isoformat()
+            self._sessions[new_id] = record
+
+            # Update all message mappings pointing to the old ID
+            items_to_update = [
+                k for k, v in self._msg_to_session.items() if v == old_id
+            ]
+            for key in items_to_update:
+                self._msg_to_session[key] = new_id
+
+            self._save()
+            logger.info(
+                f"Renamed session {old_id} to {new_id} ({len(items_to_update)} mappings updated)"
+            )
+            return True
+
     def get_session_record(self, session_id: str) -> Optional[SessionRecord]:
         """Get full session record."""
         with self._lock:
