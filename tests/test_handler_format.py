@@ -8,8 +8,7 @@ def handler():
     platform = MagicMock()
     cli = MagicMock()
     store = MagicMock()
-    queue = MagicMock()
-    return ClaudeMessageHandler(platform, cli, store, queue)
+    return ClaudeMessageHandler(platform, cli, store)
 
 
 def test_build_message_structure(handler):

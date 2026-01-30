@@ -3,19 +3,19 @@ Claude Message Handler
 
 Platform-agnostic Claude interaction logic.
 Handles the core workflow of processing user messages via Claude CLI.
+Uses tree-based queuing for message ordering.
 """
 
 import time
 import asyncio
 import logging
-from typing import Optional, List, Tuple, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from .base import MessagingPlatform
-from .models import IncomingMessage, MessageContext
+from .models import IncomingMessage
 from .session import SessionStore
-from .queue import MessageQueueManager, QueuedMessage
-from cli import CLISession, CLISessionManager, CLIParser
-from config.settings import get_settings
+from .tree_queue import TreeQueueManager, MessageNode, MessageState
+from cli import CLISessionManager, CLIParser
 
 if TYPE_CHECKING:
     pass
@@ -27,13 +27,11 @@ class ClaudeMessageHandler:
     """
     Platform-agnostic handler for Claude interactions.
 
-    This class contains the core logic for:
-    - Processing user messages
-    - Managing Claude CLI sessions
-    - Updating status messages
-    - Handling tool calls and thinking
-
-    It works with any MessagingPlatform implementation.
+    Uses a tree-based message queue where:
+    - New messages create a tree root
+    - Replies become children of the message being replied to
+    - Each node has state: PENDING, IN_PROGRESS, COMPLETED, ERROR
+    - Per-tree queue ensures ordered processing
     """
 
     def __init__(
@@ -41,20 +39,19 @@ class ClaudeMessageHandler:
         platform: MessagingPlatform,
         cli_manager: CLISessionManager,
         session_store: SessionStore,
-        message_queue: MessageQueueManager,
     ):
         self.platform = platform
         self.cli_manager = cli_manager
         self.session_store = session_store
-        self.message_queue = message_queue
+        self.tree_queue = TreeQueueManager()
         self._flood_wait_until = 0
 
     async def handle_message(self, incoming: IncomingMessage) -> None:
         """
         Main entry point for handling an incoming message.
 
-        Determines if this is a new session or continuation,
-        sends status message, and queues for processing.
+        Determines if this is a new conversation or reply,
+        creates/extends the message tree, and queues for processing.
         """
         # Check for commands
         if incoming.text == "/stop":
@@ -72,99 +69,120 @@ class ClaudeMessageHandler:
         ):
             return
 
-        # Check if this is a reply to an existing conversation
-        session_id_to_resume = None
+        # Check if this is a reply to an existing node in a tree
+        parent_node_id = None
+        tree = None
+
         if incoming.is_reply():
-            session_id_to_resume = self.session_store.get_session_by_msg(
-                incoming.chat_id,
-                incoming.reply_to_message_id,
-                incoming.platform,
-            )
-            if session_id_to_resume:
-                logger.info(f"Found session {session_id_to_resume} for reply")
+            # Look up if the replied-to message is in any tree (could be a node or status message)
+            tree = self.tree_queue.get_tree_for_node(incoming.reply_to_message_id)
+            if tree:
+                # Resolve to actual node ID (handles status message replies)
+                parent_node_id = self.tree_queue.resolve_parent_node_id(
+                    incoming.reply_to_message_id
+                )
+                if parent_node_id:
+                    logger.info(f"Found tree for reply, parent node: {parent_node_id}")
+                else:
+                    logger.warning(
+                        f"Reply to {incoming.reply_to_message_id} found tree but no valid parent node"
+                    )
+                    tree = None  # Treat as new conversation
+
+        # Generate node ID
+        node_id = incoming.message_id
 
         # Send initial status message
-        status_text = self._get_initial_status(session_id_to_resume)
+        status_text = self._get_initial_status(tree, parent_node_id)
         status_msg_id = await self.platform.send_message(
             incoming.chat_id,
             status_text,
             reply_to=incoming.message_id,
         )
 
-        # Create queued message
-        queued = QueuedMessage(
-            incoming=incoming,
-            status_message_id=status_msg_id,
-        )
-
-        # Determine session ID for queuing
-        if session_id_to_resume:
-            queue_session_id = session_id_to_resume
-            # Index current messages immediately so they can be replied to even while queued
-            self.session_store.update_last_message(
-                queue_session_id, incoming.message_id
+        # Create or extend tree
+        if parent_node_id and tree:
+            # Reply to existing node - add as child
+            tree, node = await self.tree_queue.add_to_tree(
+                parent_node_id=parent_node_id,
+                node_id=node_id,
+                incoming=incoming,
+                status_message_id=status_msg_id,
             )
-            self.session_store.update_last_message(queue_session_id, status_msg_id)
+            # Register status message as a node too for reply chains
+            self.tree_queue.register_node(status_msg_id, tree.root_id)
+            self.session_store.register_node(status_msg_id, tree.root_id)
+            self.session_store.register_node(node_id, tree.root_id)
         else:
-            # New session - use temp ID
-            queue_session_id = f"pending_{incoming.message_id}"
-            # Pre-register so replies work immediately
-            self.session_store.save_session(
-                session_id=queue_session_id,
-                chat_id=incoming.chat_id,
-                initial_msg_id=incoming.message_id,
-                platform=incoming.platform,
+            # New conversation - create new tree
+            tree = await self.tree_queue.create_tree(
+                node_id=node_id,
+                incoming=incoming,
+                status_message_id=status_msg_id,
             )
-            self.session_store.update_last_message(queue_session_id, status_msg_id)
+            # Register status message
+            self.tree_queue.register_node(status_msg_id, tree.root_id)
+            self.session_store.register_node(node_id, tree.root_id)
+            self.session_store.register_node(status_msg_id, tree.root_id)
+
+        # Persist tree
+        self.session_store.save_tree(tree.root_id, tree.to_dict())
 
         # Enqueue for processing
-        await self.message_queue.enqueue(
-            session_id=queue_session_id,
-            message=queued,
-            processor=self._process_task,
+        was_queued = await self.tree_queue.enqueue(
+            node_id=node_id,
+            processor=self._process_node,
         )
 
-    async def _process_task(
+        if was_queued:
+            # Update status to show queue position
+            queue_size = self.tree_queue.get_queue_size(node_id)
+            await self.platform.edit_message(
+                incoming.chat_id,
+                status_msg_id,
+                f"📋 **Queued** (position {queue_size}) - waiting...",
+                parse_mode="markdown",
+            )
+
+    async def _process_node(
         self,
-        session_id_to_resume: Optional[str],
-        queued: QueuedMessage,
+        node_id: str,
+        node: MessageNode,
     ) -> None:
         """Core task processor - handles a single Claude CLI interaction."""
-        incoming = queued.incoming
-        status_msg_id = queued.status_message_id
+        incoming = node.incoming
+        status_msg_id = node.status_message_id
         chat_id = incoming.chat_id
 
-        # specific components for structured display
+        # Update node state to IN_PROGRESS
+        tree = self.tree_queue.get_tree_for_node(node_id)
+        if tree:
+            await tree.update_state(node_id, MessageState.IN_PROGRESS)
+
+        # Components for structured display
         components = {
-            "thinking": [],  # List[str]
-            "tools": [],  # List[str]
-            "subagents": [],  # List[str]
-            "content": [],  # List[str]
-            "errors": [],  # List[str]
+            "thinking": [],
+            "tools": [],
+            "subagents": [],
+            "content": [],
+            "errors": [],
         }
 
         last_ui_update = 0.0
         captured_session_id = None
-        if session_id_to_resume:
-            if session_id_to_resume.startswith("pending_"):
-                # Check if it was already resolved earlier
-                captured_session_id = await self.cli_manager.get_real_session_id(
-                    session_id_to_resume
-                )
-            else:
-                captured_session_id = session_id_to_resume
+        temp_session_id = None
 
-        temp_session_id = (
-            session_id_to_resume
-            if session_id_to_resume and session_id_to_resume.startswith("pending_")
-            else None
-        )
+        # Get parent session ID for forking (if child node)
+        parent_session_id = None
+        if tree and node.parent_id:
+            parent_session_id = tree.get_parent_session_id(node_id)
+            if parent_session_id:
+                logger.info(f"Will fork from parent session: {parent_session_id}")
 
         async def update_ui(status: Optional[str] = None, force: bool = False) -> None:
             nonlocal last_ui_update
             now = time.time()
 
-            # Check flood wait
             if now < self._flood_wait_until:
                 return
 
@@ -189,7 +207,7 @@ class ClaudeMessageHandler:
                     session_or_temp_id,
                     is_new,
                 ) = await self.cli_manager.get_or_create_session(
-                    session_id=captured_session_id
+                    session_id=parent_session_id  # Fork from parent if available
                 )
                 if is_new:
                     temp_session_id = session_or_temp_id
@@ -198,6 +216,10 @@ class ClaudeMessageHandler:
             except RuntimeError as e:
                 components["errors"].append(str(e))
                 await update_ui("⏳ **Session limit reached**", force=True)
+                if tree:
+                    await tree.update_state(
+                        node_id, MessageState.ERROR, error_message=str(e)
+                    )
                 return
 
             # Process CLI events
@@ -211,23 +233,17 @@ class ClaudeMessageHandler:
                 if event_data.get("type") == "session_info":
                     real_session_id = event_data.get("session_id")
                     if real_session_id and temp_session_id:
-                        # 1. Update CLI Manager mapping
                         await self.cli_manager.register_real_session_id(
                             temp_session_id, real_session_id
                         )
-                        # 2. Update Session Store (properly migrates all messages)
-                        self.session_store.rename_session(
-                            temp_session_id, real_session_id
-                        )
                         captured_session_id = real_session_id
-                        temp_session_id = None  # Resolved
+                        temp_session_id = None
                     continue
 
                 parsed_list = CLIParser.parse_event(event_data)
 
                 for parsed in parsed_list:
                     if parsed["type"] == "thinking":
-                        # append to the last thinking block if valid, or just simple list
                         components["thinking"].append(parsed["text"])
                         await update_ui("🧠 **Claude is thinking...**")
 
@@ -251,25 +267,42 @@ class ClaudeMessageHandler:
                             components["content"].append("Done.")
                         await update_ui("✅ **Complete**", force=True)
 
-                        # Update session's last message
-                        if captured_session_id:
-                            self.session_store.update_last_message(
-                                captured_session_id, status_msg_id
+                        # Update node state and session
+                        if tree and captured_session_id:
+                            await tree.update_state(
+                                node_id,
+                                MessageState.COMPLETED,
+                                session_id=captured_session_id,
                             )
+                            self.session_store.save_tree(tree.root_id, tree.to_dict())
 
                     elif parsed["type"] == "error":
                         components["errors"].append(
                             parsed.get("message", "Unknown error")
                         )
                         await update_ui("❌ **Error**", force=True)
+                        if tree:
+                            await tree.update_state(
+                                node_id,
+                                MessageState.ERROR,
+                                error_message=parsed.get("message"),
+                            )
 
         except asyncio.CancelledError:
             components["errors"].append("Task was cancelled")
             await update_ui("❌ **Cancelled**", force=True)
+            if tree:
+                await tree.update_state(
+                    node_id, MessageState.ERROR, error_message="Cancelled"
+                )
         except Exception as e:
             logger.error(f"Task failed: {e}")
             components["errors"].append(str(e)[:200])
             await update_ui("💥 **Task Failed**", force=True)
+            if tree:
+                await tree.update_state(
+                    node_id, MessageState.ERROR, error_message=str(e)[:200]
+                )
 
     def _build_message(
         self,
@@ -290,7 +323,6 @@ class ClaudeMessageHandler:
         # 1. Thinking
         if components["thinking"]:
             full_thinking = "".join(components["thinking"])
-            # limit thinking length visually
             display = full_thinking
             if len(display) > 800:
                 display = display[:795] + "..."
@@ -298,7 +330,6 @@ class ClaudeMessageHandler:
 
         # 2. Tools
         if components["tools"]:
-            # Unique tools to avoid clutter
             unique_tools = []
             seen = set()
             for t in components["tools"]:
@@ -314,7 +345,6 @@ class ClaudeMessageHandler:
 
         # 4. Content
         if components["content"]:
-            # Join content parts
             full_content = "".join(components["content"])
             lines.append(full_content)
 
@@ -325,29 +355,31 @@ class ClaudeMessageHandler:
 
         # 6. Status (Bottom)
         if status:
-            lines.append("")  # spacer
+            lines.append("")
             lines.append(status)
 
         result = "\n".join(lines)
 
         # Truncate if too long (Telegram limit ~4096)
-        # We leave some buffer
         if len(result) > 3800:
             result = "..." + result[-3795:]
-            # basic attempt to fix unclosed code blocks if we truncated the top
-            # but usually we want to preserve the bottom (content/status)
-            pass
 
         return result
 
-    def _get_initial_status(self, session_id: Optional[str]) -> str:
+    def _get_initial_status(
+        self,
+        tree: Optional[object],
+        parent_node_id: Optional[str],
+    ) -> str:
         """Get initial status message text."""
-        if session_id:
-            if self.message_queue.is_session_busy(session_id):
-                queue_size = self.message_queue.get_queue_size(session_id) + 1
+        if tree:
+            # Reply to existing tree
+            if self.tree_queue.is_node_tree_busy(parent_node_id):
+                queue_size = self.tree_queue.get_queue_size(parent_node_id) + 1
                 return f"📋 **Queued** (position {queue_size}) - waiting..."
             return "🔄 **Continuing conversation...**"
 
+        # New conversation
         stats = self.cli_manager.get_stats()
         if stats["active_sessions"] >= stats["max_sessions"]:
             return f"⏳ **Waiting for slot...** ({stats['active_sessions']}/{stats['max_sessions']})"
@@ -356,27 +388,24 @@ class ClaudeMessageHandler:
     async def stop_all_tasks(self) -> int:
         """
         Stop all pending and in-progress tasks.
-        Updates status messages for all affected tasks.
-
-        Returns:
-            Number of cancelled messages.
+        Updates status messages for all affected nodes.
         """
-        cancelled_messages = await self.message_queue.cancel_all()
+        cancelled_nodes = await self.tree_queue.cancel_all()
         await self.cli_manager.stop_all()
 
-        # Update UI for all cancelled messages
-        for msg in cancelled_messages:
+        # Update UI for all cancelled nodes
+        for node in cancelled_nodes:
             try:
                 await self.platform.edit_message(
-                    msg.incoming.chat_id,
-                    msg.status_message_id,
+                    node.incoming.chat_id,
+                    node.status_message_id,
                     "⏹ **Stopped.**",
                     parse_mode="markdown",
                 )
             except Exception as e:
-                logger.error(f"Failed to update status for cancelled message: {e}")
+                logger.error(f"Failed to update status for cancelled node: {e}")
 
-        return len(cancelled_messages)
+        return len(cancelled_nodes)
 
     async def _handle_stop_command(self, incoming: IncomingMessage) -> None:
         """Handle /stop command from messaging platform."""
@@ -389,7 +418,8 @@ class ClaudeMessageHandler:
     async def _handle_stats_command(self, incoming: IncomingMessage) -> None:
         """Handle /stats command."""
         stats = self.cli_manager.get_stats()
+        tree_count = len(self.tree_queue._trees)
         await self.platform.send_message(
             incoming.chat_id,
-            f"📊 **Stats**\n• Active: {stats['active_sessions']}\n• Max: {stats['max_sessions']}",
+            f"📊 **Stats**\n• Active CLI: {stats['active_sessions']}\n• Max CLI: {stats['max_sessions']}\n• Message Trees: {tree_count}",
         )

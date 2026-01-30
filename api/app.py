@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI):
             from messaging.telegram import TelegramPlatform
             from messaging.handler import ClaudeMessageHandler
             from messaging.session import SessionStore
-            from messaging.queue import MessageQueueManager
+
             from cli.manager import CLISessionManager
 
             # Setup workspace - CLI runs in allowed_dir if set (e.g. project root)
@@ -64,11 +64,10 @@ async def lifespan(app: FastAPI):
                 max_sessions=settings.max_cli_sessions,
             )
 
-            # Initialize session store and queue
+            # Initialize session store
             session_store = SessionStore(
                 storage_path=os.path.join(data_path, "sessions.json")
             )
-            message_queue = MessageQueueManager()
 
             # Create Telegram platform
             messaging_platform = TelegramPlatform(
@@ -80,7 +79,6 @@ async def lifespan(app: FastAPI):
                 platform=messaging_platform,
                 cli_manager=cli_manager,
                 session_store=session_store,
-                message_queue=message_queue,
             )
 
             # Wire up the handler

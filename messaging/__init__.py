@@ -4,7 +4,7 @@ from .base import MessagingPlatform
 from .models import IncomingMessage, OutgoingMessage
 from .handler import ClaudeMessageHandler
 from .session import SessionStore
-from .queue import MessageQueueManager
+from .tree_queue import TreeQueueManager, MessageTree, MessageNode, MessageState
 
 __all__ = [
     "MessagingPlatform",
@@ -12,5 +12,8 @@ __all__ = [
     "OutgoingMessage",
     "ClaudeMessageHandler",
     "SessionStore",
-    "MessageQueueManager",
+    "TreeQueueManager",
+    "MessageTree",
+    "MessageNode",
+    "MessageState",
 ]
