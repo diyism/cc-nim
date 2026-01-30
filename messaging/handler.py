@@ -100,10 +100,6 @@ class ClaudeMessageHandler:
         # Determine session ID for queuing
         if session_id_to_resume:
             queue_session_id = session_id_to_resume
-            # Index this message immediately so replies to IT work even while pending
-            self.session_store.index_message(
-                queue_session_id, incoming.message_id, incoming.platform
-            )
         else:
             # New session - use temp ID
             queue_session_id = f"pending_{incoming.message_id}"

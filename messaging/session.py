@@ -153,28 +153,6 @@ class SessionStore:
             key = self._make_key(platform, str(chat_id), str(msg_id))
             return self._msg_to_session.get(key)
 
-    def index_message(
-        self, session_id: str, msg_id: str, platform: str = "telegram"
-    ) -> None:
-        """
-        Index an additional message ID for a session.
-
-        Args:
-            session_id: Claude session ID
-            msg_id: Message ID to index
-            platform: Messaging platform name
-        """
-        with self._lock:
-            if session_id not in self._sessions:
-                logger.warning(f"Session {session_id} not found for indexing message")
-                return
-
-            record = self._sessions[session_id]
-            key = self._make_key(platform, record.chat_id, str(msg_id))
-            self._msg_to_session[key] = session_id
-
-            logger.debug(f"Indexed extra message {msg_id} for session {session_id}")
-
     def update_last_message(self, session_id: str, msg_id: str) -> None:
         """
         Update the last message ID for a session.
