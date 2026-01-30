@@ -91,8 +91,8 @@ class TelegramPlatform(MessagingPlatform):
 
         # Send startup notification
         try:
-            me_entity = await self._client.get_input_entity("me")
-            await self.send_message(me_entity, "🚀 **Claude Code Proxy is online!**")
+            # Send message to yourself using the special 'me' entity or chat_id
+            await self.send_message("me", "🚀 **Claude Code Proxy is online!**")
         except Exception as e:
             logger.warning(f"Could not send startup message: {e}")
 
@@ -205,6 +205,10 @@ class TelegramPlatform(MessagingPlatform):
             self._limiter.fire_and_forget(_edit)
         else:
             await self._limiter.enqueue(_edit)
+
+    def fire_and_forget(self, task: Awaitable[Any]) -> None:
+        """Execute a coroutine without awaiting it."""
+        asyncio.create_task(task)
 
     def on_message(
         self,
