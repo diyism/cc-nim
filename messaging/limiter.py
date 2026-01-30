@@ -8,7 +8,7 @@ using a leaky bucket algorithm (aiolimiter) and a task queue.
 import asyncio
 import logging
 import os
-from typing import Awaitable, Callable, Any, Optional
+from typing import Awaitable, Callable, Any, Optional, List, Dict
 from aiolimiter import AsyncLimiter
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ class GlobalRateLimiter:
         # Custom queue state
         self._queue_list: List[str] = []  # List of dedup_keys in order
         self._queue_map: Dict[
-            str, tuple[Callable[[], Awaitable[Any]], asyncio.Future]
+            str, tuple[Callable[[], Awaitable[Any]], List[asyncio.Future]]
         ] = {}
         self._condition = asyncio.Condition()
 
@@ -74,7 +74,7 @@ class GlobalRateLimiter:
                         await self._condition.wait()
 
                     dedup_key = self._queue_list.pop(0)
-                    func, future = self._queue_map.pop(dedup_key)
+                    func, futures = self._queue_map.pop(dedup_key)
 
                 # Check for manual pause (FloodWait)
                 now = asyncio.get_event_loop().time()
@@ -89,8 +89,9 @@ class GlobalRateLimiter:
                 async with self.limiter:
                     try:
                         result = await func()
-                        if not future.done():
-                            future.set_result(result)
+                        for f in futures:
+                            if not f.done():
+                                f.set_result(result)
                     except Exception as e:
                         # Handle Telegram FloodWaitError specifically
                         error_msg = str(e).lower()
@@ -107,14 +108,15 @@ class GlobalRateLimiter:
                                 asyncio.get_event_loop().time() + seconds
                             )
 
-                            # Re-queue the task at the front (as a high priority update)
-                            await self._enqueue_internal(
-                                func, future, dedup_key, front=True
+                            # Re-queue the tasks at the front (as a high priority update)
+                            await self._enqueue_internal_multi(
+                                func, futures, dedup_key, front=True
                             )
                             await asyncio.sleep(seconds)
                         else:
-                            if not future.done():
-                                future.set_exception(e)
+                            for f in futures:
+                                if not f.done():
+                                    f.set_exception(e)
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -122,18 +124,24 @@ class GlobalRateLimiter:
                 await asyncio.sleep(1)
 
     async def _enqueue_internal(self, func, future, dedup_key, front=False):
+        async def callback(f):
+            # This is just a placeholder to use the same internal logic
+            pass
+
+        await self._enqueue_internal_multi(func, [future], dedup_key, front)
+
+    async def _enqueue_internal_multi(self, func, futures, dedup_key, front=False):
         async with self._condition:
             if dedup_key in self._queue_map:
-                # Compaction: Update existing task with new func, keep old future
-                old_func, old_future = self._queue_map[dedup_key]
-                self._queue_map[dedup_key] = (func, old_future)
-                # Chain them so the new one resolves the old caller's future
-                # but we actually just use the same future object for simplicity
-                # The user just wants to know when "their" request is done,
-                # which is now the new request's completion.
-                logger.debug(f"Compacted task for key: {dedup_key}")
+                # Compaction: Update existing task with new func, append new futures
+                old_func, old_futures = self._queue_map[dedup_key]
+                old_futures.extend(futures)
+                self._queue_map[dedup_key] = (func, old_futures)
+                logger.debug(
+                    f"Compacted task for key: {dedup_key} (now {len(old_futures)} futures)"
+                )
             else:
-                self._queue_map[dedup_key] = (func, future)
+                self._queue_map[dedup_key] = (func, futures)
                 if front:
                     self._queue_list.insert(0, dedup_key)
                 else:
