@@ -100,6 +100,7 @@ async def lifespan(app: FastAPI):
 
     # Store in app state for access in routes
     app.state.messaging_platform = messaging_platform
+    app.state.message_handler = message_handler
     app.state.cli_manager = cli_manager
 
     yield

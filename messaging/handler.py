@@ -343,13 +343,37 @@ class ClaudeMessageHandler:
             return f"⏳ **Waiting for slot...** ({stats['active_sessions']}/{stats['max_sessions']})"
         return "⏳ **Launching new Claude CLI instance...**"
 
-    async def _handle_stop_command(self, incoming: IncomingMessage) -> None:
-        """Handle /stop command."""
-        cancelled = await self.message_queue.cancel_all()
+    async def stop_all_tasks(self) -> int:
+        """
+        Stop all pending and in-progress tasks.
+        Updates status messages for all affected tasks.
+
+        Returns:
+            Number of cancelled messages.
+        """
+        cancelled_messages = await self.message_queue.cancel_all()
         await self.cli_manager.stop_all()
+
+        # Update UI for all cancelled messages
+        for msg in cancelled_messages:
+            try:
+                await self.platform.edit_message(
+                    msg.incoming.chat_id,
+                    msg.status_message_id,
+                    "⏹ **Stopped.**",
+                    parse_mode="markdown",
+                )
+            except Exception as e:
+                logger.error(f"Failed to update status for cancelled message: {e}")
+
+        return len(cancelled_messages)
+
+    async def _handle_stop_command(self, incoming: IncomingMessage) -> None:
+        """Handle /stop command from messaging platform."""
+        count = await self.stop_all_tasks()
         await self.platform.send_message(
             incoming.chat_id,
-            f"⏹ **Stopped.** Cancelled {len(cancelled)} pending messages.",
+            f"⏹ **Stopped.** Cancelled {count} pending or active requests.",
         )
 
     async def _handle_stats_command(self, incoming: IncomingMessage) -> None:
