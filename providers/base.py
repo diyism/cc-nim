@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 class ProviderConfig(BaseModel):
     """Configuration for a provider."""
+
     api_key: str
     base_url: Optional[str] = None
     rate_limit: Optional[int] = None
@@ -25,7 +26,9 @@ class BaseProvider(ABC):
         pass
 
     @abstractmethod
-    async def stream_response(self, request: Any, input_tokens: int = 0) -> AsyncIterator[str]:
+    async def stream_response(
+        self, request: Any, input_tokens: int = 0
+    ) -> AsyncIterator[str]:
         """Stream response in Anthropic SSE format."""
         pass
 

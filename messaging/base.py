@@ -38,7 +38,9 @@ class SessionManagerInterface(Protocol):
         """
         ...
 
-    async def register_real_session_id(self, temp_id: str, real_session_id: str) -> bool:
+    async def register_real_session_id(
+        self, temp_id: str, real_session_id: str
+    ) -> bool:
         """Register the real session ID from CLI output."""
         ...
 

@@ -95,10 +95,10 @@ class RequestBuilderMixin:
         if request_data.thinking and getattr(request_data.thinking, "enabled", True):
             extra_body.setdefault("thinking", {"type": "enabled"})
             extra_body.setdefault("reasoning_split", True)
-
-        # Handle DeepSeek-specific thinking mode
-        if "deepseek" in request_data.model.lower():
-            extra_body.setdefault("chat_template_kwargs", {"thinking": True})
+            extra_body.setdefault(
+                "chat_template_kwargs",
+                {"thinking": True, "reasoning_split": True, "clear_thinking": False},
+            )
 
         body.update(extra_body)
 

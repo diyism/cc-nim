@@ -113,7 +113,9 @@ class CLIParser:
             else:
                 # Non-zero exit is an error
                 error_msg = stderr if stderr else f"Process exited with code {code}"
-                logger.warning(f"CLI_PARSER: Error exit (code={code}): {error_msg[:100]}")
+                logger.warning(
+                    f"CLI_PARSER: Error exit (code={code}): {error_msg[:100]}"
+                )
                 return [
                     {"type": "error", "message": error_msg},
                     {"type": "complete", "status": "failed"},

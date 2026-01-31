@@ -199,7 +199,10 @@ class TestExtractCommandPrefix:
     def test_with_env_vars(self):
         """Test command with environment variables."""
         assert extract_command_prefix("DEBUG=1 python script.py") == "DEBUG=1 python"
-        assert extract_command_prefix("API_KEY=secret node app.js") == "API_KEY=secret node"
+        assert (
+            extract_command_prefix("API_KEY=secret node app.js")
+            == "API_KEY=secret node"
+        )
 
     def test_single_word_commands(self):
         """Test single word commands."""
@@ -211,7 +214,10 @@ class TestExtractCommandPrefix:
         """Test detection of command injection attempts."""
         assert extract_command_prefix("`whoami`") == "command_injection_detected"
         assert extract_command_prefix("$(whoami)") == "command_injection_detected"
-        assert extract_command_prefix("echo $(cat /etc/passwd)") == "command_injection_detected"
+        assert (
+            extract_command_prefix("echo $(cat /etc/passwd)")
+            == "command_injection_detected"
+        )
 
     def test_empty_command(self):
         """Test handling of empty commands."""
@@ -221,7 +227,9 @@ class TestExtractCommandPrefix:
     def test_complex_git_command(self):
         """Test complex git command extraction."""
         assert extract_command_prefix("git log --oneline --graph") == "git log"
-        assert extract_command_prefix("git checkout -b feature-branch") == "git checkout"
+        assert (
+            extract_command_prefix("git checkout -b feature-branch") == "git checkout"
+        )
 
     def test_cargo_command(self):
         """Test cargo command extraction."""

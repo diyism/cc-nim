@@ -153,9 +153,13 @@ class CLISession:
                             yield {"type": "error", "error": {"message": stderr_text}}
 
                 return_code = await self.process.wait()
-                logger.info(f"Claude CLI exited with code {return_code}, stderr_present={bool(stderr_text)}")
+                logger.info(
+                    f"Claude CLI exited with code {return_code}, stderr_present={bool(stderr_text)}"
+                )
                 if return_code != 0 and not stderr_text:
-                    logger.warning(f"CLI_SESSION: Process exited with code {return_code} but no stderr captured")
+                    logger.warning(
+                        f"CLI_SESSION: Process exited with code {return_code} but no stderr captured"
+                    )
                 yield {
                     "type": "exit",
                     "code": return_code,

@@ -55,9 +55,7 @@ def parse_cli_event(event: Dict) -> List[Dict]:
 
             # Prioritize thinking first
             if thinking_parts:
-                results.append(
-                    {"type": "thinking", "text": "\n".join(thinking_parts)}
-                )
+                results.append({"type": "thinking", "text": "\n".join(thinking_parts)})
 
             # Then tools or subagents
             if tool_calls:

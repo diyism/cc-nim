@@ -25,7 +25,7 @@ def strip_provider_prefixes(model: str) -> str:
     """
     for prefix in _PROVIDER_PREFIXES:
         if model.startswith(prefix):
-            return model[len(prefix):]
+            return model[len(prefix) :]
     return model
 
 

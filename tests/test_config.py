@@ -1,7 +1,6 @@
 """Tests for config/settings.py"""
 
 
-
 class TestSettings:
     """Test Settings configuration."""
 
