@@ -108,13 +108,18 @@ async def test_build_request_body_deepseek(nim_provider):
     body = nim_provider._build_request_body(req)
 
     assert "chat_template_kwargs" in body
-    assert body["chat_template_kwargs"] == {"thinking": True}
+    assert body["chat_template_kwargs"] == {
+        "thinking": True,
+        "reasoning_split": True,
+        "clear_thinking": False,
+    }
 
 
 @pytest.mark.asyncio
 async def test_build_request_body_non_deepseek(nim_provider):
-    """Test request body with non-DeepSeek model."""
-    req = MockRequest(model="meta/llama-3.3-70b-instruct")
+    """Test request body with non-DeepSeek model without thinking enabled."""
+    thinking = MockThinking(enabled=False)
+    req = MockRequest(model="meta/llama-3.3-70b-instruct", thinking=thinking)
     body = nim_provider._build_request_body(req)
 
     assert "chat_template_kwargs" not in body
