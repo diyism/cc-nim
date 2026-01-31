@@ -473,14 +473,15 @@ class ClaudeMessageHandler:
         2. Cancel async tasks in tree queue
         3. Update UI for all affected nodes
         """
-        # 1. Stop CLI sessions FIRST - this kills subprocess and unblocks I/O
-        logger.info("Stopping all CLI sessions...")
-        await self.cli_manager.stop_all()
-
-        # 2. Cancel tree queue tasks (now they should unblock immediately)
+        # 1. Cancel tree queue tasks FIRST
+        # This ensures we capture the count of active tasks before they clean up
         logger.info("Cancelling tree queue tasks...")
         cancelled_nodes = await self.tree_queue.cancel_all()
         logger.info(f"Cancelled {len(cancelled_nodes)} nodes")
+
+        # 2. Stop CLI sessions - this kills subprocesses and ensures everything is dead
+        logger.info("Stopping all CLI sessions...")
+        await self.cli_manager.stop_all()
 
         # 3. Update UI for all cancelled nodes
         for node in cancelled_nodes:
