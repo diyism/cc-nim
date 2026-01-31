@@ -491,9 +491,9 @@ class ClaudeMessageHandler:
         logger.info("Stopping all CLI sessions...")
         await self.cli_manager.stop_all()
 
-        # 3. Update UI for all cancelled nodes
+        # 3. Update UI and persist state for all cancelled nodes
         for node in cancelled_nodes:
-            # Fire and forget to avoid blocking the cleanup process
+            # Fire and forget UI update
             self.platform.fire_and_forget(
                 self.platform.queue_edit_message(
                     node.incoming.chat_id,
@@ -502,6 +502,11 @@ class ClaudeMessageHandler:
                     parse_mode="markdown",
                 )
             )
+
+            # Persist tree state
+            tree = self.tree_queue.get_tree_for_node(node.node_id)
+            if tree:
+                self.session_store.save_tree(tree.root_id, tree.to_dict())
 
         return len(cancelled_nodes)
 

@@ -99,6 +99,14 @@ async def lifespan(app: FastAPI):
                         "node_to_tree": session_store._node_to_tree,
                     }
                 )
+                # Reconcile restored state - anything PENDING/IN_PROGRESS is lost across restart
+                if message_handler.tree_queue.cleanup_stale_nodes() > 0:
+                    # Sync back and save
+                    session_store._trees = message_handler.tree_queue.to_dict()["trees"]
+                    session_store._node_to_tree = message_handler.tree_queue.to_dict()[
+                        "node_to_tree"
+                    ]
+                    session_store._save()
 
             # Wire up the handler
             messaging_platform.on_message(message_handler.handle_message)

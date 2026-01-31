@@ -226,7 +226,8 @@ class TreeQueueManager:
         """
         Cancel all queued and in-progress messages in a tree.
 
-        Updates node states to ERROR and returns list of affected nodes.
+        Updates node states to ERROR and returns list of affected nodes
+        that were actually active or in the current processing queue.
         """
         tree = self._repository.get_tree(root_id)
         if not tree:
@@ -234,7 +235,7 @@ class TreeQueueManager:
 
         cancelled_nodes = []
 
-        # Cancel running task via processor
+        # 1. Cancel running task via processor
         if self._processor.cancel_current(tree):
             if tree._current_node_id:
                 node = tree.get_node(tree._current_node_id)
@@ -246,7 +247,7 @@ class TreeQueueManager:
                     node.error_message = "Cancelled by user"
                     cancelled_nodes.append(node)
 
-        # Clear queue and update states
+        # 2. Clear queue and update states
         while not tree._queue.empty():
             try:
                 node_id = tree._queue.get_nowait()
@@ -258,17 +259,29 @@ class TreeQueueManager:
             except asyncio.QueueEmpty:
                 break
 
-        # Also cancel any PENDING nodes that weren't in queue
+        # 3. Cleanup: Mark ANY other PENDING or IN_PROGRESS nodes as ERROR
+        # This handles stale nodes from previous sessions without counting them as "cancelled now"
+        # unless they were in the active queue above.
+        cleanup_count = 0
         for node in tree.all_nodes():
-            if node.state == MessageState.PENDING and node not in cancelled_nodes:
+            if (
+                node.state in (MessageState.PENDING, MessageState.IN_PROGRESS)
+                and node not in cancelled_nodes
+            ):
                 node.state = MessageState.ERROR
-                node.error_message = "Cancelled by user"
-                cancelled_nodes.append(node)
+                node.error_message = "Stale task cleaned up"
+                cleanup_count += 1
 
         tree._is_processing = False
         tree._current_node_id = None
 
-        logger.info(f"Cancelled {len(cancelled_nodes)} nodes in tree {root_id}")
+        if cancelled_nodes:
+            logger.info(
+                f"Cancelled {len(cancelled_nodes)} active nodes in tree {root_id}"
+            )
+        if cleanup_count:
+            logger.info(f"Cleaned up {cleanup_count} stale nodes in tree {root_id}")
+
         return cancelled_nodes
 
     async def cancel_all(self) -> List[MessageNode]:
@@ -285,6 +298,22 @@ class TreeQueueManager:
         for root_id in list(self._repository.tree_ids()):
             all_cancelled.extend(self.cancel_tree(root_id))
         return all_cancelled
+
+    def cleanup_stale_nodes(self) -> int:
+        """
+        Mark any PENDING or IN_PROGRESS nodes in all trees as ERROR.
+        Used on startup to reconcile restored state.
+        """
+        count = 0
+        for tree in self._repository.all_trees():
+            for node in tree.all_nodes():
+                if node.state in (MessageState.PENDING, MessageState.IN_PROGRESS):
+                    node.state = MessageState.ERROR
+                    node.error_message = "Lost during server restart"
+                    count += 1
+        if count:
+            logger.info(f"Cleaned up {count} stale nodes during startup")
+        return count
 
     def register_node(self, node_id: str, root_id: str) -> None:
         """Register a node ID to a tree (for external mapping)."""
