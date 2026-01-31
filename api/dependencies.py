@@ -34,5 +34,5 @@ async def cleanup_provider():
     """Cleanup provider resources."""
     global _provider
     if _provider and hasattr(_provider, "_client"):
-        await _provider._client.close()
+        await _provider._client.aclose()
     _provider = None
