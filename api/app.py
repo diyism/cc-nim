@@ -19,7 +19,7 @@ from config.settings import get_settings
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("server.log", encoding="utf-8", mode="w")],
+    handlers=[logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 
