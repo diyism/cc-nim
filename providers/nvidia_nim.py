@@ -51,7 +51,7 @@ class NvidiaNimProvider(
         self._nim_params = self._load_nim_params()
         self._global_rate_limiter = GlobalRateLimiter.get_instance()
         self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(300.0, connect=30.0, read=60.0),
+            timeout=httpx.Timeout(300.0, connect=30.0, read=120.0),
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
         )
 
