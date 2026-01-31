@@ -1,3 +1,5 @@
+    git clone https://github.com/diyism/cc-nim
+    cd cc-nim
     cp .env.exmpale .env
     #设置 nvidia key
     nano .env
