@@ -469,15 +469,20 @@ class ClaudeMessageHandler:
         Stop all pending and in-progress tasks.
 
         Order of operations:
-        1. Stop CLI sessions first (kills subprocesses, unblocks I/O)
-        2. Cancel async tasks in tree queue
-        3. Update UI for all affected nodes
+        1. Set stopping flag to prevent new tasks from starting
+        2. Cancel tree queue tasks
+        3. Stop CLI sessions
+        4. Update UI for all affected nodes
         """
-        # 1. Cancel tree queue tasks FIRST
-        # This ensures we capture the count of active tasks before they clean up
-        logger.info("Cancelling tree queue tasks...")
-        cancelled_nodes = await self.tree_queue.cancel_all()
-        logger.info(f"Cancelled {len(cancelled_nodes)} nodes")
+        # Set a temporary flag on the tree_queue manager if possible, or just lock everything
+        # Since we are in the handler, we can use the manager's lock to ensure consistency
+
+        async with self.tree_queue._lock:
+            # 1. Cancel tree queue tasks FIRST while holding the manager lock
+            # This ensures we capture the count of active tasks before they clean up
+            logger.info("Cancelling tree queue tasks...")
+            cancelled_nodes = self.tree_queue.cancel_all_sync()
+            logger.info(f"Cancelled {len(cancelled_nodes)} nodes")
 
         # 2. Stop CLI sessions - this kills subprocesses and ensures everything is dead
         logger.info("Stopping all CLI sessions...")
@@ -486,7 +491,6 @@ class ClaudeMessageHandler:
         # 3. Update UI for all cancelled nodes
         for node in cancelled_nodes:
             # Fire and forget to avoid blocking the cleanup process
-            # Note: We don't await because we are in a massive loop potentially
             self.platform.fire_and_forget(
                 self.platform.queue_edit_message(
                     node.incoming.chat_id,

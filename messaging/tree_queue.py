@@ -271,13 +271,12 @@ class TreeQueueManager:
         logger.info(f"Cancelled {len(cancelled_nodes)} nodes in tree {root_id}")
         return cancelled_nodes
 
-    async def cancel_all(self) -> List[MessageNode]:
-        """Cancel all messages in all trees."""
-        async with self._lock:
-            all_cancelled = []
-            for root_id in list(self._repository.tree_ids()):
-                all_cancelled.extend(self.cancel_tree(root_id))
-            return all_cancelled
+    def cancel_all_sync(self) -> List[MessageNode]:
+        """Cancel all messages in all trees (synchronous/locked version)."""
+        all_cancelled = []
+        for root_id in list(self._repository.tree_ids()):
+            all_cancelled.extend(self.cancel_tree(root_id))
+        return all_cancelled
 
     def register_node(self, node_id: str, root_id: str) -> None:
         """Register a node ID to a tree (for external mapping)."""
