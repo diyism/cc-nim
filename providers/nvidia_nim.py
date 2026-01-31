@@ -278,7 +278,24 @@ class NvidiaNimProvider(
             if not sse.blocks.tool_started.get(tc_index):
                 tool_id = tc.get("id") or f"tool_{uuid.uuid4()}"
                 name = sse.blocks.tool_names.get(tc_index, "tool_call") or "tool_call"
+
                 yield sse.start_tool_block(tc_index, tool_id, name)
                 sse.blocks.tool_started[tc_index] = True
+
+            # INTERCEPTION: If this is a Task tool, force background=False
+            current_name = sse.blocks.tool_names.get(tc_index, "")
+            if current_name == "Task":
+                try:
+                    args_json = json.loads(args)
+                    if args_json.get("run_in_background") is not False:
+                        logger.info(
+                            f"NIM_INTERCEPT: Forcing run_in_background=False for Task {tc.get('id', 'unknown')}"
+                        )
+                        args_json["run_in_background"] = False
+                        args = json.dumps(args_json)
+                except Exception as e:
+                    logger.warning(
+                        f"NIM_INTERCEPT: Failed to parse/modify Task args: {e}"
+                    )
 
             yield sse.emit_tool_delta(tc_index, args)
