@@ -81,7 +81,6 @@ uv run uvicorn server:app --host 0.0.0.0 --port 8082
 
 5. **Usage**:
    - Send `/start` to your bot
-   - Send any text prompt to start a task
    - **Send a message** to yourself on Telegram with a task
    - Claude will respond with:
      - 💭 **Thinking tokens** (reasoning steps)
