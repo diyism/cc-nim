@@ -130,7 +130,7 @@ curl "https://integrate.api.nvidia.com/v1/models" > nvidia_nim_models.json
 | `ALLOWED_TELEGRAM_USER_ID`              | Allowed Telegram User ID              | `""`                                  |
 | `MESSAGING_RATE_LIMIT`                  | Telegram messages per window          | `1`                                   |
 | `MESSAGING_RATE_WINDOW`                 | Messaging window (seconds)            | `1`                                   |
-| `NVIDIA_NIM_RATE_LIMIT`                 | API requests per window               | `20`                                  |
+| `NVIDIA_NIM_RATE_LIMIT`                 | API requests per window               | `40`                                  |
 | `NVIDIA_NIM_RATE_WINDOW`                | Rate limit window (seconds)           | `60`                                  |
 | `NVIDIA_NIM_TEMPERATURE`                | Model temperature                     | `1.0`                                 |
 | `NVIDIA_NIM_TOP_P`                      | Top P sampling                        | `1.0`                                 |
