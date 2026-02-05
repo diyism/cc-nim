@@ -2,6 +2,8 @@
 
 Use **Claude Code CLI for free** with NVIDIA NIM's free unlimited 40 reqs/min API. This lightweight proxy converts Claude Code's Anthropic API requests to NVIDIA NIM format. **Includes Telegram bot integration** for remote control from your phone!
 
+![Claude Code exploring cc-nim](pic.png)
+
 ## Quick Start
 
 ### 1. Get Your Free NVIDIA API Key
@@ -111,29 +113,29 @@ curl "https://integrate.api.nvidia.com/v1/models" > nvidia_nim_models.json
 
 ## Configuration
 
-| Variable                                | Description                           | Default                               |
-| --------------------------------------- | ------------------------------------- | ------------------------------------- |
-| `NVIDIA_NIM_API_KEY`                    | Your NVIDIA API key                   | required                              |
-| `MODEL`                                 | Model to use for all requests         | `moonshotai/kimi-k2-thinking`         |
-| `NVIDIA_NIM_BASE_URL`                   | NIM endpoint                          | `https://integrate.api.nvidia.com/v1` |
-| `CLAUDE_WORKSPACE`                      | Directory for agent workspace         | `./agent_workspace`                   |
-| `ALLOWED_DIR`                           | Allowed directories for agent         | `""`                                  |
-| `MAX_CLI_SESSIONS`                      | Max concurrent CLI sessions           | `10`                                  |
-| `FAST_PREFIX_DETECTION`                 | Enable fast prefix detection          | `true`                                |
-| `ENABLE_NETWORK_PROBE_MOCK`             | Enable network probe mock             | `true`                                |
-| `ENABLE_TITLE_GENERATION_SKIP`          | Skip title generation                 | `true`                                |
-| `ENABLE_SUGGESTION_MODE_SKIP`           | Skip suggestion mode                  | `true`                                |
-| `ENABLE_FILEPATH_EXTRACTION_MOCK`       | Enable filepath extraction mock       | `true`                                |
-| `TELEGRAM_BOT_TOKEN`                    | Telegram Bot Token                    | `""`                                  |
-| `ALLOWED_TELEGRAM_USER_ID`              | Allowed Telegram User ID              | `""`                                  |
-| `MESSAGING_RATE_LIMIT`                  | Telegram messages per window          | `1`                                   |
-| `MESSAGING_RATE_WINDOW`                 | Messaging window (seconds)            | `1`                                   |
-| `NVIDIA_NIM_RATE_LIMIT`                 | API requests per window               | `40`                                  |
-| `NVIDIA_NIM_RATE_WINDOW`                | Rate limit window (seconds)           | `60`                                  |
-| `NVIDIA_NIM_TEMPERATURE`                | Model temperature                     | `1.0`                                 |
-| `NVIDIA_NIM_TOP_P`                      | Top P sampling                        | `1.0`                                 |
-| `NVIDIA_NIM_TOP_K`                      | Top K sampling                        | `-1`                                  |
-| `NVIDIA_NIM_MAX_TOKENS`                 | Max tokens for generation             | `81920`                               |
+| Variable                          | Description                     | Default                               |
+| --------------------------------- | ------------------------------- | ------------------------------------- |
+| `NVIDIA_NIM_API_KEY`              | Your NVIDIA API key             | required                              |
+| `MODEL`                           | Model to use for all requests   | `moonshotai/kimi-k2-thinking`         |
+| `NVIDIA_NIM_BASE_URL`             | NIM endpoint                    | `https://integrate.api.nvidia.com/v1` |
+| `CLAUDE_WORKSPACE`                | Directory for agent workspace   | `./agent_workspace`                   |
+| `ALLOWED_DIR`                     | Allowed directories for agent   | `""`                                  |
+| `MAX_CLI_SESSIONS`                | Max concurrent CLI sessions     | `10`                                  |
+| `FAST_PREFIX_DETECTION`           | Enable fast prefix detection    | `true`                                |
+| `ENABLE_NETWORK_PROBE_MOCK`       | Enable network probe mock       | `true`                                |
+| `ENABLE_TITLE_GENERATION_SKIP`    | Skip title generation           | `true`                                |
+| `ENABLE_SUGGESTION_MODE_SKIP`     | Skip suggestion mode            | `true`                                |
+| `ENABLE_FILEPATH_EXTRACTION_MOCK` | Enable filepath extraction mock | `true`                                |
+| `TELEGRAM_BOT_TOKEN`              | Telegram Bot Token              | `""`                                  |
+| `ALLOWED_TELEGRAM_USER_ID`        | Allowed Telegram User ID        | `""`                                  |
+| `MESSAGING_RATE_LIMIT`            | Telegram messages per window    | `1`                                   |
+| `MESSAGING_RATE_WINDOW`           | Messaging window (seconds)      | `1`                                   |
+| `NVIDIA_NIM_RATE_LIMIT`           | API requests per window         | `40`                                  |
+| `NVIDIA_NIM_RATE_WINDOW`          | Rate limit window (seconds)     | `60`                                  |
+| `NVIDIA_NIM_TEMPERATURE`          | Model temperature               | `1.0`                                 |
+| `NVIDIA_NIM_TOP_P`                | Top P sampling                  | `1.0`                                 |
+| `NVIDIA_NIM_TOP_K`                | Top K sampling                  | `-1`                                  |
+| `NVIDIA_NIM_MAX_TOKENS`           | Max tokens for generation       | `81920`                               |
 
 See [`.env.example`](.env.example) for all supported parameters.
 
