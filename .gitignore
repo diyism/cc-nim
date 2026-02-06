@@ -26,6 +26,7 @@ wheels/
 *.egg
 .coverage
 .ruff_cache
+.codex
 
 # Virtual environments
 venv/
