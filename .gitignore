@@ -27,6 +27,7 @@ wheels/
 .coverage
 .ruff_cache
 AGENTS.MD
+CLAUDE.MD
 
 # Virtual environments
 venv/
