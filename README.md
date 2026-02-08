@@ -149,13 +149,13 @@ The NVIDIA NIM base URL is fixed to `https://integrate.api.nvidia.com/v1`.
 | `NVIDIA_NIM_SEED`                     | RNG seed (blank = unset)              | unset     |
 | `NVIDIA_NIM_STOP`                     | Stop string (blank = unset)           | unset     |
 | `NVIDIA_NIM_PARALLEL_TOOL_CALLS`      | Parallel tool calls                   | `true`    |
-| `NVIDIA_NIM_RETURN_TOKENS_AS_TOKEN_IDS` | Return token ids                   | `false`   |
-| `NVIDIA_NIM_INCLUDE_STOP_STR_IN_OUTPUT` | Include stop string in output      | `false`   |
+| `NVIDIA_NIM_RETURN_TOKENS_AS_TOKEN_IDS` | Return token ids                    | `false`   |
+| `NVIDIA_NIM_INCLUDE_STOP_STR_IN_OUTPUT` | Include stop string in output       | `false`   |
 | `NVIDIA_NIM_IGNORE_EOS`               | Ignore EOS token                      | `false`   |
 | `NVIDIA_NIM_MIN_TOKENS`               | Minimum generated tokens              | `0`       |
 | `NVIDIA_NIM_CHAT_TEMPLATE`            | Chat template override                | unset     |
 | `NVIDIA_NIM_REQUEST_ID`               | Request id override                   | unset     |
-| `NVIDIA_NIM_REASONING_EFFORT`         | Reasoning effort (`low|medium|high`)  | `high`    |
+| `NVIDIA_NIM_REASONING_EFFORT`         | Reasoning effort                      | `high`    |
 | `NVIDIA_NIM_INCLUDE_REASONING`        | Include reasoning in response         | `true`    |
 
 All `NVIDIA_NIM_*` settings are strictly validated; unknown keys with this prefix will cause startup errors.
