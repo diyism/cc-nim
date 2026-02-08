@@ -81,3 +81,18 @@ async def test_get_provider_unknown_type():
 
         with pytest.raises(ValueError, match="Unknown provider_type"):
             get_provider()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_provider_aclose_raises():
+    """cleanup_provider handles aclose() raising an exception."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings()
+
+        provider = get_provider()
+        provider._client = AsyncMock()
+        provider._client.aclose = AsyncMock(side_effect=RuntimeError("cleanup failed"))
+
+        # Should propagate the error (current behavior - no try/except)
+        with pytest.raises(RuntimeError, match="cleanup failed"):
+            await cleanup_provider()

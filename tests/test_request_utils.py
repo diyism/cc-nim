@@ -1,5 +1,6 @@
 """Tests for api/request_utils.py module."""
 
+import pytest
 from unittest.mock import MagicMock
 
 from api.request_utils import (
@@ -451,3 +452,93 @@ class TestGetTokenCount:
 
         # Double message should have more tokens (including overhead)
         assert count_double > count_single
+
+
+# --- Parametrized Edge Case Tests ---
+
+
+@pytest.mark.parametrize(
+    "command,expected",
+    [
+        ("git status", "git status"),
+        ("ls -la", "ls"),
+        ("git commit -m 'msg'", "git commit"),
+        ("npm install pkg", "npm install"),
+        ("ls", "ls"),
+        ("python", "python"),
+        ("", "none"),
+        ("   ", "none"),
+        ("`whoami`", "command_injection_detected"),
+        ("$(whoami)", "command_injection_detected"),
+        ("echo $(cat /etc/passwd)", "command_injection_detected"),
+        ("git -v", "git"),
+        ("DEBUG=1 python script.py", "DEBUG=1 python"),
+        ("cargo build", "cargo build"),
+        ("cargo --version", "cargo"),
+    ],
+    ids=[
+        "git_status",
+        "ls_with_flag",
+        "git_commit",
+        "npm_install",
+        "bare_ls",
+        "bare_python",
+        "empty",
+        "whitespace",
+        "injection_backtick",
+        "injection_dollar",
+        "injection_echo",
+        "git_flag",
+        "env_var",
+        "cargo_build",
+        "cargo_flag",
+    ],
+)
+def test_extract_command_prefix_parametrized(command, expected):
+    """Parametrized command prefix extraction."""
+    assert extract_command_prefix(command) == expected
+
+
+def test_extract_command_prefix_unterminated_quote():
+    """Unterminated quote falls back to simple split (shlex.split ValueError)."""
+    result = extract_command_prefix("git commit -m 'unterminated")
+    # Should fall back to command.split()[0] = "git"
+    assert result == "git"
+
+
+def test_extract_command_prefix_pipe():
+    """Piped commands - shlex handles pipe character."""
+    result = extract_command_prefix("cat file.txt | grep pattern")
+    assert result in ("cat", "cat file.txt")
+
+
+@pytest.mark.parametrize(
+    "content,max_tokens,role,expected",
+    [
+        ("Check my quota", 1, "user", True),
+        ("Check my QUOTA", 1, "user", True),
+        ("Hello world", 1, "user", False),
+        ("Check my quota", 100, "user", False),
+        ("Check my quota", 1, "assistant", False),
+    ],
+    ids=["basic", "case_insensitive", "no_keyword", "wrong_max_tokens", "wrong_role"],
+)
+def test_quota_check_parametrized(content, max_tokens, role, expected):
+    """Parametrized quota check request detection."""
+    msg = MagicMock(spec=Message)
+    msg.role = role
+    msg.content = content
+
+    req = MagicMock(spec=MessagesRequest)
+    req.max_tokens = max_tokens
+    req.messages = [msg]
+
+    assert is_quota_check_request(req) is expected
+
+
+def test_quota_check_empty_messages():
+    """Quota check with empty message list should not crash."""
+    req = MagicMock(spec=MessagesRequest)
+    req.max_tokens = 1
+    req.messages = []
+    assert is_quota_check_request(req) is False

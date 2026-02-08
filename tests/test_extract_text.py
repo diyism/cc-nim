@@ -1,5 +1,6 @@
 """Tests for extract_text_from_content helper functions."""
 
+import pytest
 from unittest.mock import MagicMock
 
 from api.request_utils import extract_text_from_content
@@ -90,3 +91,49 @@ class TestLoggingExtractText:
         assert logging_extract("") == ""
         assert logging_extract([]) == ""
         assert logging_extract(None) == ""
+
+
+# --- Parametrized Edge Case Tests ---
+
+
+def _make_block(text_val):
+    b = MagicMock()
+    b.text = text_val
+    return b
+
+
+@pytest.mark.parametrize(
+    "content,expected",
+    [
+        ("hello world", "hello world"),
+        ("", ""),
+        (None, ""),
+        (42, ""),
+        ([], ""),
+        ("   ", "   "),
+    ],
+    ids=["string", "empty_str", "none", "int", "empty_list", "whitespace_only"],
+)
+def test_extract_text_scalar_and_empty_parametrized(content, expected):
+    """Parametrized scalar and empty input handling."""
+    assert extract_text_from_content(content) == expected
+
+
+@pytest.mark.parametrize(
+    "func",
+    [extract_text_from_content, logging_extract],
+    ids=["request_utils", "logging_utils"],
+)
+def test_both_extract_functions_whitespace_only(func):
+    """Both extract functions handle whitespace-only string identically."""
+    assert func("   ") == "   "
+
+
+@pytest.mark.parametrize(
+    "func",
+    [extract_text_from_content, logging_extract],
+    ids=["request_utils", "logging_utils"],
+)
+def test_both_extract_functions_unicode(func):
+    """Both extract functions handle unicode content."""
+    assert func("日本語テスト") == "日本語テスト"

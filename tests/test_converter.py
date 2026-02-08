@@ -1,4 +1,5 @@
 import json
+import pytest
 from providers.nvidia_nim.utils.message_converter import AnthropicToOpenAIConverter
 
 # --- Mock Classes ---
@@ -279,3 +280,78 @@ def test_input_not_dict():
     # The converter calls json.dumps(tool_input) if dict, else str(tool_input)
     # So it should be "some_string"
     assert result[0]["tool_calls"][0]["function"]["arguments"] == "some_string"
+
+
+# --- Parametrized Edge Case Tests ---
+
+
+@pytest.mark.parametrize(
+    "system_input,expected",
+    [
+        ("You are helpful.", {"role": "system", "content": "You are helpful."}),
+        (
+            [MockBlock(type="text", text="A"), MockBlock(type="text", text="B")],
+            {"role": "system", "content": "A\n\nB"},
+        ),
+        (None, None),
+        ("", {"role": "system", "content": ""}),
+        ([], None),
+    ],
+    ids=["string", "list_text", "none", "empty_string", "empty_list"],
+)
+def test_convert_system_prompt_parametrized(system_input, expected):
+    """Parametrized system prompt conversion covering edge cases."""
+    result = AnthropicToOpenAIConverter.convert_system_prompt(system_input)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "content,expected_content",
+    [
+        ("Hello world", "Hello world"),
+        ("", ""),
+        ([MockBlock(type="text", text="A"), MockBlock(type="text", text="B")], "A\nB"),
+        ([MockBlock(type="text", text="")], ""),
+    ],
+    ids=["simple_string", "empty_string", "list_blocks", "empty_text_block"],
+)
+def test_convert_user_message_parametrized(content, expected_content):
+    """Parametrized user message conversion."""
+    messages = [MockMessage("user", content)]
+    result = AnthropicToOpenAIConverter.convert_messages(messages)
+    assert len(result) >= 1
+    assert result[0]["content"] == expected_content
+
+
+def test_convert_assistant_message_unknown_block_type():
+    """Unknown block types should be silently skipped."""
+    content = [
+        MockBlock(type="unknown_type", data="something"),
+        MockBlock(type="text", text="visible"),
+    ]
+    messages = [MockMessage("assistant", content)]
+    result = AnthropicToOpenAIConverter.convert_messages(messages)
+    assert len(result) == 1
+    assert "visible" in result[0]["content"]
+
+
+def test_convert_tool_use_none_input():
+    """Tool use with None input should not crash."""
+    content = [MockBlock(type="tool_use", id="call_n", name="test", input=None)]
+    messages = [MockMessage("assistant", content)]
+    result = AnthropicToOpenAIConverter.convert_messages(messages)
+    assert len(result) == 1
+    assert "tool_calls" in result[0]
+
+
+def test_convert_multiple_tool_results():
+    """Multiple tool results in a single user message."""
+    content = [
+        MockBlock(type="tool_result", tool_use_id="t1", content="Result 1"),
+        MockBlock(type="tool_result", tool_use_id="t2", content="Result 2"),
+    ]
+    messages = [MockMessage("user", content)]
+    result = AnthropicToOpenAIConverter.convert_messages(messages)
+    assert len(result) == 2
+    assert result[0]["tool_call_id"] == "t1"
+    assert result[1]["tool_call_id"] == "t2"

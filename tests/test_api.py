@@ -98,3 +98,51 @@ def test_error_fallbacks():
     )
     assert response.status_code == 529
     assert response.json()["error"]["type"] == "overloaded_error"
+
+    # Reset side_effect for subsequent tests
+    mock_provider.complete.side_effect = None
+
+
+def test_generic_exception_returns_500():
+    """Non-ProviderError exceptions are caught and returned as HTTPException(500)."""
+    mock_provider.complete.side_effect = RuntimeError("unexpected crash")
+    response = client.post(
+        "/v1/messages",
+        json={"model": "test", "messages": [{"role": "user", "content": "Hi"}], "max_tokens": 10, "stream": False},
+    )
+    assert response.status_code == 500
+    mock_provider.complete.side_effect = None
+
+
+def test_generic_exception_with_status_code():
+    """Exception with status_code attribute uses that status."""
+    exc = RuntimeError("bad gateway")
+    exc.status_code = 502
+    mock_provider.complete.side_effect = exc
+    response = client.post(
+        "/v1/messages",
+        json={"model": "test", "messages": [{"role": "user", "content": "Hi"}], "max_tokens": 10, "stream": False},
+    )
+    assert response.status_code == 502
+    mock_provider.complete.side_effect = None
+
+
+def test_count_tokens_endpoint():
+    """count_tokens endpoint returns token count."""
+    response = client.post(
+        "/v1/messages/count_tokens",
+        json={"model": "test", "messages": [{"role": "user", "content": "Hello"}]},
+    )
+    assert response.status_code == 200
+    assert "input_tokens" in response.json()
+
+
+def test_stop_endpoint_no_handler_no_cli_503():
+    """POST /stop without handler or cli_manager returns 503."""
+    # Ensure no handler or cli_manager on app state
+    if hasattr(app.state, "message_handler"):
+        delattr(app.state, "message_handler")
+    if hasattr(app.state, "cli_manager"):
+        delattr(app.state, "cli_manager")
+    response = client.post("/stop")
+    assert response.status_code == 503

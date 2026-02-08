@@ -160,3 +160,58 @@ class TestMessagingRateLimiter:
             f"Should have waited for FloodWait, but took {duration:.2f}s"
         )
         assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_flood_wait_retry_after_parsing(self):
+        """Error message with 'retry after N' parses the wait seconds."""
+        MessagingRateLimiter._instance = None
+        limiter = await MessagingRateLimiter.get_instance()
+
+        async def mock_flood():
+            raise Exception("Flood wait: retry after 2 seconds")
+
+        try:
+            await limiter.enqueue(mock_flood, dedup_key="retry_parse")
+        except Exception:
+            pass
+
+        # Should have parsed "after 2" -> 2 seconds
+        assert limiter._paused_until > 0
+
+    @pytest.mark.asyncio
+    async def test_non_flood_exception_no_pause(self):
+        """Non-flood exception doesn't trigger pause."""
+        MessagingRateLimiter._instance = None
+        limiter = await MessagingRateLimiter.get_instance()
+
+        async def mock_error():
+            raise ValueError("some regular error")
+
+        try:
+            await limiter.enqueue(mock_error, dedup_key="non_flood")
+        except ValueError:
+            pass
+
+        # Should NOT have paused since it's not a flood error
+        assert limiter._paused_until == 0
+
+    @pytest.mark.asyncio
+    async def test_flood_with_seconds_attribute(self):
+        """Exception with .seconds attribute uses that value for pause."""
+        MessagingRateLimiter._instance = None
+        limiter = await MessagingRateLimiter.get_instance()
+
+        class FloodWaitCustom(Exception):
+            def __init__(self):
+                self.seconds = 2
+                super().__init__("Flood wait custom")
+
+        async def mock_flood():
+            raise FloodWaitCustom()
+
+        try:
+            await limiter.enqueue(mock_flood, dedup_key="flood_sec")
+        except Exception:
+            pass
+
+        assert limiter._paused_until > 0
