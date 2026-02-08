@@ -33,18 +33,14 @@ class TreeQueueProcessor:
 
     def set_queue_update_callback(
         self,
-        queue_update_callback: Optional[
-            Callable[[MessageTree], Awaitable[None]]
-        ],
+        queue_update_callback: Optional[Callable[[MessageTree], Awaitable[None]]],
     ) -> None:
         """Update the callback used to refresh queue positions."""
         self._queue_update_callback = queue_update_callback
 
     def set_node_started_callback(
         self,
-        node_started_callback: Optional[
-            Callable[[MessageTree, str], Awaitable[None]]
-        ],
+        node_started_callback: Optional[Callable[[MessageTree, str], Awaitable[None]]],
     ) -> None:
         """Update the callback used when a queued node starts processing."""
         self._node_started_callback = node_started_callback

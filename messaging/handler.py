@@ -132,9 +132,7 @@ def render_markdown_to_mdv2(text: str) -> str:
                             href = val
                             break
                 if alt:
-                    out.append(
-                        f"{escape_md_v2(alt)} ({escape_md_v2_link_url(href)})"
-                    )
+                    out.append(f"{escape_md_v2(alt)} ({escape_md_v2_link_url(href)})")
                 else:
                     out.append(escape_md_v2_link_url(href))
             else:
@@ -460,7 +458,9 @@ class ClaudeMessageHandler:
                     captured_session_id = session_or_temp_id
             except RuntimeError as e:
                 components["errors"].append(str(e))
-                await update_ui(format_status("⏳", "Session limit reached"), force=True)
+                await update_ui(
+                    format_status("⏳", "Session limit reached"), force=True
+                )
                 if tree:
                     await tree.update_state(
                         node_id, MessageState.ERROR, error_message=str(e)
@@ -736,7 +736,9 @@ class ClaudeMessageHandler:
         count = await self.stop_all_tasks()
         await self.platform.queue_send_message(
             incoming.chat_id,
-            format_status("⏹", "Stopped.", f"Cancelled {count} pending or active requests."),
+            format_status(
+                "⏹", "Stopped.", f"Cancelled {count} pending or active requests."
+            ),
         )
 
     async def _handle_stats_command(self, incoming: IncomingMessage) -> None:

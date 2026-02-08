@@ -26,6 +26,7 @@ MDV2_SPECIAL_CHARS = set("\\_*[]()~`>#+-=|{}.!")
 def escape_md_v2(text: str) -> str:
     return "".join(f"\\{ch}" if ch in MDV2_SPECIAL_CHARS else ch for ch in text)
 
+
 # Optional import - python-telegram-bot may not be installed
 try:
     from telegram import Update, Bot
