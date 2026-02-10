@@ -59,7 +59,7 @@ Control Claude Code remotely via Telegram! Set an allowed directory, send tasks 
    - Send `/newbot` and follow the prompts
    - Copy the **HTTP API Token**
 
-2. **Edit`.env`:**
+2. **Edit `.env`:**
 
 ```dotenv
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
