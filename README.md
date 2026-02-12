@@ -15,8 +15,8 @@ Use **Claude Code CLI for free** with NVIDIA NIM's free unlimited 40 reqs/min AP
 ### 2. Clone & Configure
 
 ```bash
-git clone https://github.com/Alishahryar1/cc-nim.git
-cd cc-nim
+git clone https://github.com/Alishahryar1/free-claude-code.git
+cd free-claude-code
 
 cp .env.example .env
 ```
@@ -41,7 +41,7 @@ uv run uvicorn server:app --host 0.0.0.0 --port 8082
 **Terminal 2 - Run Claude Code:**
 
 ```bash
-ANTHROPIC_AUTH_TOKEN=ccnim ANTHROPIC_BASE_URL=http://localhost:8082 claude
+ANTHROPIC_AUTH_TOKEN=freecc ANTHROPIC_BASE_URL=http://localhost:8082 claude
 ```
 
 That's it! Claude Code now uses NVIDIA NIM for free.
@@ -59,7 +59,7 @@ Control Claude Code remotely via Telegram! Set an allowed directory, send tasks 
    - Send `/newbot` and follow the prompts
    - Copy the **HTTP API Token**
 
-2. **Add to `.env`:**
+2. **Edit `.env`:**
 
 ```dotenv
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
