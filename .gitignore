@@ -9,3 +9,4 @@ agent_workspace
 AGENTS.md
 CLAUDE.md
 server.log
+.coverage
