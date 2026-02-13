@@ -88,6 +88,7 @@ uv run uvicorn server:app --host 0.0.0.0 --port 8082
      - 🔧 **Tool calls** as they execute
      - ✅ **Final result** when complete
    - Send `/stop` to cancel all running tasks
+   - Reply `/stop` to a running task to cancel it
 
 ## Available Models
 
