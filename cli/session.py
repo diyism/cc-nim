@@ -32,7 +32,7 @@ class CLISession:
         return self._is_busy
 
     async def start_task(
-        self, prompt: str, session_id: Optional[str] = None
+        self, prompt: str, session_id: Optional[str] = None, fork_session: bool = False
     ) -> AsyncGenerator[dict, None]:
         """
         Start a new task or continue an existing session.
@@ -66,6 +66,10 @@ class CLISession:
                     "claude",
                     "--resume",
                     session_id,
+                ]
+                if fork_session:
+                    cmd.append("--fork-session")
+                cmd += [
                     "-p",
                     prompt,
                     "--output-format",
@@ -106,11 +110,36 @@ class CLISession:
                 session_id_extracted = False
                 buffer = bytearray()
 
-                while True:
-                    chunk = await self.process.stdout.read(65536)
-                    if not chunk:
-                        if buffer:
-                            line_str = buffer.decode("utf-8", errors="replace").strip()
+                try:
+                    while True:
+                        chunk = await self.process.stdout.read(65536)
+                        if not chunk:
+                            if buffer:
+                                line_str = buffer.decode(
+                                    "utf-8", errors="replace"
+                                ).strip()
+                                if line_str:
+                                    async for event in self._handle_line_gen(
+                                        line_str, session_id_extracted
+                                    ):
+                                        if event.get("type") == "session_info":
+                                            session_id_extracted = True
+                                        yield event
+                            break
+
+                        buffer.extend(chunk)
+
+                        while True:
+                            newline_pos = buffer.find(b"\n")
+                            if newline_pos == -1:
+                                break
+
+                            line = buffer[:newline_pos]
+                            buffer = buffer[newline_pos + 1 :]
+
+                            line_str = line.decode(
+                                "utf-8", errors="replace"
+                            ).strip()
                             if line_str:
                                 async for event in self._handle_line_gen(
                                     line_str, session_id_extracted
@@ -118,26 +147,13 @@ class CLISession:
                                     if event.get("type") == "session_info":
                                         session_id_extracted = True
                                     yield event
-                        break
-
-                    buffer.extend(chunk)
-
-                    while True:
-                        newline_pos = buffer.find(b"\n")
-                        if newline_pos == -1:
-                            break
-
-                        line = buffer[:newline_pos]
-                        buffer = buffer[newline_pos + 1 :]
-
-                        line_str = line.decode("utf-8", errors="replace").strip()
-                        if line_str:
-                            async for event in self._handle_line_gen(
-                                line_str, session_id_extracted
-                            ):
-                                if event.get("type") == "session_info":
-                                    session_id_extracted = True
-                                yield event
+                except asyncio.CancelledError:
+                    # Cancelling the handler task should not leave a Claude CLI
+                    # subprocess running in the background.
+                    try:
+                        await asyncio.shield(self.stop())
+                    finally:
+                        raise
 
                 stderr_text = None
                 if self.process.stderr:

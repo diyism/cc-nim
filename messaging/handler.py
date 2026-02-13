@@ -464,7 +464,7 @@ class ClaudeMessageHandler:
                     session_or_temp_id,
                     is_new,
                 ) = await self.cli_manager.get_or_create_session(
-                    session_id=parent_session_id  # Fork from parent if available
+                    session_id=None  # Always create a fresh session per node
                 )
                 if is_new:
                     temp_session_id = session_or_temp_id
@@ -485,7 +485,9 @@ class ClaudeMessageHandler:
             logger.info(f"HANDLER: Starting CLI task processing for node {node_id}")
             event_count = 0
             async for event_data in cli_session.start_task(
-                incoming.text, session_id=captured_session_id
+                incoming.text,
+                session_id=parent_session_id,
+                fork_session=bool(parent_session_id),
             ):
                 if not isinstance(event_data, dict):
                     logger.warning(
@@ -505,6 +507,15 @@ class ClaudeMessageHandler:
                         )
                         captured_session_id = real_session_id
                         temp_session_id = None
+                        # Persist session_id early so replies can fork even if a task
+                        # is stopped before completion.
+                        if tree and captured_session_id:
+                            await tree.update_state(
+                                node_id,
+                                MessageState.IN_PROGRESS,
+                                session_id=captured_session_id,
+                            )
+                            self.session_store.save_tree(tree.root_id, tree.to_dict())
                     continue
 
                 parsed_list = parse_cli_event(event_data)
@@ -560,11 +571,21 @@ class ClaudeMessageHandler:
 
         except asyncio.CancelledError:
             logger.warning(f"HANDLER: Task cancelled for node {node_id}")
-            components["errors"].append("Task was cancelled")
-            await update_ui(format_status("❌", "Cancelled"), force=True)
+            cancel_reason = None
+            if isinstance(node.context, dict):
+                cancel_reason = node.context.get("cancel_reason")
+
+            if cancel_reason == "stop":
+                await update_ui(format_status("⏹", "Stopped."), force=True)
+            else:
+                components["errors"].append("Task was cancelled")
+                await update_ui(format_status("❌", "Cancelled"), force=True)
+
+            # Do not propagate cancellation to children; a reply-scoped "/stop"
+            # should only stop the targeted task.
             if tree:
-                await self._propagate_error_to_children(
-                    node_id, "Cancelled by user", "Parent task was stopped"
+                await tree.update_state(
+                    node_id, MessageState.ERROR, error_message="Cancelled by user"
                 )
         except Exception as e:
             logger.error(
@@ -581,6 +602,16 @@ class ClaudeMessageHandler:
             logger.info(
                 f"HANDLER: _process_node completed for node {node_id}, errors={len(components['errors'])}"
             )
+            # Free the session-manager slot. Session IDs are persisted in the tree and
+            # can be resumed later by ID; we don't need to keep a CLISession instance
+            # around after this node completes.
+            try:
+                if captured_session_id:
+                    await self.cli_manager.remove_session(captured_session_id)
+                elif temp_session_id:
+                    await self.cli_manager.remove_session(temp_session_id)
+            except Exception as e:
+                logger.debug(f"Failed to remove session for node {node_id}: {e}")
 
     async def _propagate_error_to_children(
         self,
@@ -745,8 +776,61 @@ class ClaudeMessageHandler:
 
         return len(cancelled_nodes)
 
+    async def stop_task(self, node_id: str) -> int:
+        """
+        Stop a single queued or in-progress task node.
+
+        Used when the user replies "/stop" to a specific status/user message.
+        """
+        tree = self.tree_queue.get_tree_for_node(node_id)
+        if tree:
+            node = tree.get_node(node_id)
+            if node and node.state not in (MessageState.COMPLETED, MessageState.ERROR):
+                # Used by _process_node cancellation path to render "Stopped."
+                node.context = {"cancel_reason": "stop"}
+
+        cancelled_nodes = await self.tree_queue.cancel_node(node_id)
+
+        for node in cancelled_nodes:
+            self.platform.fire_and_forget(
+                self.platform.queue_edit_message(
+                    node.incoming.chat_id,
+                    node.status_message_id,
+                    format_status("⏹", "Stopped."),
+                    parse_mode="MarkdownV2",
+                )
+            )
+
+            tree = self.tree_queue.get_tree_for_node(node.node_id)
+            if tree:
+                self.session_store.save_tree(tree.root_id, tree.to_dict())
+
+        return len(cancelled_nodes)
+
     async def _handle_stop_command(self, incoming: IncomingMessage) -> None:
         """Handle /stop command from messaging platform."""
+        # Reply-scoped stop: reply "/stop" to stop only that task.
+        if incoming.is_reply() and incoming.reply_to_message_id:
+            reply_id = incoming.reply_to_message_id
+            tree = self.tree_queue.get_tree_for_node(reply_id)
+            node_id = self.tree_queue.resolve_parent_node_id(reply_id) if tree else None
+
+            if not node_id:
+                await self.platform.queue_send_message(
+                    incoming.chat_id,
+                    format_status("⏹", "Stopped.", "Nothing to stop for that message."),
+                )
+                return
+
+            count = await self.stop_task(node_id)
+            noun = "request" if count == 1 else "requests"
+            await self.platform.queue_send_message(
+                incoming.chat_id,
+                format_status("⏹", "Stopped.", f"Cancelled {count} {noun}."),
+            )
+            return
+
+        # Global stop: legacy behavior (stop everything)
         count = await self.stop_all_tasks()
         await self.platform.queue_send_message(
             incoming.chat_id,

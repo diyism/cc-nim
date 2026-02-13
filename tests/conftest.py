@@ -50,6 +50,7 @@ def mock_cli_manager():
     manager.get_or_create_session = AsyncMock()
     manager.register_real_session_id = AsyncMock(return_value=True)
     manager.stop_all = AsyncMock()
+    manager.remove_session = AsyncMock(return_value=True)
     manager.get_stats = MagicMock(
         return_value={"active_sessions": 0, "max_sessions": 5}
     )

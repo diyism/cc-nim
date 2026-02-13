@@ -259,6 +259,34 @@ class TestCLISession:
             args = mock_exec.call_args[0]
             assert "--resume" in args
             assert "sess_abc" in args
+            assert "--fork-session" not in args
+
+    @pytest.mark.asyncio
+    async def test_start_task_with_session_resume_and_fork(self):
+        """Test resuming an existing session and forking."""
+        from cli.session import CLISession
+
+        session = CLISession("/tmp", "http://localhost:8082/v1")
+
+        mock_process = AsyncMock()
+        mock_process.stdout.read.side_effect = [b""]  # Immediate EOF
+        mock_process.stderr.read.return_value = b""
+        mock_process.wait.return_value = 0
+
+        with patch(
+            "asyncio.create_subprocess_exec", new_callable=AsyncMock
+        ) as mock_exec:
+            mock_exec.return_value = mock_process
+
+            async for _ in session.start_task(
+                "Hello", session_id="sess_abc", fork_session=True
+            ):
+                pass
+
+            args = mock_exec.call_args[0]
+            assert "--resume" in args
+            assert "sess_abc" in args
+            assert "--fork-session" in args
 
     @pytest.mark.asyncio
     async def test_start_task_process_failure_with_stderr(self):

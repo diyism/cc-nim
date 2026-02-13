@@ -30,6 +30,63 @@ async def test_handle_message_stop_command(
 
 
 @pytest.mark.asyncio
+async def test_handle_message_stop_command_reply_stops_only_target_node(
+    handler, mock_platform, mock_cli_manager, incoming_message_factory
+):
+    # Create a tree with a root node and register its status message ID mapping.
+    root_incoming = incoming_message_factory(
+        text="do something", message_id="root_msg", reply_to_message_id=None
+    )
+    tree = await handler.tree_queue.create_tree(
+        node_id="root_msg",
+        incoming=root_incoming,
+        status_message_id="status_root",
+    )
+    handler.tree_queue.register_node("status_root", tree.root_id)
+
+    # Reply "/stop" to the status message; should stop only that node.
+    incoming = incoming_message_factory(
+        text="/stop",
+        message_id="stop_msg",
+        reply_to_message_id="status_root",
+    )
+
+    handler.stop_all_tasks = AsyncMock(return_value=999)
+
+    await handler.handle_message(incoming)
+
+    handler.stop_all_tasks.assert_not_called()
+    mock_cli_manager.stop_all.assert_not_called()
+    assert tree.get_node("root_msg").state == MessageState.ERROR
+    mock_platform.queue_send_message.assert_called_once_with(
+        incoming.chat_id,
+        "⏹ *Stopped\\.* Cancelled 1 request\\.",
+    )
+
+
+@pytest.mark.asyncio
+async def test_handle_message_stop_command_reply_unknown_does_not_stop_all(
+    handler, mock_platform, mock_cli_manager, incoming_message_factory
+):
+    incoming = incoming_message_factory(
+        text="/stop",
+        message_id="stop_msg",
+        reply_to_message_id="unknown_msg",
+    )
+
+    handler.stop_all_tasks = AsyncMock(return_value=5)
+
+    await handler.handle_message(incoming)
+
+    handler.stop_all_tasks.assert_not_called()
+    mock_cli_manager.stop_all.assert_not_called()
+    mock_platform.queue_send_message.assert_called_once_with(
+        incoming.chat_id,
+        "⏹ *Stopped\\.* Nothing to stop for that message\\.",
+    )
+
+
+@pytest.mark.asyncio
 async def test_handle_message_stats_command(
     handler, mock_platform, mock_cli_manager, incoming_message_factory
 ):

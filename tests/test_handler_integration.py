@@ -29,17 +29,18 @@ async def test_full_conversation_flow_single_user(
     mock_session1 = MagicMock()
     mock_session1.start_task.return_value = mock_async_gen(
         [
+            {"type": "session_info", "session_id": "sess1"},
             {
                 "type": "assistant",
                 "message": {"content": [{"type": "text", "text": "Reply 1"}]},
             },
-            {"type": "exit", "code": 0},
+            {"type": "exit", "code": 0, "stderr": None},
         ]
     )
     mock_cli_manager.get_or_create_session.return_value = (
         mock_session1,
-        "sess1",
-        False,
+        "pending_1",
+        True,
     )
 
     await handler_integration.handle_message(msg1)
@@ -53,6 +54,9 @@ async def test_full_conversation_flow_single_user(
 
     assert tree.get_node("m1").state.value == MessageState.COMPLETED.value
     assert tree.get_node("m1").session_id == "sess1"
+    mock_session1.start_task.assert_called_with(
+        "message 1", session_id=None, fork_session=False
+    )
 
     # 2. Reply to m1
     msg2 = incoming_message_factory(
@@ -64,18 +68,19 @@ async def test_full_conversation_flow_single_user(
     mock_session2 = MagicMock()
     mock_session2.start_task.return_value = mock_async_gen(
         [
+            {"type": "session_info", "session_id": "sess2"},
             {
                 "type": "assistant",
                 "message": {"content": [{"type": "text", "text": "Reply 2"}]},
             },
-            {"type": "exit", "code": 0},
+            {"type": "exit", "code": 0, "stderr": None},
         ]
     )
     mock_cli_manager.get_or_create_session.reset_mock()
     mock_cli_manager.get_or_create_session.return_value = (
         mock_session2,
-        "sess2",
-        False,
+        "pending_2",
+        True,
     )
 
     await handler_integration.handle_message(msg2)
@@ -88,7 +93,10 @@ async def test_full_conversation_flow_single_user(
 
     assert tree.get_node("m2").state.value == MessageState.COMPLETED.value
     assert tree.get_node("m2").parent_id == "m1"
-    mock_cli_manager.get_or_create_session.assert_called_with(session_id="sess1")
+    mock_cli_manager.get_or_create_session.assert_called_with(session_id=None)
+    mock_session2.start_task.assert_called_with(
+        "message 2", session_id="sess1", fork_session=True
+    )
 
 
 @pytest.mark.asyncio

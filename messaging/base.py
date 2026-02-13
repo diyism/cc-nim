@@ -20,7 +20,7 @@ class CLISession(Protocol):
     """Protocol for CLI session - avoid circular import from cli package."""
 
     def start_task(
-        self, prompt: str, session_id: Optional[str] = None
+        self, prompt: str, session_id: Optional[str] = None, fork_session: bool = False
     ) -> AsyncGenerator[Dict, Any]:
         """Start a task in the CLI session."""
         ...
@@ -58,6 +58,10 @@ class SessionManagerInterface(Protocol):
 
     async def stop_all(self) -> None:
         """Stop all sessions."""
+        ...
+
+    async def remove_session(self, session_id: str) -> bool:
+        """Remove a session from the manager."""
         ...
 
     def get_stats(self) -> dict:

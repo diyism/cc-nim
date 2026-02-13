@@ -6,6 +6,8 @@ Uses TreeRepository for data, TreeQueueProcessor for async logic.
 
 import asyncio
 import logging
+from collections import deque
+from datetime import datetime, timezone
 from typing import Callable, Awaitable, List, Optional
 
 from .models import IncomingMessage
@@ -294,6 +296,49 @@ class TreeQueueManager:
             logger.info(f"Cleaned up {cleanup_count} stale nodes in tree {root_id}")
 
         return cancelled_nodes
+
+    async def cancel_node(self, node_id: str) -> List[MessageNode]:
+        """
+        Cancel a single node (queued or in-progress) without affecting other nodes.
+
+        - If the node is currently running, cancels the current asyncio task.
+        - If the node is queued, removes it from the queue.
+        - Marks the node as ERROR with "Cancelled by user".
+
+        Returns:
+            List containing the cancelled node if it was cancellable, else empty list.
+        """
+        tree = self._repository.get_tree_for_node(node_id)
+        if not tree:
+            return []
+
+        async with tree._lock:
+            node = tree.get_node(node_id)
+            if not node:
+                return []
+
+            if node.state in (MessageState.COMPLETED, MessageState.ERROR):
+                return []
+
+            # Cancel running task if this is the current node.
+            if tree._current_node_id == node_id:
+                self._processor.cancel_current(tree)
+
+            # Remove from queue if present (asyncio.Queue exposes its internal deque).
+            try:
+                q = tree._queue._queue  # type: ignore[attr-defined]
+                if q and node_id in q:
+                    tree._queue._queue = deque(x for x in q if x != node_id)  # type: ignore[attr-defined]
+            except Exception:
+                # Best-effort: if we can't mutate the queue internals, the node will
+                # still be dequeued later and skipped due to state=ERROR.
+                logger.debug("Failed to remove node from queue; will rely on state=ERROR")
+
+            node.state = MessageState.ERROR
+            node.error_message = "Cancelled by user"
+            node.completed_at = datetime.now(timezone.utc)
+
+            return [node]
 
     async def cancel_all(self) -> List[MessageNode]:
         """Cancel all messages in all trees (async wrapper)."""
