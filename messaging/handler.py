@@ -105,10 +105,13 @@ def render_markdown_to_mdv2(text: str) -> str:
             elif t == "link_open":
                 href = ""
                 if tok.attrs:
-                    for key, val in tok.attrs:
-                        if key == "href":
-                            href = val
-                            break
+                    if isinstance(tok.attrs, dict):
+                        href = tok.attrs.get("href", "")
+                    else:
+                        for key, val in tok.attrs:
+                            if key == "href":
+                                href = val
+                                break
                 inner_tokens = []
                 i += 1
                 while i < len(children) and children[i].type != "link_close":
@@ -127,10 +130,13 @@ def render_markdown_to_mdv2(text: str) -> str:
                 href = ""
                 alt = tok.content or ""
                 if tok.attrs:
-                    for key, val in tok.attrs:
-                        if key == "src":
-                            href = val
-                            break
+                    if isinstance(tok.attrs, dict):
+                        href = tok.attrs.get("src", "")
+                    else:
+                        for key, val in tok.attrs:
+                            if key == "src":
+                                href = val
+                                break
                 if alt:
                     out.append(f"{escape_md_v2(alt)} ({escape_md_v2_link_url(href)})")
                 else:
@@ -174,13 +180,21 @@ def render_markdown_to_mdv2(text: str) -> str:
         elif t == "ordered_list_open":
             start = 1
             if tok.attrs:
-                for key, val in tok.attrs:
-                    if key == "start":
+                if isinstance(tok.attrs, dict):
+                    val = tok.attrs.get("start")
+                    if val is not None:
                         try:
                             start = int(val)
-                        except ValueError:
+                        except (TypeError, ValueError):
                             start = 1
-                        break
+                else:
+                    for key, val in tok.attrs:
+                        if key == "start":
+                            try:
+                                start = int(val)
+                            except (TypeError, ValueError):
+                                start = 1
+                            break
             list_stack.append({"type": "ordered", "index": start})
         elif t == "ordered_list_close":
             if list_stack:

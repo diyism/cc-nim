@@ -80,7 +80,9 @@ def extract_command_prefix(command: str) -> str:
         return "command_injection_detected"
 
     try:
-        parts = shlex.split(command)
+        # On Windows, shlex(posix=True) treats backslashes as escapes (e.g. \t),
+        # which corrupts paths like C:\tmp\a.txt. posix=False preserves them.
+        parts = shlex.split(command, posix=False)
         if not parts:
             return "none"
 
@@ -257,7 +259,8 @@ def extract_filepaths_from_command(command: str, output: str) -> str:
     reading_commands = {"cat", "head", "tail", "less", "more", "bat", "type"}
 
     try:
-        parts = shlex.split(command)
+        # Use Windows-style splitting to preserve backslashes in paths (e.g. C:\tmp\a.txt).
+        parts = shlex.split(command, posix=False)
         if not parts:
             return "<filepaths>\n</filepaths>"
 
@@ -285,22 +288,31 @@ def extract_filepaths_from_command(command: str, output: str) -> str:
 
         # grep with file argument
         if base_cmd == "grep":
-            filepaths = []
+            # Basic parsing:
+            # - Skip flags (and args for flags that take an argument)
+            # - If -e/-f is used, pattern is provided via flag so all remaining
+            #   positional args are treated as file paths.
+            # - Otherwise, first positional arg is pattern, remainder are file paths.
+            flags_with_args = {"-e", "-f", "-m", "-A", "-B", "-C"}
+            pattern_provided_via_flag = False
+            positional: list[str] = []
+
             skip_next = False
-            for i, part in enumerate(parts[1:], 1):
+            for part in parts[1:]:
                 if skip_next:
                     skip_next = False
                     continue
-                # Skip flags and their arguments
+
                 if part.startswith("-"):
-                    # Flags that take an argument
-                    if part in {"-e", "-f", "-m", "-A", "-B", "-C"}:
+                    if part in flags_with_args:
+                        if part in {"-e", "-f"}:
+                            pattern_provided_via_flag = True
                         skip_next = True
                     continue
-                # First non-flag is pattern, rest are files
-                if i > 1:  # Skip the pattern
-                    filepaths.append(part)
 
+                positional.append(part)
+
+            filepaths = positional if pattern_provided_via_flag else positional[1:]
             if filepaths:
                 paths_str = "\n".join(filepaths)
                 return f"<filepaths>\n{paths_str}\n</filepaths>"
