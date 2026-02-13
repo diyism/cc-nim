@@ -36,8 +36,8 @@ class MessagingRateLimiter:
         async with cls._lock:
             if cls._instance is None:
                 cls._instance = cls()
-                # Start the background worker
-                asyncio.create_task(cls._instance._worker())
+                # Start the background worker (tracked for graceful shutdown).
+                cls._instance._start_worker()
         return cls._instance
 
     def __init__(self):
@@ -55,6 +55,8 @@ class MessagingRateLimiter:
             str, tuple[Callable[[], Awaitable[Any]], List[asyncio.Future]]
         ] = {}
         self._condition = asyncio.Condition()
+        self._shutdown = asyncio.Event()
+        self._worker_task: Optional[asyncio.Task] = None
 
         self._initialized = True
         self._paused_until = 0
@@ -63,15 +65,25 @@ class MessagingRateLimiter:
             f"MessagingRateLimiter initialized ({rate_limit} req / {rate_window}s with Task Compaction)"
         )
 
+    def _start_worker(self) -> None:
+        """Ensure the worker task exists."""
+        if self._worker_task and not self._worker_task.done():
+            return
+        # Named task helps debugging shutdown hangs.
+        self._worker_task = asyncio.create_task(self._worker(), name="msg-limiter-worker")
+
     async def _worker(self):
         """Background worker that processes queued messaging tasks."""
         logger.info("MessagingRateLimiter worker started")
-        while True:
+        while not self._shutdown.is_set():
             try:
                 # Get a task from the queue
                 async with self._condition:
-                    while not self._queue_list:
+                    while not self._queue_list and not self._shutdown.is_set():
                         await self._condition.wait()
+
+                    if self._shutdown.is_set():
+                        break
 
                     dedup_key = self._queue_list.pop(0)
                     func, futures = self._queue_map.pop(dedup_key)
@@ -134,6 +146,44 @@ class MessagingRateLimiter:
                     f"MessagingRateLimiter worker critical error: {e}", exc_info=True
                 )
                 await asyncio.sleep(1)
+
+    async def shutdown(self, timeout: float = 2.0) -> None:
+        """Stop the background worker so process shutdown doesn't hang."""
+        self._shutdown.set()
+        try:
+            async with self._condition:
+                self._condition.notify_all()
+        except Exception:
+            # Best-effort: condition may be bound to a closing loop.
+            pass
+
+        task = self._worker_task
+        if not task or task.done():
+            self._worker_task = None
+            return
+
+        task.cancel()
+        try:
+            await asyncio.wait_for(task, timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.warning("MessagingRateLimiter worker did not stop before timeout")
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.debug(f"MessagingRateLimiter worker shutdown error: {e}")
+        finally:
+            self._worker_task = None
+
+    @classmethod
+    async def shutdown_instance(cls, timeout: float = 2.0) -> None:
+        """Shutdown and clear the singleton instance (safe to call multiple times)."""
+        inst = cls._instance
+        if not inst:
+            return
+        try:
+            await inst.shutdown(timeout=timeout)
+        finally:
+            cls._instance = None
 
     async def _enqueue_internal(self, func, future, dedup_key, front=False):
         await self._enqueue_internal_multi(func, [future], dedup_key, front)

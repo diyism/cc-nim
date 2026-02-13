@@ -22,17 +22,14 @@ class TestMessagingRateLimiter:
     @pytest_asyncio.fixture(autouse=True)
     async def reset_limiter(self):
         """Reset singleton and environment before each test."""
-        # Reset the singleton manually if needed (although __init__ protection exists)
-        if MessagingRateLimiter._instance:
-            # Stop worker if possible or just reset instance
-            pass
-        MessagingRateLimiter._instance = None
+        # Ensure the singleton worker is stopped between tests to avoid dangling tasks.
+        await MessagingRateLimiter.shutdown_instance(timeout=0.1)
         os.environ["MESSAGING_RATE_LIMIT"] = "1"
         os.environ["MESSAGING_RATE_WINDOW"] = "0.5"
 
         yield
 
-        MessagingRateLimiter._instance = None
+        await MessagingRateLimiter.shutdown_instance(timeout=0.1)
 
     @pytest.mark.asyncio
     async def test_singleton_pattern(self):

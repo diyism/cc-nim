@@ -146,3 +146,54 @@ def test_app_lifespan_sets_state_and_cleans_up(tmp_path, messaging_enabled):
         assert getattr(app.state, "messaging_platform", "missing") is None
 
     cleanup_provider.assert_awaited_once()
+
+
+def test_app_lifespan_cleanup_continues_if_platform_stop_raises(tmp_path):
+    from api.app import create_app
+
+    app = create_app()
+
+    settings = SimpleNamespace(
+        messaging_platform="telegram",
+        telegram_bot_token="token",
+        allowed_telegram_user_id="123",
+        allowed_dir=str(tmp_path / "workspace"),
+        claude_workspace=str(tmp_path / "data"),
+        host="127.0.0.1",
+        port=8082,
+        max_cli_sessions=1,
+        log_file=str(tmp_path / "server.log"),
+    )
+
+    fake_platform = MagicMock()
+    fake_platform.name = "fake"
+    fake_platform.on_message = MagicMock()
+    fake_platform.start = AsyncMock()
+    fake_platform.stop = AsyncMock(side_effect=RuntimeError("stop failed"))
+
+    session_store = MagicMock()
+    session_store.get_all_trees.return_value = []
+    session_store.get_node_mapping.return_value = {}
+    session_store.sync_from_tree_data = MagicMock()
+
+    cli_manager = MagicMock()
+    cli_manager.stop_all = AsyncMock()
+
+    api_app_mod = importlib.import_module("api.app")
+    cleanup_provider = AsyncMock()
+    with patch.object(api_app_mod, "get_settings", return_value=settings), patch.object(
+        api_app_mod, "cleanup_provider", new=cleanup_provider
+    ), patch(
+        "messaging.factory.create_messaging_platform",
+        return_value=fake_platform,
+    ), patch(
+        "messaging.session.SessionStore", return_value=session_store
+    ), patch(
+        "cli.manager.CLISessionManager", return_value=cli_manager
+    ):
+        with TestClient(app):
+            pass
+
+    fake_platform.stop.assert_awaited_once()
+    cli_manager.stop_all.assert_awaited_once()
+    cleanup_provider.assert_awaited_once()

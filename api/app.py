@@ -1,5 +1,6 @@
 """FastAPI application factory and configuration."""
 
+import asyncio
 import os
 
 # Opt-in to future behavior for python-telegram-bot
@@ -36,6 +37,18 @@ logger = logging.getLogger(__name__)
 logging.getLogger("uvicorn").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+
+_SHUTDOWN_TIMEOUT_S = 5.0
+
+
+async def _best_effort(name: str, awaitable, timeout_s: float = _SHUTDOWN_TIMEOUT_S) -> None:
+    """Run a shutdown step with timeout; never raise to callers."""
+    try:
+        await asyncio.wait_for(awaitable, timeout=timeout_s)
+    except asyncio.TimeoutError:
+        logger.warning(f"Shutdown step timed out: {name} ({timeout_s}s)")
+    except Exception as e:
+        logger.warning(f"Shutdown step failed: {name}: {type(e).__name__}: {e}")
 
 
 @asynccontextmanager
@@ -144,12 +157,27 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup
+    logger.info("Shutdown requested, cleaning up...")
     if messaging_platform:
-        await messaging_platform.stop()
+        await _best_effort("messaging_platform.stop", messaging_platform.stop())
     if cli_manager:
-        await cli_manager.stop_all()
-    await cleanup_provider()
-    logger.info("Server shutting down...")
+        await _best_effort("cli_manager.stop_all", cli_manager.stop_all())
+    await _best_effort("cleanup_provider", cleanup_provider())
+
+    # Ensure background limiter worker doesn't keep the loop alive.
+    try:
+        from messaging.limiter import MessagingRateLimiter
+
+        await _best_effort(
+            "MessagingRateLimiter.shutdown_instance",
+            MessagingRateLimiter.shutdown_instance(),
+            timeout_s=2.0,
+        )
+    except Exception:
+        # Limiter may never have been imported/initialized.
+        pass
+
+    logger.info("Server shut down cleanly")
 
 
 def create_app() -> FastAPI:
