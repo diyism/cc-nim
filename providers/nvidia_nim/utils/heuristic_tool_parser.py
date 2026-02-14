@@ -6,6 +6,13 @@ from typing import List, Dict, Any, Tuple
 
 logger = logging.getLogger(__name__)
 
+# Some OpenAI-compatible backends/models occasionally leak internal sentinel tokens
+# into `delta.content` (e.g. "<|tool_call_end|>"). These should never be shown to
+# end users, and they can disrupt downstream parsing if left in place.
+_CONTROL_TOKEN_RE = re.compile(r"<\|[^|>]{1,80}\|>")
+_CONTROL_TOKEN_START = "<|"
+_CONTROL_TOKEN_END = "|>"
+
 
 class ParserState(Enum):
     TEXT = 1
@@ -35,6 +42,29 @@ class HeuristicToolParser:
             r"<parameter=([^>]+)>(.*?)(?:</parameter>|$)", re.DOTALL
         )
 
+    def _strip_control_tokens(self, text: str) -> str:
+        # Remove complete sentinel tokens. If a token is split across chunks it
+        # will be removed once the buffer contains the full token.
+        return _CONTROL_TOKEN_RE.sub("", text)
+
+    def _split_incomplete_control_token_tail(self) -> str:
+        """
+        If the buffer ends with an incomplete "<|...|>" sentinel token, keep that
+        fragment in the buffer and return the safe-to-emit prefix.
+
+        This prevents leaking raw sentinel fragments to the user when streaming.
+        """
+        start = self.buffer.rfind(_CONTROL_TOKEN_START)
+        if start == -1:
+            return ""
+        end = self.buffer.find(_CONTROL_TOKEN_END, start)
+        if end != -1:
+            return ""
+
+        prefix = self.buffer[:start]
+        self.buffer = self.buffer[start:]
+        return prefix
+
     def feed(self, text: str) -> Tuple[str, List[Dict[str, Any]]]:
         """
         Feed text into the parser.
@@ -44,6 +74,7 @@ class HeuristicToolParser:
         detected_tool_calls: List of Anthropic-format tool_use blocks.
         """
         self.buffer += text
+        self.buffer = self._strip_control_tokens(self.buffer)
         detected_tools = []
         filtered_output = ""
 
@@ -56,6 +87,13 @@ class HeuristicToolParser:
                     self.buffer = self.buffer[idx:]
                     self.state = ParserState.MATCHING_FUNCTION
                 else:
+                    # Avoid emitting an incomplete "<|...|>" sentinel fragment if the
+                    # token got split across streaming chunks.
+                    safe_prefix = self._split_incomplete_control_token_tail()
+                    if safe_prefix:
+                        filtered_output += safe_prefix
+                        break
+
                     filtered_output += self.buffer
                     self.buffer = ""
                     break
@@ -168,6 +206,7 @@ class HeuristicToolParser:
         """
         Flush any remaining tool calls in the buffer.
         """
+        self.buffer = self._strip_control_tokens(self.buffer)
         detected_tools = []
         if self.state == ParserState.PARSING_PARAMETERS:
             # Try to extract any partial parameters remaining in buffer

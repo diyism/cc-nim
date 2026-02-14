@@ -74,6 +74,44 @@ def test_heuristic_tool_parser_flush():
     assert tools[0]["input"] == {"command": "ls -la"}
 
 
+def test_heuristic_tool_parser_strips_control_tokens():
+    p = HeuristicToolParser()
+    filtered, tools = p.feed("Hello <|tool_call_end|> world")
+    tools.extend(p.flush())
+
+    assert "<|tool_call_end|>" not in filtered
+    assert filtered == "Hello  world"
+    assert tools == []
+
+
+def test_heuristic_tool_parser_strips_control_tokens_split_across_chunks():
+    p = HeuristicToolParser()
+    f1, t1 = p.feed("Hello <|tool_call_")
+    f2, t2 = p.feed("end|> world")
+    tools = t1 + t2 + p.flush()
+
+    assert "<|tool_call_end|>" not in (f1 + f2)
+    assert (f1 + f2) == "Hello  world"
+    assert tools == []
+
+
+def test_heuristic_tool_parser_strips_control_tokens_inside_tool_text():
+    p = HeuristicToolParser()
+    text = (
+        "Before <|tool_calls_section_end|> ● <function=Grep>"
+        "<parameter=pattern>hi</parameter> After"
+    )
+    filtered, tools = p.feed(text)
+    tools.extend(p.flush())
+
+    assert "<|tool_calls_section_end|>" not in filtered
+    assert "Before" in filtered
+    assert "After" in filtered
+    assert len(tools) == 1
+    assert tools[0]["name"] == "Grep"
+    assert tools[0]["input"] == {"pattern": "hi"}
+
+
 def test_interleaved_thinking_and_tools():
     parser_think = ThinkTagParser()
     parser_tool = HeuristicToolParser()
