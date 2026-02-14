@@ -1,6 +1,7 @@
 """CLI event parser for Claude Code CLI output.
 
-Extracted from cli.parser to avoid tight coupling between messaging and cli packages.
+This parser emits an ordered stream of low-level events suitable for building a
+Claude Code-like transcript in messaging UIs.
 """
 
 import logging
@@ -23,11 +24,13 @@ def parse_cli_event(event: Any) -> List[Dict]:
         return []
 
     etype = event.get("type")
-    results = []
+    results: List[Dict[str, Any]] = []
 
-    # 1. Handle full messages (assistant or result)
+    # 1. Handle full messages (assistant/user or result)
     msg_obj = None
     if etype == "assistant":
+        msg_obj = event.get("message")
+    elif etype == "user":
         msg_obj = event.get("message")
     elif etype == "result":
         res = event.get("result")
@@ -39,40 +42,35 @@ def parse_cli_event(event: Any) -> List[Dict]:
     if msg_obj and isinstance(msg_obj, dict):
         content = msg_obj.get("content", [])
         if isinstance(content, list):
-            parts = []
-            thinking_parts = []
-            tool_calls = []
+            # Preserve order exactly as content blocks appear.
             for c in content:
                 if not isinstance(c, dict):
                     continue
                 ctype = c.get("type")
                 if ctype == "text":
-                    parts.append(c.get("text", ""))
+                    results.append({"type": "text_chunk", "text": c.get("text", "")})
                 elif ctype == "thinking":
-                    thinking_parts.append(c.get("thinking", ""))
+                    results.append(
+                        {"type": "thinking_chunk", "text": c.get("thinking", "")}
+                    )
                 elif ctype == "tool_use":
-                    tool_calls.append(c)
-
-            # Prioritize thinking first
-            if thinking_parts:
-                results.append({"type": "thinking", "text": "\n".join(thinking_parts)})
-
-            # Then tools or subagents
-            if tool_calls:
-                # Check for subagents (Task tool)
-                subagents = [
-                    t.get("input", {}).get("description", "Subagent")
-                    for t in tool_calls
-                    if t.get("name") == "Task"
-                ]
-                if subagents:
-                    results.append({"type": "subagent_start", "tasks": subagents})
-                else:
-                    results.append({"type": "tool_start", "tools": tool_calls})
-
-            # Then text content if any
-            if parts:
-                results.append({"type": "content", "text": "".join(parts)})
+                    results.append(
+                        {
+                            "type": "tool_use",
+                            "id": c.get("id", ""),
+                            "name": c.get("name", ""),
+                            "input": c.get("input"),
+                        }
+                    )
+                elif ctype == "tool_result":
+                    results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": c.get("tool_use_id", ""),
+                            "content": c.get("content"),
+                            "is_error": bool(c.get("is_error", False)),
+                        }
+                    )
 
         if results:
             return results
@@ -82,18 +80,53 @@ def parse_cli_event(event: Any) -> List[Dict]:
         delta = event.get("delta", {})
         if isinstance(delta, dict):
             if delta.get("type") == "text_delta":
-                return [{"type": "content", "text": delta.get("text", "")}]
+                return [
+                    {
+                        "type": "text_delta",
+                        "index": event.get("index", -1),
+                        "text": delta.get("text", ""),
+                    }
+                ]
             if delta.get("type") == "thinking_delta":
-                return [{"type": "thinking", "text": delta.get("thinking", "")}]
+                return [
+                    {
+                        "type": "thinking_delta",
+                        "index": event.get("index", -1),
+                        "text": delta.get("thinking", ""),
+                    }
+                ]
+            if delta.get("type") == "input_json_delta":
+                return [
+                    {
+                        "type": "tool_use_delta",
+                        "index": event.get("index", -1),
+                        "partial_json": delta.get("partial_json", ""),
+                    }
+                ]
 
     # 3. Handle tool usage start
     if etype == "content_block_start":
         block = event.get("content_block", {})
-        if isinstance(block, dict) and block.get("type") == "tool_use":
-            if block.get("name") == "Task":
-                desc = block.get("input", {}).get("description", "Subagent")
-                return [{"type": "subagent_start", "tasks": [desc]}]
-            return [{"type": "tool_start", "tools": [block]}]
+        if isinstance(block, dict):
+            btype = block.get("type")
+            if btype == "thinking":
+                return [{"type": "thinking_start", "index": event.get("index", -1)}]
+            if btype == "text":
+                return [{"type": "text_start", "index": event.get("index", -1)}]
+            if btype == "tool_use":
+                return [
+                    {
+                        "type": "tool_use_start",
+                        "index": event.get("index", -1),
+                        "id": block.get("id", ""),
+                        "name": block.get("name", ""),
+                        "input": block.get("input"),
+                    }
+                ]
+
+    # 3.5 Handle block stop (to close open streaming segments)
+    if etype == "content_block_stop":
+        return [{"type": "block_stop", "index": event.get("index", -1)}]
 
     # 4. Handle errors and exit
     if etype == "error":

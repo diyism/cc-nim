@@ -1,6 +1,13 @@
 import pytest
 from unittest.mock import MagicMock
-from messaging.handler import ClaudeMessageHandler, escape_md_v2
+from messaging.handler import escape_md_v2
+from messaging.transcript import TranscriptBuffer, RenderCtx
+from messaging.handler import (
+    escape_md_v2_code,
+    mdv2_bold,
+    mdv2_code_inline,
+    render_markdown_to_mdv2,
+)
 
 
 @pytest.fixture
@@ -8,21 +15,49 @@ def handler():
     platform = MagicMock()
     cli = MagicMock()
     store = MagicMock()
-    return ClaudeMessageHandler(platform, cli, store)
+    # Kept for backwards test structure; transcript rendering is now separate.
+    return (platform, cli, store)
 
 
-def test_build_message_structure(handler):
-    """Verify the order of message components."""
-    components = {
-        "thinking": ["Thinking process..."],
-        "tools": ["list_files", "read_file"],
-        "subagents": ["Searching codebase...", "Analyzing dependencies..."],
-        "content": ["Here is the file content."],
-        "errors": ["Some error happened"],
-    }
+def _ctx() -> RenderCtx:
+    return RenderCtx(
+        bold=mdv2_bold,
+        code_inline=mdv2_code_inline,
+        escape_code=escape_md_v2_code,
+        escape_text=escape_md_v2,
+        render_markdown=render_markdown_to_mdv2,
+    )
+
+
+def test_transcript_structure_and_order(handler):
+    """Verify ordered transcript rendering (thinking/tool/subagent/text/error/status)."""
     status = "✅ *Complete*"
+    t = TranscriptBuffer()
 
-    msg = handler._build_message(components, status)
+    # Apply in a deliberate sequence.
+    t.apply({"type": "thinking_chunk", "text": "Thinking process..."})
+    t.apply(
+        {"type": "tool_use", "id": "t1", "name": "list_files", "input": {"path": "."}}
+    )
+
+    # Subagent marker (Task tool).
+    t.apply(
+        {
+            "type": "tool_use",
+            "id": "task1",
+            "name": "Task",
+            "input": {"description": "Searching codebase..."},
+        }
+    )
+    t.apply(
+        {"type": "tool_use", "id": "t2", "name": "read_file", "input": {"path": "x.py"}}
+    )
+    t.apply({"type": "tool_result", "tool_use_id": "task1", "content": "done"})
+
+    t.apply({"type": "text_chunk", "text": "Here is the file content."})
+    t.apply({"type": "error", "message": "Some error happened"})
+
+    msg = t.render(_ctx(), limit_chars=3900, status=status)
 
     print(f"Generated Message:\n{msg}")
 
@@ -35,37 +70,32 @@ def test_build_message_structure(handler):
     assert "Some error happened" in msg
     assert "✅ *Complete*" in msg
 
-    # Check headers
-    assert "💭 *Thinking:*" in msg
-    assert "🛠 *Tools:*" in msg
+    # Check headers/markers used in the transcript.
+    assert "💭 *Thinking*" in msg
+    assert "🛠 *Tool call:*" in msg
     assert "🤖 *Subagent:*" in msg
     assert "⚠️ *Error:*" in msg
 
-    # Check Order: Thinking -> Tools -> Subagents -> Content -> Errors -> Status
+    # Check Order: Thinking -> Tool call -> Subagent -> Content -> Errors -> Status
     p_thinking = msg.find("Thinking process...")
-    p_tools = msg.find("🛠 *Tools:*")
-    p_subagents = msg.find("🤖 *Subagent:*")
+    p_tool_call = msg.find("🛠 *Tool call:*")
+    p_subagent = msg.find("🤖 *Subagent:*")
     p_content = msg.find(escape_md_v2("Here is the file content."))
     p_errors = msg.find("⚠️ *Error:*")
     p_status = msg.find("✅ *Complete*")
 
-    assert p_thinking < p_tools, "Thinking should come before Tools"
-    assert p_tools < p_subagents, "Tools should come before Subagents"
-    assert p_subagents < p_content, "Subagents should come before Content"
+    assert p_thinking < p_tool_call, "Thinking should come before tool calls"
+    assert p_tool_call < p_subagent, "Tool calls should come before subagent marker"
+    assert p_subagent < p_content, "Subagent should come before Content"
     assert p_content < p_errors, "Content should come before Errors"
     assert p_errors < p_status, "Errors should come before Status"
 
 
-def test_build_message_simple(handler):
-    """Verify simple message with just content."""
-    components = {
-        "thinking": [],
-        "tools": [],
-        "subagents": [],
-        "content": ["Simple message."],
-        "errors": [],
-    }
-    msg = handler._build_message(components, "Ready")
+def test_transcript_simple(handler):
+    """Verify simple transcript with just text + status."""
+    t = TranscriptBuffer()
+    t.apply({"type": "text_chunk", "text": "Simple message."})
+    msg = t.render(_ctx(), limit_chars=3900, status="Ready")
 
     assert escape_md_v2("Simple message.") in msg
     assert "Ready" in msg
@@ -74,15 +104,27 @@ def test_build_message_simple(handler):
 
 
 def test_subagents_formatting(handler):
-    """Verify subagents formatting."""
-    components = {
-        "thinking": [],
-        "tools": [],
-        "subagents": ["Task 1", "Task 2"],
-        "content": [],
-        "errors": [],
-    }
-    msg = handler._build_message(components)
+    """Verify subagent formatting (Task tool)."""
+    t = TranscriptBuffer()
+    t.apply(
+        {
+            "type": "tool_use",
+            "id": "task_1",
+            "name": "Task",
+            "input": {"description": "Task 1"},
+        }
+    )
+    t.apply({"type": "tool_result", "tool_use_id": "task_1", "content": "done"})
+    t.apply(
+        {
+            "type": "tool_use",
+            "id": "task_2",
+            "name": "Task",
+            "input": {"description": "Task 2"},
+        }
+    )
+
+    msg = t.render(_ctx(), limit_chars=3900, status=None)
 
     assert "🤖 *Subagent:* `Task 1`" in msg
     assert "🤖 *Subagent:* `Task 2`" in msg

@@ -74,29 +74,37 @@ async def test_telegram_no_retry_on_bad_request(telegram_platform):
 
 
 def test_handler_build_message_hardening():
-    handler = ClaudeMessageHandler(AsyncMock(), AsyncMock(), AsyncMock())
+    # Formatting hardening now lives in TranscriptBuffer rendering.
+    from messaging.transcript import TranscriptBuffer, RenderCtx
 
-    # Case 1: Empty components
-    components = {
-        "thinking": [],
-        "tools": [],
-        "subagents": [],
-        "content": [],
-        "errors": [],
-    }
-    msg = handler._build_message(components)
-    assert msg == format_status("⏳", "Claude is working...")
+    from messaging.handler import (
+        escape_md_v2,
+        escape_md_v2_code,
+        mdv2_bold,
+        mdv2_code_inline,
+        render_markdown_to_mdv2,
+    )
 
-    # Case 2: Truncation with code block closing
-    long_thinking = "thought " * 200  # ~1400 chars
-    components["thinking"] = [long_thinking]
-    components["content"] = ["This is a very long message. " * 300]  # ~ 8700 chars
+    ctx = RenderCtx(
+        bold=mdv2_bold,
+        code_inline=mdv2_code_inline,
+        escape_code=escape_md_v2_code,
+        escape_text=escape_md_v2,
+        render_markdown=render_markdown_to_mdv2,
+    )
 
-    msg = handler._build_message(components, status="Finishing...")
+    # Case 1: Empty transcript + no status => empty string.
+    t = TranscriptBuffer()
+    msg = t.render(ctx, limit_chars=3900, status=None)
+    assert msg == ""
+
+    # Case 2: Truncation with code block closing and status preserved.
+    t.apply({"type": "thinking_chunk", "text": ("thought " * 200)})
+    t.apply({"type": "text_chunk", "text": ("This is a very long message. " * 300)})
+
+    msg = t.render(ctx, limit_chars=3900, status="Finishing...")
 
     assert len(msg) <= 4096
-    assert "truncated" in msg
     assert "Finishing..." in msg
-    # If thinking contains backticks, they should be balanced
     if "```" in msg:
         assert msg.count("```") % 2 == 0

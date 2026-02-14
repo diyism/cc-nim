@@ -20,7 +20,7 @@ class TestCLIParser:
         }
         result = parse_cli_event(event)
         assert len(result) == 1
-        assert result[0]["type"] == "content"
+        assert result[0]["type"] == "text_chunk"
         assert result[0]["text"] == "Hello, world!"
 
     def test_parse_thinking_content(self):
@@ -33,7 +33,7 @@ class TestCLIParser:
         }
         result = parse_cli_event(event)
         assert len(result) == 1
-        assert result[0]["type"] == "thinking"
+        assert result[0]["type"] == "thinking_chunk"
         assert (
             result[0]["text"] == "Let me think...\n"
             or result[0]["text"] == "Let me think..."
@@ -52,9 +52,9 @@ class TestCLIParser:
         }
         result = parse_cli_event(event)
         assert len(result) == 2
-        assert result[0]["type"] == "thinking"
+        assert result[0]["type"] == "thinking_chunk"
         assert result[0]["text"] == "Thinking..."
-        assert result[1]["type"] == "tool_start"
+        assert result[1]["type"] == "tool_use"
 
     def test_parse_tool_use(self):
         """Test parsing tool use content."""
@@ -72,30 +72,32 @@ class TestCLIParser:
         }
         result = parse_cli_event(event)
         assert len(result) == 1
-        assert result[0]["type"] == "tool_start"
-        assert len(result[0]["tools"]) == 1
-        assert result[0]["tools"][0]["name"] == "read_file"
+        assert result[0]["type"] == "tool_use"
+        assert result[0]["name"] == "read_file"
+        assert result[0]["input"] == {"path": "/test"}
 
     def test_parse_text_delta(self):
         """Test parsing streaming text delta."""
         event = {
             "type": "content_block_delta",
+            "index": 0,
             "delta": {"type": "text_delta", "text": "streaming text"},
         }
         result = parse_cli_event(event)
         assert len(result) == 1
-        assert result[0]["type"] == "content"
+        assert result[0]["type"] == "text_delta"
         assert result[0]["text"] == "streaming text"
 
     def test_parse_thinking_delta(self):
         """Test parsing streaming thinking delta."""
         event = {
             "type": "content_block_delta",
+            "index": 1,
             "delta": {"type": "thinking_delta", "thinking": "thinking..."},
         }
         result = parse_cli_event(event)
         assert len(result) == 1
-        assert result[0]["type"] == "thinking"
+        assert result[0]["type"] == "thinking_delta"
         assert result[0]["text"] == "thinking..."
 
     def test_parse_error(self):

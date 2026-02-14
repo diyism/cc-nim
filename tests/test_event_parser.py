@@ -13,8 +13,8 @@ def test_parse_cli_event_assistant_content():
     }
     results = parse_cli_event(event)
     assert len(results) == 2
-    assert results[0] == {"type": "thinking", "text": "Internal thought"}
-    assert results[1] == {"type": "content", "text": "Hello user"}
+    assert results[0] == {"type": "thinking_chunk", "text": "Internal thought"}
+    assert results[1] == {"type": "text_chunk", "text": "Hello user"}
 
 
 def test_parse_cli_event_assistant_tools():
@@ -26,8 +26,9 @@ def test_parse_cli_event_assistant_tools():
     }
     results = parse_cli_event(event)
     assert len(results) == 1
-    assert results[0]["type"] == "tool_start"
-    assert results[0]["tools"][0]["name"] == "ls"
+    assert results[0]["type"] == "tool_use"
+    assert results[0]["name"] == "ls"
+    assert results[0]["input"] == {"path": "."}
 
 
 def test_parse_cli_event_assistant_subagent():
@@ -45,31 +46,37 @@ def test_parse_cli_event_assistant_subagent():
     }
     results = parse_cli_event(event)
     assert len(results) == 1
-    assert results[0]["type"] == "subagent_start"
-    assert results[0]["tasks"] == ["Fix bug"]
+    assert results[0]["type"] == "tool_use"
+    assert results[0]["name"] == "Task"
+    assert results[0]["input"] == {"description": "Fix bug"}
 
 
 def test_parse_cli_event_content_block_delta():
     # Text delta
     event_text = {
         "type": "content_block_delta",
+        "index": 0,
         "delta": {"type": "text_delta", "text": " more"},
     }
     results_text = parse_cli_event(event_text)
-    assert results_text == [{"type": "content", "text": " more"}]
+    assert results_text == [{"type": "text_delta", "index": 0, "text": " more"}]
 
     # Thinking delta
     event_think = {
         "type": "content_block_delta",
+        "index": 1,
         "delta": {"type": "thinking_delta", "thinking": " more thought"},
     }
     results_think = parse_cli_event(event_think)
-    assert results_think == [{"type": "thinking", "text": " more thought"}]
+    assert results_think == [
+        {"type": "thinking_delta", "index": 1, "text": " more thought"}
+    ]
 
 
 def test_parse_cli_event_content_block_start():
     event = {
         "type": "content_block_start",
+        "index": 2,
         "content_block": {
             "type": "tool_use",
             "name": "Task",
@@ -77,13 +84,46 @@ def test_parse_cli_event_content_block_start():
         },
     }
     results = parse_cli_event(event)
-    assert results == [{"type": "subagent_start", "tasks": ["deploy"]}]
+    assert results == [
+        {
+            "type": "tool_use_start",
+            "index": 2,
+            "id": "",
+            "name": "Task",
+            "input": {"description": "deploy"},
+        }
+    ]
 
 
 def test_parse_cli_event_error():
     event = {"type": "error", "error": {"message": "something failed"}}
     results = parse_cli_event(event)
     assert results == [{"type": "error", "message": "something failed"}]
+
+
+def test_parse_cli_event_user_tool_result():
+    event = {
+        "type": "user",
+        "message": {
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "tool_1",
+                    "content": "ok",
+                    "is_error": False,
+                }
+            ]
+        },
+    }
+    results = parse_cli_event(event)
+    assert results == [
+        {
+            "type": "tool_result",
+            "tool_use_id": "tool_1",
+            "content": "ok",
+            "is_error": False,
+        }
+    ]
 
 
 def test_parse_cli_event_exit_success():
