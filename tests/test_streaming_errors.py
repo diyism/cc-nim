@@ -316,8 +316,33 @@ class TestProcessToolCall:
         # The intercepted args should have run_in_background=false
         assert "false" in event_text.lower()
 
-    def test_task_tool_invalid_json_logs_warning(self):
-        """Invalid JSON args for Task tool doesn't crash."""
+    def test_task_tool_chunked_args_forces_background_false(self):
+        """Chunked Task args are buffered until valid JSON, then forced to false."""
+        provider = _make_provider()
+        from providers.nvidia_nim.utils import SSEBuilder
+
+        sse = SSEBuilder("msg_test", "test-model")
+        tc1 = {
+            "index": 0,
+            "id": "call_task_chunked",
+            "function": {"name": "Task", "arguments": '{"run_in_background": true,'},
+        }
+        tc2 = {
+            "index": 0,
+            "id": "call_task_chunked",
+            "function": {"name": None, "arguments": ' "prompt": "test"}'},
+        }
+
+        events1 = list(provider._process_tool_call(tc1, sse))
+        assert len(events1) > 0
+        assert "false" not in "".join(events1).lower()
+
+        events2 = list(provider._process_tool_call(tc2, sse))
+        event_text = "".join(events1 + events2)
+        assert "false" in event_text.lower()
+
+    def test_task_tool_invalid_json_logs_warning_on_flush(self, caplog):
+        """Invalid JSON args for Task tool emits {} on flush and logs a warning."""
         provider = _make_provider()
         from providers.nvidia_nim.utils import SSEBuilder
 
@@ -327,9 +352,16 @@ class TestProcessToolCall:
             "id": "call_task2",
             "function": {"name": "Task", "arguments": "not json"},
         }
-        # Should not raise
         events = list(provider._process_tool_call(tc, sse))
         assert len(events) > 0
+
+        with caplog.at_level("WARNING"):
+            flushed = list(provider._flush_task_arg_buffers(sse))
+        assert len(flushed) > 0
+        assert "{}" in "".join(flushed)
+        assert any(
+            "NIM_INTERCEPT: Task args invalid JSON" in r.message for r in caplog.records
+        )
 
     def test_negative_tool_index_fallback(self):
         """tc_index < 0 uses len(tool_indices) as fallback."""

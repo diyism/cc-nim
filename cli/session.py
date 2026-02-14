@@ -6,6 +6,8 @@ import json
 import logging
 from typing import AsyncGenerator, Optional, Dict, List, Any
 
+from .process_registry import register_pid, unregister_pid
+
 logger = logging.getLogger(__name__)
 
 
@@ -102,6 +104,8 @@ class CLISession:
                     cwd=self.workspace,
                     env=env,
                 )
+                if self.process and self.process.pid:
+                    register_pid(self.process.pid)
 
                 if not self.process or not self.process.stdout:
                     yield {"type": "exit", "code": 1}
@@ -181,6 +185,8 @@ class CLISession:
                 }
             finally:
                 self._is_busy = False
+                if self.process and self.process.pid:
+                    unregister_pid(self.process.pid)
 
     async def _handle_line_gen(
         self, line_str: str, session_id_extracted: bool
@@ -236,6 +242,8 @@ class CLISession:
                 except asyncio.TimeoutError:
                     self.process.kill()
                     await self.process.wait()
+                if self.process and self.process.pid:
+                    unregister_pid(self.process.pid)
                 return True
             except Exception as e:
                 logger.error(f"Error stopping process: {e}")

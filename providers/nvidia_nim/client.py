@@ -118,6 +118,10 @@ class NvidiaNimProvider(BaseProvider):
                                     yield event
 
                                 block_idx = sse.blocks.allocate_index()
+                                if tool_use.get("name") == "Task" and isinstance(
+                                    tool_use.get("input"), dict
+                                ):
+                                    tool_use["input"]["run_in_background"] = False
                                 yield sse.content_block_start(
                                     block_idx,
                                     "tool_use",
@@ -183,6 +187,10 @@ class NvidiaNimProvider(BaseProvider):
                 id=tool_use["id"],
                 name=tool_use["name"],
             )
+            if tool_use.get("name") == "Task" and isinstance(
+                tool_use.get("input"), dict
+            ):
+                tool_use["input"]["run_in_background"] = False
             yield sse.content_block_delta(
                 block_idx,
                 "input_json_delta",
@@ -198,6 +206,10 @@ class NvidiaNimProvider(BaseProvider):
             for event in sse.ensure_text_block():
                 yield event
             yield sse.emit_text_delta(" ")
+
+        # Flush buffered Task args before closing tool blocks.
+        for event in self._flush_task_arg_buffers(sse):
+            yield event
 
         for event in sse.close_all_blocks():
             yield event
@@ -245,10 +257,24 @@ class NvidiaNimProvider(BaseProvider):
             tc_index = len(sse.blocks.tool_indices)
 
         fn_delta = tc.get("function", {})
-        if fn_delta.get("name") is not None:
-            sse.blocks.tool_names[tc_index] = (
-                sse.blocks.tool_names.get(tc_index, "") + fn_delta["name"]
-            )
+        incoming_name = fn_delta.get("name")
+        if incoming_name is not None:
+            # Some providers stream tool names as fragments; others resend the full name.
+            # Avoid "TaskTask" while still supporting fragment streams.
+            prev = sse.blocks.tool_names.get(tc_index, "")
+            if not prev:
+                sse.blocks.tool_names[tc_index] = incoming_name
+            elif prev == incoming_name:
+                pass
+            elif isinstance(prev, str) and isinstance(incoming_name, str):
+                if incoming_name.startswith(prev):
+                    sse.blocks.tool_names[tc_index] = incoming_name
+                elif prev.startswith(incoming_name):
+                    pass
+                else:
+                    sse.blocks.tool_names[tc_index] = prev + incoming_name
+            else:
+                sse.blocks.tool_names[tc_index] = str(prev) + str(incoming_name)
 
         if tc_index not in sse.blocks.tool_indices:
             name = sse.blocks.tool_names.get(tc_index, "")
@@ -273,20 +299,76 @@ class NvidiaNimProvider(BaseProvider):
                 yield sse.start_tool_block(tc_index, tool_id, name)
                 sse.blocks.tool_started[tc_index] = True
 
-            # INTERCEPTION: If this is a Task tool, force background=False
             current_name = sse.blocks.tool_names.get(tc_index, "")
+            # INTERCEPTION: Task args can stream in many partial chunks. Buffer until we
+            # have valid JSON, then emit a single delta with run_in_background forced off.
             if current_name == "Task":
-                try:
-                    args_json = json.loads(args)
+                # Allow older tests to pass with MagicMock'd builders by lazily creating fields.
+                if not isinstance(getattr(sse.blocks, "task_arg_buffer", None), dict):
+                    sse.blocks.task_arg_buffer = {}
+                if not isinstance(getattr(sse.blocks, "task_args_emitted", None), dict):
+                    sse.blocks.task_args_emitted = {}
+                if not isinstance(getattr(sse.blocks, "tool_ids", None), dict):
+                    sse.blocks.tool_ids = {}
+
+                if not sse.blocks.task_args_emitted.get(tc_index, False):
+                    buf = sse.blocks.task_arg_buffer.get(tc_index, "") + args
+                    sse.blocks.task_arg_buffer[tc_index] = buf
+                    try:
+                        args_json = json.loads(buf)
+                    except Exception:
+                        return
                     if args_json.get("run_in_background") is not False:
                         logger.info(
-                            f"NIM_INTERCEPT: Forcing run_in_background=False for Task {tc.get('id', 'unknown')}"
+                            "NIM_INTERCEPT: Forcing run_in_background=False for Task %s",
+                            (
+                                tc.get("id")
+                                or sse.blocks.tool_ids.get(tc_index, "unknown")
+                            ),
                         )
                         args_json["run_in_background"] = False
-                        args = json.dumps(args_json)
-                except Exception as e:
-                    logger.warning(
-                        f"NIM_INTERCEPT: Failed to parse/modify Task args: {e}"
-                    )
+                    sse.blocks.task_args_emitted[tc_index] = True
+                    sse.blocks.task_arg_buffer.pop(tc_index, None)
+                    yield sse.emit_tool_delta(tc_index, json.dumps(args_json))
+                return
 
             yield sse.emit_tool_delta(tc_index, args)
+
+    def _flush_task_arg_buffers(self, sse: Any):
+        """Emit buffered Task args as a single JSON delta (best-effort)."""
+        if not isinstance(getattr(sse.blocks, "task_arg_buffer", None), dict):
+            return
+        if not isinstance(getattr(sse.blocks, "task_args_emitted", None), dict):
+            sse.blocks.task_args_emitted = {}
+        if not isinstance(getattr(sse.blocks, "tool_ids", None), dict):
+            sse.blocks.tool_ids = {}
+        # Iterate over a copy; we will mutate dicts.
+        for tool_index, buf in list(getattr(sse.blocks, "task_arg_buffer", {}).items()):
+            if sse.blocks.task_args_emitted.get(tool_index, False):
+                sse.blocks.task_arg_buffer.pop(tool_index, None)
+                continue
+
+            tool_id = sse.blocks.tool_ids.get(tool_index, "unknown")
+            out = "{}"
+            try:
+                args_json = json.loads(buf)
+                if args_json.get("run_in_background") is not False:
+                    logger.info(
+                        "NIM_INTERCEPT: Forcing run_in_background=False for Task %s",
+                        tool_id,
+                    )
+                    args_json["run_in_background"] = False
+                out = json.dumps(args_json)
+            except Exception as e:
+                prefix = buf[:120]
+                logger.warning(
+                    "NIM_INTERCEPT: Task args invalid JSON (id=%s len=%d prefix=%r): %s",
+                    tool_id,
+                    len(buf),
+                    prefix,
+                    e,
+                )
+
+            sse.blocks.task_args_emitted[tool_index] = True
+            sse.blocks.task_arg_buffer.pop(tool_index, None)
+            yield sse.emit_tool_delta(tool_index, out)

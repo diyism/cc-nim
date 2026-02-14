@@ -42,7 +42,11 @@ class ContentBlockManager:
     tool_indices: Dict[int, int] = field(default_factory=dict)
     tool_contents: Dict[int, str] = field(default_factory=dict)
     tool_names: Dict[int, str] = field(default_factory=dict)
+    tool_ids: Dict[int, str] = field(default_factory=dict)
     tool_started: Dict[int, bool] = field(default_factory=dict)
+    # Buffer streaming args for tools where we don't want to emit partial deltas.
+    task_arg_buffer: Dict[int, str] = field(default_factory=dict)
+    task_args_emitted: Dict[int, bool] = field(default_factory=dict)
 
     def allocate_index(self) -> int:
         """Allocate and return the next block index."""
@@ -200,6 +204,8 @@ class SSEBuilder:
         block_idx = self.blocks.allocate_index()
         self.blocks.tool_indices[tool_index] = block_idx
         self.blocks.tool_contents[tool_index] = ""
+        self.blocks.tool_ids[tool_index] = tool_id
+        self.blocks.task_args_emitted.setdefault(tool_index, False)
         return self.content_block_start(block_idx, "tool_use", id=tool_id, name=name)
 
     def emit_tool_delta(self, tool_index: int, partial_json: str) -> str:
