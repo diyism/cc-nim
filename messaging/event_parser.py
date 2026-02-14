@@ -26,6 +26,11 @@ def parse_cli_event(event: Any) -> List[Dict]:
     etype = event.get("type")
     results: List[Dict[str, Any]] = []
 
+    # Some CLI/proxy layers emit "system" events that are not user-visible and
+    # carry no transcript content. Ignore them explicitly to avoid noisy logs.
+    if etype == "system":
+        return []
+
     # 1. Handle full messages (assistant/user or result)
     msg_obj = None
     if etype == "assistant":
@@ -36,8 +41,14 @@ def parse_cli_event(event: Any) -> List[Dict]:
         res = event.get("result")
         if isinstance(res, dict):
             msg_obj = res.get("message")
+            # Some variants put content directly on the result.
+            if not msg_obj and isinstance(res.get("content"), list):
+                msg_obj = {"content": res.get("content")}
         if not msg_obj:
             msg_obj = event.get("message")
+        # Some variants put content directly on the event.
+        if not msg_obj and isinstance(event.get("content"), list):
+            msg_obj = {"content": event.get("content")}
 
     if msg_obj and isinstance(msg_obj, dict):
         content = msg_obj.get("content", [])

@@ -144,3 +144,17 @@ def test_parse_cli_event_invalid_input():
     assert parse_cli_event(None) == []
     assert parse_cli_event("not a dict") == []
     assert parse_cli_event({"type": "unknown"}) == []
+
+
+def test_parse_cli_event_system_ignored():
+    assert parse_cli_event({"type": "system", "foo": "bar"}) == []
+
+
+def test_parse_cli_event_result_with_content_directly():
+    event = {"type": "result", "content": [{"type": "text", "text": "hi"}]}
+    assert parse_cli_event(event) == [{"type": "text_chunk", "text": "hi"}]
+
+
+def test_parse_cli_event_result_with_result_content_directly():
+    event = {"type": "result", "result": {"content": [{"type": "text", "text": "hi"}]}}
+    assert parse_cli_event(event) == [{"type": "text_chunk", "text": "hi"}]

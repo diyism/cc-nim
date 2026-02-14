@@ -222,6 +222,10 @@ class TranscriptBuffer:
 
         if et == "thinking_start":
             idx = int(ev.get("index", -1))
+            if idx >= 0:
+                # Defensive: if a provider reuses indices without emitting a stop,
+                # close the previous open segment first.
+                self.apply({"type": "block_stop", "index": idx})
             seg = self._ensure_thinking()
             if idx >= 0:
                 self._open_thinking_by_index[idx] = seg
@@ -243,6 +247,8 @@ class TranscriptBuffer:
 
         if et == "text_start":
             idx = int(ev.get("index", -1))
+            if idx >= 0:
+                self.apply({"type": "block_stop", "index": idx})
             seg = self._ensure_text()
             if idx >= 0:
                 self._open_text_by_index[idx] = seg
@@ -264,6 +270,8 @@ class TranscriptBuffer:
 
         if et == "tool_use_start":
             idx = int(ev.get("index", -1))
+            if idx >= 0:
+                self.apply({"type": "block_stop", "index": idx})
             tool_id = str(ev.get("id", "") or "")
             name = str(ev.get("name", "") or "tool")
             indent = 0

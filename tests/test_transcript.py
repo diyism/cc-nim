@@ -85,3 +85,17 @@ def test_transcript_truncates_by_dropping_oldest_segments():
     # We keep the tail and drop the oldest segments when truncating.
     assert escape_md_v2("segment_59") in out
     assert escape_md_v2("segment_0") not in out
+
+
+def test_transcript_reused_index_closes_previous_open_block():
+    t = TranscriptBuffer()
+    # Open a text block at index 0, but never close it.
+    t.apply({"type": "text_start", "index": 0})
+    t.apply({"type": "text_delta", "index": 0, "text": "a"})
+    # Provider reuses index 0 for a new tool block without a stop.
+    t.apply(
+        {"type": "tool_use_start", "index": 0, "id": "t1", "name": "ls", "input": {}}
+    )
+    # Old open text should have been closed.
+    assert 0 not in t._open_text_by_index
+    assert 0 in t._open_tools_by_index
