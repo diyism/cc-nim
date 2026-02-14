@@ -42,6 +42,11 @@ def mock_rate_limiter():
     with patch("providers.nvidia_nim.client.GlobalRateLimiter") as mock:
         instance = mock.get_instance.return_value
         instance.wait_if_blocked = AsyncMock(return_value=False)
+        # execute_with_retry should call through to the actual function
+        async def _passthrough(fn, *args, **kwargs):
+            return await fn(*args, **kwargs)
+
+        instance.execute_with_retry = AsyncMock(side_effect=_passthrough)
         yield instance
 
 

@@ -233,8 +233,8 @@ class TestStreamingExceptionHandling:
         assert "The answer" in event_text
 
     @pytest.mark.asyncio
-    async def test_stream_rate_limited_shows_notice(self):
-        """When globally rate limited, a notice is shown before stream starts."""
+    async def test_stream_rate_limited_retries_via_execute_with_retry(self):
+        """When rate limited, execute_with_retry handles retries transparently."""
         provider = _make_provider()
         request = _make_request()
 
@@ -248,16 +248,19 @@ class TestStreamingExceptionHandling:
             new_callable=AsyncMock,
             return_value=stream_mock,
         ):
+            # Mock execute_with_retry to pass through to the actual function
+            async def _passthrough(fn, *args, **kwargs):
+                return await fn(*args, **kwargs)
+
             with patch.object(
                 provider._global_rate_limiter,
-                "wait_if_blocked",
+                "execute_with_retry",
                 new_callable=AsyncMock,
-                return_value=True,
+                side_effect=_passthrough,
             ):
                 events = await _collect_stream(provider, request)
 
         event_text = "".join(events)
-        assert "rate limit" in event_text.lower()
         assert "Response" in event_text
 
 

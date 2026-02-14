@@ -40,7 +40,7 @@ class NvidiaNimProvider(BaseProvider):
         self._client = AsyncOpenAI(
             api_key=self._api_key,
             base_url=self._base_url,
-            max_retries=2,
+            max_retries=0,
             timeout=300.0,
         )
 
@@ -52,27 +52,15 @@ class NvidiaNimProvider(BaseProvider):
         self, request: Any, input_tokens: int = 0
     ) -> AsyncIterator[str]:
         """Stream response in Anthropic SSE format."""
-        # Wait if globally rate limited
-        waited_reactively = await self._global_rate_limiter.wait_if_blocked()
-
         message_id = f"msg_{uuid.uuid4()}"
         sse = SSEBuilder(message_id, request.model, input_tokens)
-
-        if waited_reactively:
-            error_msg = "⏱️ Global rate limit active. Resuming now..."
-            logger.info("NIM_STREAM: Reactive block detected, notified user")
-            yield sse.message_start()
-            for event in sse.emit_error(error_msg):
-                yield event
 
         body = self._build_request_body(request, stream=True)
         logger.info(
             f"NIM_STREAM: model={body.get('model')} msgs={len(body.get('messages', []))} tools={len(body.get('tools', []))}"
         )
 
-        # Only emit message_start if we haven't already emitted it during reactive wait
-        if not waited_reactively:
-            yield sse.message_start()
+        yield sse.message_start()
 
         think_parser = ThinkTagParser()
         heuristic_parser = HeuristicToolParser()
@@ -83,7 +71,9 @@ class NvidiaNimProvider(BaseProvider):
         error_message = ""
 
         try:
-            stream = await self._client.chat.completions.create(**body, stream=True)
+            stream = await self._global_rate_limiter.execute_with_retry(
+                self._client.chat.completions.create, **body, stream=True
+            )
             async for chunk in stream:
                 # OpenAI client returns objects, not JSON
                 if getattr(chunk, "usage", None):
@@ -223,16 +213,16 @@ class NvidiaNimProvider(BaseProvider):
 
     async def complete(self, request: Any) -> dict:
         """Make a non-streaming completion request."""
-        await self._global_rate_limiter.wait_if_blocked()
-
         body = self._build_request_body(request, stream=False)
         logger.info(
             f"NIM_COMPLETE: model={body.get('model')} msgs={len(body.get('messages', []))} tools={len(body.get('tools', []))}"
         )
 
         try:
-            response = await self._client.chat.completions.create(**body)
-            # Responseconverter expects a dict
+            response = await self._global_rate_limiter.execute_with_retry(
+                self._client.chat.completions.create, **body
+            )
+            # Response converter expects a dict
             return response.model_dump()
         except Exception as e:
             logger.error(f"NIM_ERROR: {type(e).__name__}: {e}")
