@@ -270,11 +270,34 @@ class ClaudeMessageHandler:
         creates/extends the message tree, and queues for processing.
         """
         # Check for commands
-        if incoming.text == "/stop":
+        parts = (incoming.text or "").strip().split()
+        cmd = parts[0] if parts else ""
+        cmd_base = cmd.split("@", 1)[0] if cmd else ""
+
+        # Record incoming message ID for best-effort UI clearing (/clear), even if
+        # we later ignore this message (status/command/etc).
+        try:
+            if incoming.message_id is not None:
+                kind = "command" if cmd_base.startswith("/") else "content"
+                self.session_store.record_message_id(
+                    incoming.platform,
+                    incoming.chat_id,
+                    str(incoming.message_id),
+                    direction="in",
+                    kind=kind,
+                )
+        except Exception as e:
+            logger.debug(f"Failed to record incoming message_id: {e}")
+
+        if cmd_base == "/clear":
+            await self._handle_clear_command(incoming)
+            return
+
+        if cmd_base == "/stop":
             await self._handle_stop_command(incoming)
             return
 
-        if incoming.text == "/stats":
+        if cmd_base == "/stats":
             await self._handle_stats_command(incoming)
             return
 
@@ -315,6 +338,17 @@ class ClaudeMessageHandler:
             reply_to=incoming.message_id,
             fire_and_forget=False,
         )
+        try:
+            if status_msg_id:
+                self.session_store.record_message_id(
+                    incoming.platform,
+                    incoming.chat_id,
+                    str(status_msg_id),
+                    direction="out",
+                    kind="status",
+                )
+        except Exception as e:
+            logger.debug(f"Failed to record status message_id: {e}")
 
         # Create or extend tree
         if parent_node_id and tree and status_msg_id:
@@ -816,34 +850,70 @@ class ClaudeMessageHandler:
             node_id = self.tree_queue.resolve_parent_node_id(reply_id) if tree else None
 
             if not node_id:
-                await self.platform.queue_send_message(
+                msg_id = await self.platform.queue_send_message(
                     incoming.chat_id,
                     format_status("⏹", "Stopped.", "Nothing to stop for that message."),
+                    fire_and_forget=False,
                 )
+                try:
+                    if msg_id:
+                        self.session_store.record_message_id(
+                            incoming.platform,
+                            incoming.chat_id,
+                            str(msg_id),
+                            direction="out",
+                            kind="command",
+                        )
+                except Exception:
+                    pass
                 return
 
             count = await self.stop_task(node_id)
             noun = "request" if count == 1 else "requests"
-            await self.platform.queue_send_message(
+            msg_id = await self.platform.queue_send_message(
                 incoming.chat_id,
                 format_status("⏹", "Stopped.", f"Cancelled {count} {noun}."),
+                fire_and_forget=False,
             )
+            try:
+                if msg_id:
+                    self.session_store.record_message_id(
+                        incoming.platform,
+                        incoming.chat_id,
+                        str(msg_id),
+                        direction="out",
+                        kind="command",
+                    )
+            except Exception:
+                pass
             return
 
         # Global stop: legacy behavior (stop everything)
         count = await self.stop_all_tasks()
-        await self.platform.queue_send_message(
+        msg_id = await self.platform.queue_send_message(
             incoming.chat_id,
             format_status(
                 "⏹", "Stopped.", f"Cancelled {count} pending or active requests."
             ),
+            fire_and_forget=False,
         )
+        try:
+            if msg_id:
+                self.session_store.record_message_id(
+                    incoming.platform,
+                    incoming.chat_id,
+                    str(msg_id),
+                    direction="out",
+                    kind="command",
+                )
+        except Exception:
+            pass
 
     async def _handle_stats_command(self, incoming: IncomingMessage) -> None:
         """Handle /stats command."""
         stats = self.cli_manager.get_stats()
         tree_count = self.tree_queue.get_tree_count()
-        await self.platform.queue_send_message(
+        msg_id = await self.platform.queue_send_message(
             incoming.chat_id,
             "📊 "
             + mdv2_bold("Stats")
@@ -853,4 +923,121 @@ class ClaudeMessageHandler:
             + escape_md_v2(f"• Max CLI: {stats['max_sessions']}")
             + "\n"
             + escape_md_v2(f"• Message Trees: {tree_count}"),
+            fire_and_forget=False,
+        )
+        try:
+            if msg_id:
+                self.session_store.record_message_id(
+                    incoming.platform,
+                    incoming.chat_id,
+                    str(msg_id),
+                    direction="out",
+                    kind="command",
+                )
+        except Exception:
+            pass
+
+    async def _handle_clear_command(self, incoming: IncomingMessage) -> None:
+        """
+        Handle /clear global command.
+
+        Order:
+        1. Stop all pending/in-progress tasks.
+        2. Best-effort delete tracked chat messages for this chat.
+        3. Clear sessions.json (entire store) and reset in-memory queue state.
+        """
+        # 1) Stop tasks first (ensures no more work is running).
+        await self.stop_all_tasks()
+
+        # 2) Clear chat: best-effort delete messages we can identify.
+        msg_ids: set[str] = set()
+
+        # Add any recorded message IDs for this chat (commands, command replies, etc).
+        try:
+            for mid in self.session_store.get_message_ids_for_chat(
+                incoming.platform, incoming.chat_id
+            ):
+                if mid is not None:
+                    msg_ids.add(str(mid))
+        except Exception as e:
+            logger.debug(f"Failed to read message log for /clear: {e}")
+
+        try:
+            data = self.tree_queue.to_dict()
+            trees = data.get("trees", {})
+            for tree_data in trees.values():
+                nodes = tree_data.get("nodes", {})
+                for node_data in nodes.values():
+                    inc = node_data.get("incoming", {}) or {}
+                    if str(inc.get("platform")) != str(incoming.platform):
+                        continue
+                    if str(inc.get("chat_id")) != str(incoming.chat_id):
+                        continue
+
+                    mid = inc.get("message_id")
+                    if mid is not None:
+                        msg_ids.add(str(mid))
+
+                    sid = node_data.get("status_message_id")
+                    if sid is not None:
+                        msg_ids.add(str(sid))
+        except Exception as e:
+            logger.warning(f"Failed to gather messages for /clear: {e}")
+
+        # Also delete the command message itself.
+        if incoming.message_id is not None:
+            msg_ids.add(str(incoming.message_id))
+
+        def _as_int(s: str) -> int | None:
+            try:
+                return int(str(s))
+            except Exception:
+                return None
+
+        numeric: list[tuple[int, str]] = []
+        non_numeric: list[str] = []
+        for mid in msg_ids:
+            n = _as_int(mid)
+            if n is None:
+                non_numeric.append(mid)
+            else:
+                numeric.append((n, mid))
+
+        numeric.sort(reverse=True)
+        ordered = [mid for _, mid in numeric] + non_numeric
+
+        # If platform supports batch deletes, prefer it.
+        batch_fn = getattr(self.platform, "queue_delete_messages", None)
+        if callable(batch_fn):
+            try:
+                # Telegram supports up to 100 per request.
+                CHUNK = 100
+                for i in range(0, len(ordered), CHUNK):
+                    chunk = ordered[i : i + CHUNK]
+                    await batch_fn(incoming.chat_id, chunk, fire_and_forget=False)
+            except Exception as e:
+                logger.debug(f"/clear batch delete failed: {type(e).__name__}: {e}")
+        else:
+            for mid in ordered:
+                try:
+                    await self.platform.queue_delete_message(
+                        incoming.chat_id,
+                        mid,
+                        fire_and_forget=False,
+                    )
+                except Exception as e:
+                    # Deleting is best-effort; platform adapters also treat common cases as no-op.
+                    logger.debug(
+                        f"/clear delete failed for msg {mid}: {type(e).__name__}: {e}"
+                    )
+
+        # 3) Clear persistent state and reset in-memory queue/tree state.
+        try:
+            self.session_store.clear_all()
+        except Exception as e:
+            logger.warning(f"Failed to clear session store: {e}")
+
+        self.tree_queue = TreeQueueManager(
+            queue_update_callback=self._update_queue_positions,
+            node_started_callback=self._mark_node_processing,
         )

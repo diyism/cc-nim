@@ -9,7 +9,7 @@ import json
 import os
 import logging
 from datetime import datetime, timezone
-from typing import Optional, Dict
+from typing import Optional, Dict, List, Any
 from dataclasses import dataclass, asdict
 import threading
 
@@ -46,11 +46,18 @@ class SessionStore:
         ] = {}  # "platform:chat_id:msg_id" -> session_id
         self._trees: Dict[str, dict] = {}  # root_id -> tree data
         self._node_to_tree: Dict[str, str] = {}  # node_id -> root_id
+        # Per-chat message ID log used to support best-effort UI clearing (/clear).
+        # Key: "{platform}:{chat_id}" -> list of records
+        self._message_log: Dict[str, List[Dict[str, Any]]] = {}
+        self._message_log_ids: Dict[str, set[str]] = {}
         self._load()
 
     def _make_key(self, platform: str, chat_id: str, msg_id: str) -> str:
         """Create a unique key from platform, chat_id and msg_id."""
         return f"{platform}:{chat_id}:{msg_id}"
+
+    def _make_chat_key(self, platform: str, chat_id: str) -> str:
+        return f"{platform}:{chat_id}"
 
     def _load(self) -> None:
         """Load sessions and trees from disk."""
@@ -84,8 +91,40 @@ class SessionStore:
             self._trees = data.get("trees", {})
             self._node_to_tree = data.get("node_to_tree", {})
 
+            # Load message log (optional/backward compatible)
+            raw_log = data.get("message_log", {}) or {}
+            if isinstance(raw_log, dict):
+                self._message_log = {}
+                self._message_log_ids = {}
+                for chat_key, items in raw_log.items():
+                    if not isinstance(chat_key, str) or not isinstance(items, list):
+                        continue
+                    cleaned: List[Dict[str, Any]] = []
+                    seen: set[str] = set()
+                    for it in items:
+                        if not isinstance(it, dict):
+                            continue
+                        mid = it.get("message_id")
+                        if mid is None:
+                            continue
+                        mid_s = str(mid)
+                        if mid_s in seen:
+                            continue
+                        seen.add(mid_s)
+                        cleaned.append(
+                            {
+                                "message_id": mid_s,
+                                "ts": str(it.get("ts") or ""),
+                                "direction": str(it.get("direction") or ""),
+                                "kind": str(it.get("kind") or ""),
+                            }
+                        )
+                    self._message_log[chat_key] = cleaned
+                    self._message_log_ids[chat_key] = seen
+
             logger.info(
-                f"Loaded {len(self._sessions)} sessions and {len(self._trees)} trees from {self.storage_path}"
+                f"Loaded {len(self._sessions)} sessions, {len(self._trees)} trees, "
+                f"and {sum(len(v) for v in self._message_log.values())} msg_ids from {self.storage_path}"
             )
         except Exception as e:
             logger.error(f"Failed to load sessions: {e}")
@@ -99,11 +138,86 @@ class SessionStore:
                 },
                 "trees": self._trees,
                 "node_to_tree": self._node_to_tree,
+                "message_log": self._message_log,
             }
             with open(self.storage_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
             logger.error(f"Failed to save sessions: {e}")
+
+    def record_message_id(
+        self,
+        platform: str,
+        chat_id: str,
+        message_id: str,
+        direction: str,
+        kind: str,
+    ) -> None:
+        """Record a message_id for later best-effort deletion (/clear)."""
+        if message_id is None:
+            return
+
+        chat_key = self._make_chat_key(str(platform), str(chat_id))
+        mid = str(message_id)
+
+        with self._lock:
+            seen = self._message_log_ids.setdefault(chat_key, set())
+            if mid in seen:
+                return
+
+            rec = {
+                "message_id": mid,
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "direction": str(direction),
+                "kind": str(kind),
+            }
+            self._message_log.setdefault(chat_key, []).append(rec)
+            seen.add(mid)
+
+            # Optional cap to prevent unbounded growth if configured.
+            # Default is unlimited as requested.
+            try:
+                cap_raw = os.getenv("MAX_MESSAGE_LOG_ENTRIES_PER_CHAT", "").strip()
+                if cap_raw:
+                    cap = int(cap_raw)
+                    if cap > 0:
+                        items = self._message_log.get(chat_key, [])
+                        if len(items) > cap:
+                            # Drop oldest entries and rebuild seen set.
+                            self._message_log[chat_key] = items[-cap:]
+                            self._message_log_ids[chat_key] = {
+                                str(x.get("message_id")) for x in self._message_log[chat_key]
+                            }
+            except Exception:
+                pass
+
+            self._save()
+
+    def get_message_ids_for_chat(self, platform: str, chat_id: str) -> List[str]:
+        """Get all recorded message IDs for a chat (in insertion order)."""
+        chat_key = self._make_chat_key(str(platform), str(chat_id))
+        with self._lock:
+            items = self._message_log.get(chat_key, [])
+            return [str(x.get("message_id")) for x in items if x.get("message_id") is not None]
+
+    def clear_message_log_for_chat(self, platform: str, chat_id: str) -> None:
+        """Clear recorded message IDs for a single chat."""
+        chat_key = self._make_chat_key(str(platform), str(chat_id))
+        with self._lock:
+            self._message_log.pop(chat_key, None)
+            self._message_log_ids.pop(chat_key, None)
+            self._save()
+
+    def clear_all(self) -> None:
+        """Clear all stored sessions/trees/mappings and persist an empty store."""
+        with self._lock:
+            self._sessions.clear()
+            self._msg_to_session.clear()
+            self._trees.clear()
+            self._node_to_tree.clear()
+            self._message_log.clear()
+            self._message_log_ids.clear()
+            self._save()
 
     # ==================== Session Methods ====================
 

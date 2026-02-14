@@ -62,8 +62,10 @@ def mock_platform():
     platform = MagicMock(spec=MessagingPlatform)
     platform.send_message = AsyncMock(return_value="msg_123")
     platform.edit_message = AsyncMock()
+    platform.delete_message = AsyncMock()
     platform.queue_send_message = AsyncMock(return_value="msg_123")
     platform.queue_edit_message = AsyncMock()
+    platform.queue_delete_message = AsyncMock()
 
     def _fire_and_forget(task):
         if asyncio.iscoroutine(task):
@@ -81,6 +83,9 @@ def mock_session_store():
     store.save_tree = MagicMock()
     store.get_tree = MagicMock(return_value=None)
     store.register_node = MagicMock()
+    store.clear_all = MagicMock()
+    store.record_message_id = MagicMock()
+    store.get_message_ids_for_chat = MagicMock(return_value=[])
     return store
 
 

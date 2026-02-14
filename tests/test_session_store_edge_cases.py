@@ -117,6 +117,73 @@ class TestSessionStoreOperationEdgeCases:
         assert result is None
 
 
+class TestSessionStoreClearAll:
+    def test_clear_all_wipes_state_and_persists(self, tmp_path):
+        path = str(tmp_path / "sessions.json")
+        store = SessionStore(storage_path=path)
+
+        store.save_session("s1", "c1", "m1", platform="telegram")
+        store.save_tree(
+            "root1",
+            {
+                "root_id": "root1",
+                "nodes": {
+                    "root1": {
+                        "node_id": "root1",
+                        "incoming": {
+                            "text": "hello",
+                            "chat_id": "c1",
+                            "user_id": "u1",
+                            "message_id": "m1",
+                            "platform": "telegram",
+                            "reply_to_message_id": None,
+                            "username": None,
+                        },
+                        "status_message_id": "status1",
+                        "state": "pending",
+                        "parent_id": None,
+                        "session_id": None,
+                        "children_ids": [],
+                        "created_at": "2025-01-01T00:00:00+00:00",
+                        "completed_at": None,
+                        "error_message": None,
+                    }
+                },
+            },
+        )
+
+        store.clear_all()
+
+        assert store.get_session_by_msg("c1", "m1", "telegram") is None
+        assert store.get_all_trees() == {}
+        assert store.get_node_mapping() == {}
+
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        assert data["sessions"] == {}
+        assert data["trees"] == {}
+        assert data["node_to_tree"] == {}
+        assert data["message_log"] == {}
+
+        store2 = SessionStore(storage_path=path)
+        assert len(store2._sessions) == 0
+        assert len(store2._trees) == 0
+
+    def test_message_log_persists_and_dedups(self, tmp_path):
+        path = str(tmp_path / "sessions.json")
+        store = SessionStore(storage_path=path)
+
+        store.record_message_id("telegram", "c1", "1", direction="in", kind="command")
+        store.record_message_id("telegram", "c1", "2", direction="out", kind="command")
+        store.record_message_id("telegram", "c1", "2", direction="out", kind="command")
+
+        ids = store.get_message_ids_for_chat("telegram", "c1")
+        assert ids == ["1", "2"]
+
+        store2 = SessionStore(storage_path=path)
+        assert store2.get_message_ids_for_chat("telegram", "c1") == ["1", "2"]
+
+
 class TestSessionStoreCleanupEdgeCases:
     """Tests for cleanup with malformed data."""
 

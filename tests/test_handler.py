@@ -26,6 +26,7 @@ async def test_handle_message_stop_command(
     mock_platform.queue_send_message.assert_called_once_with(
         incoming.chat_id,
         "⏹ *Stopped\\.* Cancelled 5 pending or active requests\\.",
+        fire_and_forget=False,
     )
 
 
@@ -61,6 +62,7 @@ async def test_handle_message_stop_command_reply_stops_only_target_node(
     mock_platform.queue_send_message.assert_called_once_with(
         incoming.chat_id,
         "⏹ *Stopped\\.* Cancelled 1 request\\.",
+        fire_and_forget=False,
     )
 
 
@@ -83,6 +85,7 @@ async def test_handle_message_stop_command_reply_unknown_does_not_stop_all(
     mock_platform.queue_send_message.assert_called_once_with(
         incoming.chat_id,
         "⏹ *Stopped\\.* Nothing to stop for that message\\.",
+        fire_and_forget=False,
     )
 
 
@@ -96,9 +99,10 @@ async def test_handle_message_stats_command(
     await handler.handle_message(incoming)
 
     mock_platform.queue_send_message.assert_called_once()
-    args, _ = mock_platform.queue_send_message.call_args
+    args, kwargs = mock_platform.queue_send_message.call_args
     assert "Active CLI: 2" in args[1]
     assert "Max CLI: 5" in args[1]
+    assert kwargs["fire_and_forget"] is False
 
 
 @pytest.mark.asyncio
@@ -381,3 +385,90 @@ async def test_process_node_error_flow(handler, mock_cli_manager, mock_platform)
         last_call = mock_platform.queue_edit_message.call_args_list[-1]
         assert "❌ *Error*" in last_call[0][2]
         assert "CLI crashed" in last_call[0][2]
+
+
+@pytest.mark.asyncio
+async def test_handle_message_clear_command_stops_deletes_and_wipes_state(
+    handler, mock_platform, mock_session_store, incoming_message_factory
+):
+    # Create some tracked messages across two chats. /clear should only delete
+    # messages for the current chat.
+    root_1 = incoming_message_factory(
+        text="do something",
+        chat_id="chat_1",
+        message_id="100",
+        reply_to_message_id=None,
+    )
+    await handler.tree_queue.create_tree(
+        node_id="100",
+        incoming=root_1,
+        status_message_id="101",
+    )
+
+    root_2 = incoming_message_factory(
+        text="other chat",
+        chat_id="chat_2",
+        message_id="200",
+        reply_to_message_id=None,
+    )
+    await handler.tree_queue.create_tree(
+        node_id="200",
+        incoming=root_2,
+        status_message_id="201",
+    )
+
+    events = []
+
+    async def _stop():
+        events.append("stop")
+        return 0
+
+    async def _del(chat_id, message_id, fire_and_forget=True):
+        events.append(f"del:{chat_id}:{message_id}:{fire_and_forget}")
+
+    handler.stop_all_tasks = AsyncMock(side_effect=_stop)
+    mock_platform.queue_delete_message = AsyncMock(side_effect=_del)
+
+    incoming = incoming_message_factory(text="/clear", chat_id="chat_1", message_id="150")
+    await handler.handle_message(incoming)
+
+    assert events and events[0] == "stop"
+    deleted_ids = {e.split(":")[2] for e in events[1:]}
+    assert deleted_ids == {"100", "101", "150"}
+    assert all(e.endswith(":False") for e in events[1:])
+
+    mock_session_store.clear_all.assert_called_once()
+    assert handler.tree_queue.get_tree_count() == 0
+    mock_platform.queue_send_message.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_clear_command_with_mention(
+    handler, mock_platform, mock_session_store, incoming_message_factory
+):
+    handler.stop_all_tasks = AsyncMock(return_value=0)
+
+    incoming = incoming_message_factory(text="/clear@MyBot", chat_id="chat_1", message_id="10")
+    await handler.handle_message(incoming)
+
+    handler.stop_all_tasks.assert_called_once()
+    mock_platform.queue_delete_message.assert_called_once_with(
+        "chat_1",
+        "10",
+        fire_and_forget=False,
+    )
+    mock_session_store.clear_all.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_clear_command_deletes_message_log_ids(
+    handler, mock_platform, mock_session_store, incoming_message_factory
+):
+    handler.stop_all_tasks = AsyncMock(return_value=0)
+    mock_session_store.get_message_ids_for_chat.return_value = ["42", "43"]
+
+    incoming = incoming_message_factory(text="/clear", chat_id="chat_1", message_id="150")
+    await handler.handle_message(incoming)
+
+    deleted = {c.args[1] for c in mock_platform.queue_delete_message.call_args_list}
+    assert deleted == {"42", "43", "150"}

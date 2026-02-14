@@ -201,7 +201,20 @@ class TelegramPlatform(MessagingPlatform):
                 return await func(*args, **kwargs)
             except TelegramError as e:
                 # Non-network Telegram errors
-                if "Message is not modified" in str(e):
+                err_lower = str(e).lower()
+                if "message is not modified" in err_lower:
+                    return None
+                # Best-effort no-op cases (common during chat cleanup / /clear).
+                if any(
+                    x in err_lower
+                    for x in [
+                        "message to edit not found",
+                        "message to delete not found",
+                        "message can't be deleted",
+                        "message can't be edited",
+                        "not enough rights to delete",
+                    ]
+                ):
                     return None
                 if "Can't parse entities" in str(e) and kwargs.get("parse_mode"):
                     logger.warning("Markdown failed, retrying without parse_mode")
@@ -254,6 +267,50 @@ class TelegramPlatform(MessagingPlatform):
 
         await self._with_retry(_do_edit, parse_mode=parse_mode)
 
+    async def delete_message(
+        self,
+        chat_id: str,
+        message_id: str,
+    ) -> None:
+        """Delete a message from a chat."""
+        if not self._application or not self._application.bot:
+            raise RuntimeError("Telegram application or bot not initialized")
+
+        async def _do_delete():
+            bot = self._application.bot  # type: ignore
+            await bot.delete_message(chat_id=chat_id, message_id=int(message_id))
+
+        await self._with_retry(_do_delete)
+
+    async def delete_messages(self, chat_id: str, message_ids: list[str]) -> None:
+        """Delete multiple messages (best-effort)."""
+        if not message_ids:
+            return
+        if not self._application or not self._application.bot:
+            raise RuntimeError("Telegram application or bot not initialized")
+
+        # PTB supports bulk deletion via delete_messages; fall back to per-message.
+        bot = self._application.bot  # type: ignore
+        if hasattr(bot, "delete_messages"):
+
+            async def _do_bulk():
+                mids = []
+                for mid in message_ids:
+                    try:
+                        mids.append(int(mid))
+                    except Exception:
+                        continue
+                if not mids:
+                    return None
+                # delete_messages accepts a sequence of ints (up to 100).
+                await bot.delete_messages(chat_id=chat_id, message_ids=mids)  # type: ignore[attr-defined]
+
+            await self._with_retry(_do_bulk)
+            return
+
+        for mid in message_ids:
+            await self.delete_message(chat_id, mid)
+
     async def queue_send_message(
         self,
         chat_id: str,
@@ -296,6 +353,48 @@ class TelegramPlatform(MessagingPlatform):
             self._limiter.fire_and_forget(_edit, dedup_key=dedup_key)
         else:
             await self._limiter.enqueue(_edit, dedup_key=dedup_key)
+
+    async def queue_delete_message(
+        self,
+        chat_id: str,
+        message_id: str,
+        fire_and_forget: bool = True,
+    ) -> None:
+        """Enqueue a message delete."""
+        if not self._limiter:
+            return await self.delete_message(chat_id, message_id)
+
+        async def _delete():
+            return await self.delete_message(chat_id, message_id)
+
+        dedup_key = f"del:{chat_id}:{message_id}"
+        if fire_and_forget:
+            self._limiter.fire_and_forget(_delete, dedup_key=dedup_key)
+        else:
+            await self._limiter.enqueue(_delete, dedup_key=dedup_key)
+
+    async def queue_delete_messages(
+        self,
+        chat_id: str,
+        message_ids: list[str],
+        fire_and_forget: bool = True,
+    ) -> None:
+        """Enqueue a bulk delete (if supported) or a sequence of deletes."""
+        if not message_ids:
+            return
+
+        if not self._limiter:
+            return await self.delete_messages(chat_id, message_ids)
+
+        async def _bulk():
+            return await self.delete_messages(chat_id, message_ids)
+
+        # Dedup by the chunk content; okay to be coarse here.
+        dedup_key = f"del_bulk:{chat_id}:{hash(tuple(message_ids))}"
+        if fire_and_forget:
+            self._limiter.fire_and_forget(_bulk, dedup_key=dedup_key)
+        else:
+            await self._limiter.enqueue(_bulk, dedup_key=dedup_key)
 
     def fire_and_forget(self, task: Awaitable[Any]) -> None:
         """Execute a coroutine without awaiting it."""
