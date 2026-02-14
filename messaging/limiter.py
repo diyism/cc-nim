@@ -8,7 +8,8 @@ using a leaky bucket algorithm (aiolimiter) and a task queue.
 import asyncio
 import logging
 import os
-from typing import Awaitable, Callable, Any, Optional, List, Dict
+from collections import deque
+from typing import Awaitable, Callable, Any, Optional, Dict
 from aiolimiter import AsyncLimiter
 
 logger = logging.getLogger(__name__)
@@ -49,10 +50,10 @@ class MessagingRateLimiter:
         rate_window = float(os.getenv("MESSAGING_RATE_WINDOW", "2.0"))
 
         self.limiter = AsyncLimiter(rate_limit, rate_window)
-        # Custom queue state
-        self._queue_list: List[str] = []  # List of dedup_keys in order
+        # Custom queue state - using deque for O(1) popleft
+        self._queue_list: deque[str] = deque()  # Deque of dedup_keys in order
         self._queue_map: Dict[
-            str, tuple[Callable[[], Awaitable[Any]], List[asyncio.Future]]
+            str, tuple[Callable[[], Awaitable[Any]], list[asyncio.Future]]
         ] = {}
         self._condition = asyncio.Condition()
         self._shutdown = asyncio.Event()
@@ -87,7 +88,7 @@ class MessagingRateLimiter:
                     if self._shutdown.is_set():
                         break
 
-                    dedup_key = self._queue_list.pop(0)
+                    dedup_key = self._queue_list.popleft()
                     func, futures = self._queue_map.pop(dedup_key)
 
                 # Check for manual pause (FloodWait)
@@ -203,7 +204,7 @@ class MessagingRateLimiter:
             else:
                 self._queue_map[dedup_key] = (func, futures)
                 if front:
-                    self._queue_list.insert(0, dedup_key)
+                    self._queue_list.appendleft(dedup_key)
                 else:
                     self._queue_list.append(dedup_key)
                 self._condition.notify_all()
