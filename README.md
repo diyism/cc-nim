@@ -48,7 +48,7 @@ That's it! Claude Code now uses NVIDIA NIM for free.
 
 ---
 
-### Claude Code VSCode Extenstion
+### Claude Code VSCode Extension
 
 1. Start the server in the terminal:
 
