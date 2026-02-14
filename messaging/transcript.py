@@ -71,11 +71,13 @@ class ToolCallSegment(Segment):
     name: str
     input_text: str = ""
     closed: bool = False
+    indent_level: int = 0
 
-    def __init__(self, tool_use_id: str, name: str) -> None:
+    def __init__(self, tool_use_id: str, name: str, *, indent_level: int = 0) -> None:
         super().__init__(kind="tool_call")
         self.tool_use_id = str(tool_use_id or "")
         self.name = str(name or "tool")
+        self.indent_level = max(0, int(indent_level))
 
     def set_initial_input(self, inp: Any) -> None:
         if inp is None:
@@ -90,12 +92,10 @@ class ToolCallSegment(Segment):
             self.input_text += partial
 
     def render(self, ctx: "RenderCtx") -> str:
-        raw = self.input_text or ""
-        if ctx.tool_input_tail_max is not None and len(raw) > ctx.tool_input_tail_max:
-            raw = "..." + raw[-(ctx.tool_input_tail_max - 3) :]
-        inner = ctx.escape_code(raw)
         name = ctx.code_inline(self.name)
-        return f"🛠 {ctx.bold('Tool call:')} {name}\n```\n{inner}\n```"
+        # Per UX requirement: do not display tool args/results, only the tool call.
+        prefix = "  " * self.indent_level
+        return f"{prefix}🛠 {ctx.bold('Tool call:')} {name}"
 
 
 @dataclass
@@ -192,6 +192,9 @@ class TranscriptBuffer:
     def _in_subagent(self) -> bool:
         return bool(self._subagent_stack)
 
+    def _subagent_depth(self) -> int:
+        return len(self._subagent_stack)
+
     def _ensure_thinking(self) -> ThinkingSegment:
         seg = ThinkingSegment()
         self._segments.append(seg)
@@ -263,7 +266,10 @@ class TranscriptBuffer:
             idx = int(ev.get("index", -1))
             tool_id = str(ev.get("id", "") or "")
             name = str(ev.get("name", "") or "tool")
-            seg = ToolCallSegment(tool_id, name)
+            indent = 0
+            if name != "Task" and self._in_subagent():
+                indent = self._subagent_depth()
+            seg = ToolCallSegment(tool_id, name, indent_level=indent)
             seg.set_initial_input(ev.get("input"))
             self._segments.append(seg)
             if idx >= 0:
@@ -315,7 +321,10 @@ class TranscriptBuffer:
         if et == "tool_use":
             tool_id = str(ev.get("id", "") or "")
             name = str(ev.get("name", "") or "tool")
-            seg = ToolCallSegment(tool_id, name)
+            indent = 0
+            if name != "Task" and self._in_subagent():
+                indent = self._subagent_depth()
+            seg = ToolCallSegment(tool_id, name, indent_level=indent)
             seg.set_initial_input(ev.get("input"))
             seg.closed = True
             self._segments.append(seg)
@@ -384,7 +393,7 @@ class TranscriptBuffer:
         if len(candidate) <= limit_chars:
             return candidate
 
-        # Drop oldest segments until under limit.
+        # Drop oldest segments until under limit (keep the tail).
         parts = list(rendered)
         dropped = False
         while parts:

@@ -10,6 +10,7 @@ import time
 import asyncio
 import logging
 import re
+import os
 from typing import List, Optional
 
 from markdown_it import MarkdownIt
@@ -630,6 +631,7 @@ class ClaudeMessageHandler:
         had_transcript_events = False
         captured_session_id = None
         temp_session_id = None
+        last_status: Optional[str] = None
 
         # Get parent session ID for forking (if child node)
         parent_session_id = None
@@ -639,7 +641,7 @@ class ClaudeMessageHandler:
                 logger.info(f"Will fork from parent session: {parent_session_id}")
 
         async def update_ui(status: Optional[str] = None, force: bool = False) -> None:
-            nonlocal last_ui_update, last_displayed_text
+            nonlocal last_ui_update, last_displayed_text, last_status
             now = time.time()
 
             # Small 1s debounce for UI sanity - we still want to avoid
@@ -648,8 +650,29 @@ class ClaudeMessageHandler:
                 return
 
             last_ui_update = now
+            if status is not None:
+                last_status = status
             display = transcript.render(render_ctx, limit_chars=3900, status=status)
             if display and display != last_displayed_text:
+                # Debug logging: capture what we are sending to Telegram.
+                # Full text logging can be noisy and may include sensitive content, so gate it.
+                logger.debug(
+                    "TELEGRAM_EDIT: node_id=%s chat_id=%s msg_id=%s force=%s status=%r chars=%d",
+                    node_id,
+                    chat_id,
+                    status_msg_id,
+                    bool(force),
+                    status,
+                    len(display),
+                )
+                if os.getenv("DEBUG_TELEGRAM_EDITS") == "1":
+                    logger.debug("TELEGRAM_EDIT_TEXT:\n%s", display)
+                else:
+                    head = display[:500]
+                    tail = display[-500:] if len(display) > 500 else ""
+                    logger.debug("TELEGRAM_EDIT_PREVIEW_HEAD:\n%s", head)
+                    if tail:
+                        logger.debug("TELEGRAM_EDIT_PREVIEW_TAIL:\n%s", tail)
                 last_displayed_text = display
                 await self.platform.queue_edit_message(
                     chat_id, status_msg_id, display, parse_mode="MarkdownV2"
@@ -753,6 +776,10 @@ class ClaudeMessageHandler:
                             await update_ui(format_status("⏳", "Executing tools..."))
                     elif ptype == "tool_result":
                         await update_ui(format_status("⏳", "Executing tools..."))
+                    elif ptype == "block_stop":
+                        # Force-flush at block boundaries so we don't get stuck showing
+                        # the last partial line if deltas landed inside the debounce window.
+                        await update_ui(last_status, force=True)
 
                     elif parsed["type"] == "complete":
                         # If nothing happened (rare), still show a completion marker.

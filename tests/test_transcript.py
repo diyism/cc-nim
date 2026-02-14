@@ -64,6 +64,8 @@ def test_transcript_subagent_suppresses_thinking_and_text_inside():
     assert "Subagent:" in out
     assert "secret" not in out
     assert "visible?" not in out
+    # Tool calls inside a subagent should be indented.
+    assert "\n  🛠" in out or out.startswith("  🛠") or "  🛠" in out
     assert "after" in out
 
 
@@ -80,5 +82,6 @@ def test_transcript_truncates_by_dropping_oldest_segments():
 
     out = t.render(_ctx(), limit_chars=600, status="status")
     assert escape_md_v2("... (truncated)") in out
+    # We keep the tail and drop the oldest segments when truncating.
     assert escape_md_v2("segment_59") in out
     assert escape_md_v2("segment_0") not in out
