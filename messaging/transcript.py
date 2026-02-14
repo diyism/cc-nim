@@ -9,8 +9,13 @@ the transcript grows over time and older content must be truncated.
 from __future__ import annotations
 
 import json
+import logging
+import os
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
+
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_json_dumps(obj: Any) -> str:
@@ -249,6 +254,7 @@ class TranscriptBuffer:
         self._subagent_stack: List[str] = []
         # Parallel stack of segments for rendering nested subagents.
         self._subagent_segments: List[SubagentSegment] = []
+        self._debug_subagent_stack = os.getenv("DEBUG_SUBAGENT_STACK") == "1"
 
     def _in_subagent(self) -> bool:
         return bool(self._subagent_stack)
@@ -280,6 +286,13 @@ class TranscriptBuffer:
         )
         self._subagent_stack.append(tool_id)
         self._subagent_segments.append(seg)
+        if self._debug_subagent_stack:
+            logger.debug(
+                "SUBAGENT_STACK: push id=%r depth=%d heading=%r",
+                tool_id,
+                len(self._subagent_stack),
+                getattr(seg, "description", None),
+            )
 
     def _subagent_pop(self, tool_id: str) -> None:
         tool_id = str(tool_id or "").strip()
@@ -296,16 +309,29 @@ class TranscriptBuffer:
             except ValueError:
                 return
             while len(self._subagent_stack) > idx:
-                self._subagent_stack.pop()
+                popped = self._subagent_stack.pop()
                 if self._subagent_segments:
                     self._subagent_segments.pop()
+                if self._debug_subagent_stack:
+                    logger.debug(
+                        "SUBAGENT_STACK: pop id=%r depth=%d (matched=%r)",
+                        popped,
+                        len(self._subagent_stack),
+                        tool_id,
+                    )
             return
 
         # No id in result; only close if we have a synthetic top marker.
         if self._subagent_stack and self._subagent_stack[-1].startswith("__task_"):
-            self._subagent_stack.pop()
+            popped = self._subagent_stack.pop()
             if self._subagent_segments:
                 self._subagent_segments.pop()
+            if self._debug_subagent_stack:
+                logger.debug(
+                    "SUBAGENT_STACK: pop id=%r depth=%d (synthetic)",
+                    popped,
+                    len(self._subagent_stack),
+                )
 
     def _ensure_thinking(self) -> ThinkingSegment:
         seg = ThinkingSegment()
@@ -384,7 +410,7 @@ class TranscriptBuffer:
             idx = int(ev.get("index", -1))
             if idx >= 0:
                 self.apply({"type": "block_stop", "index": idx})
-            tool_id = str(ev.get("id", "") or "")
+            tool_id = str(ev.get("id", "") or "").strip()
             name = str(ev.get("name", "") or "tool")
             if tool_id:
                 self._tool_name_by_id[tool_id] = name
@@ -447,7 +473,7 @@ class TranscriptBuffer:
             return
 
         if et == "tool_use":
-            tool_id = str(ev.get("id", "") or "")
+            tool_id = str(ev.get("id", "") or "").strip()
             name = str(ev.get("name", "") or "tool")
             if tool_id:
                 self._tool_name_by_id[tool_id] = name
@@ -479,7 +505,7 @@ class TranscriptBuffer:
             return
 
         if et == "tool_result":
-            tool_id = str(ev.get("tool_use_id", "") or "")
+            tool_id = str(ev.get("tool_use_id", "") or "").strip()
             name = self._tool_name_by_id.get(tool_id)
 
             # If this was the Task tool result, close subagent context.

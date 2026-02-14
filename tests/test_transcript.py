@@ -72,6 +72,40 @@ def test_transcript_subagent_suppresses_thinking_and_text_inside():
     assert "after" in out
 
 
+def test_transcript_subagent_closes_on_whitespace_tool_ids():
+    t = TranscriptBuffer()
+
+    # Provider emitted a Task tool_use id with leading whitespace.
+    t.apply(
+        {
+            "type": "tool_use",
+            "id": " functions.Task:0",
+            "name": "Task",
+            "input": {"description": "Outer"},
+        }
+    )
+
+    # Task completes, but tool_result references a trimmed id (or vice versa).
+    t.apply(
+        {"type": "tool_result", "tool_use_id": "functions.Task:0", "content": "done"}
+    )
+
+    # Next Task should be top-level, not nested under the previous subagent.
+    t.apply(
+        {
+            "type": "tool_use",
+            "id": "functions.Task:1",
+            "name": "Task",
+            "input": {"description": "Next"},
+        }
+    )
+
+    out = t.render(_ctx(), limit_chars=3900, status=None)
+    assert out.count("Subagent:") == 2
+    # If nesting is incorrect, the second subagent line will be indented under the first.
+    assert "\n  🤖 *Subagent:* `Next`" not in out
+
+
 def test_transcript_truncates_by_dropping_oldest_segments():
     t = TranscriptBuffer()
 

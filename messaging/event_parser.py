@@ -68,7 +68,7 @@ def parse_cli_event(event: Any) -> List[Dict]:
                     results.append(
                         {
                             "type": "tool_use",
-                            "id": c.get("id", ""),
+                            "id": str(c.get("id", "") or "").strip(),
                             "name": c.get("name", ""),
                             "input": c.get("input"),
                         }
@@ -77,7 +77,7 @@ def parse_cli_event(event: Any) -> List[Dict]:
                     results.append(
                         {
                             "type": "tool_result",
-                            "tool_use_id": c.get("tool_use_id", ""),
+                            "tool_use_id": str(c.get("tool_use_id", "") or "").strip(),
                             "content": c.get("content"),
                             "is_error": bool(c.get("is_error", False)),
                         }
@@ -129,7 +129,7 @@ def parse_cli_event(event: Any) -> List[Dict]:
                     {
                         "type": "tool_use_start",
                         "index": event.get("index", -1),
-                        "id": block.get("id", ""),
+                        "id": str(block.get("id", "") or "").strip(),
                         "name": block.get("name", ""),
                         "input": block.get("input"),
                     }
