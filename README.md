@@ -32,7 +32,7 @@ MODEL=moonshotai/kimi-k2-thinking
 
 ### Claude Code
 
-**Terminal 1 - Start the proxy:**
+**Terminal 1 - Start the server:**
 
 ```bash
 uv run uvicorn server:app --host 0.0.0.0 --port 8082
@@ -50,7 +50,12 @@ That's it! Claude Code now uses NVIDIA NIM for free.
 
 ### Claude Code VSCode Extenstion
 
-1. Start the proxy.
+1. Start the server in the terminal:
+2. 
+```bash
+uv run uvicorn server:app --host 0.0.0.0 --port 8082
+```
+
 2. Open Settings (`Ctrl + ,`).
 3. Search for `claude-code.environmentVariables`.
 4. Click **Edit in settings.json** and add the following block:
