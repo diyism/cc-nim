@@ -51,7 +51,7 @@ That's it! Claude Code now uses NVIDIA NIM for free.
 ### Claude Code VSCode Extenstion
 
 1. Start the server in the terminal:
-2. 
+
 ```bash
 uv run uvicorn server:app --host 0.0.0.0 --port 8082
 ```
