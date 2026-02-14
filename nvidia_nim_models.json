@@ -1100,6 +1100,12 @@
             "owned_by": "z-ai"
         },
         {
+            "id": "z-ai/glm5",
+            "object": "model",
+            "created": 735790403,
+            "owned_by": "z-ai"
+        },
+        {
             "id": "zyphra/zamba2-7b-instruct",
             "object": "model",
             "created": 735790403,
