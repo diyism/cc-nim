@@ -86,12 +86,14 @@ def build_request_body(
         extra_body.update(request_extra)
 
     # Handle thinking/reasoning mode
-    extra_body.setdefault("thinking", {"type": "enabled"})
-    extra_body.setdefault("reasoning_split", True)
-    extra_body.setdefault(
-        "chat_template_kwargs",
-        {"thinking": True, "reasoning_split": True, "clear_thinking": False},
-    )
+    thinking = getattr(request_data, "thinking", None)
+    if thinking and getattr(thinking, "enabled", True):
+        extra_body.setdefault("thinking", {"type": "enabled"})
+        extra_body.setdefault("reasoning_split", True)
+        extra_body.setdefault(
+            "chat_template_kwargs",
+            {"thinking": True, "reasoning_split": True, "clear_thinking": False},
+        )
 
     req_top_k = getattr(request_data, "top_k", None)
     top_k = req_top_k if req_top_k is not None else nim.top_k
