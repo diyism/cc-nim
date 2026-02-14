@@ -53,6 +53,20 @@ def test_render_markdown_to_mdv2_renders_table_as_code_block():
     assert "After" in out
 
 
+def test_render_markdown_to_mdv2_table_without_blank_line_still_renders():
+    md = (
+        "Here's a table:\n"
+        "| a | b |\n"
+        "|---|---|\n"
+        "| 1 | 2 |\n"
+    )
+    out = render_markdown_to_mdv2(md)
+    assert "Here's a table" in out
+    assert "```" in out
+    assert "| a" in out
+    assert "| ---" in out
+
+
 def test_render_markdown_to_mdv2_table_escapes_backticks_and_backslashes_in_cells():
     md = (
         "| a | b |\n"
