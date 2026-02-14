@@ -36,6 +36,49 @@ def test_render_markdown_to_mdv2_covers_common_structures():
     assert "```" in out
 
 
+def test_render_markdown_to_mdv2_renders_table_as_code_block():
+    md = (
+        "| a | b |\n"
+        "|---|---|\n"
+        "| 1 | 2 |\n"
+        "| 3 | 4 |\n"
+        "\n"
+        "After.\n"
+    )
+    out = render_markdown_to_mdv2(md)
+    assert "```" in out
+    assert "| a" in out
+    assert "| b" in out
+    assert "| ---" in out
+    assert "After" in out
+
+
+def test_render_markdown_to_mdv2_table_escapes_backticks_and_backslashes_in_cells():
+    md = (
+        "| a | b |\n"
+        "|---|---|\n"
+        "| \\\\ | `` ` `` |\n"
+    )
+    out = render_markdown_to_mdv2(md)
+    assert "```" in out
+    # In Telegram code blocks we escape backslashes and backticks.
+    assert "\\\\" in out  # rendered cell backslash becomes double-backslash
+    assert "\\`" in out  # rendered cell backtick is escaped
+
+
+def test_render_markdown_to_mdv2_table_inside_list_keeps_bullet_prefix():
+    md = (
+        "-\n"
+        "  | a | b |\n"
+        "  |---|---|\n"
+        "  | 1 | 2 |\n"
+    )
+    out = render_markdown_to_mdv2(md)
+    assert "```" in out
+    assert out.lstrip().startswith("\\-")
+    assert out.find("\\-") < out.find("```")
+
+
 def test_get_initial_status_branches():
     platform = MagicMock()
     cli_manager = MagicMock()

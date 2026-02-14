@@ -28,6 +28,7 @@ MDV2_LINK_ESCAPE = set("\\)")
 
 _MD = MarkdownIt("commonmark", {"html": False, "breaks": False})
 _MD.enable("strikethrough")
+_MD.enable("table")
 
 
 def escape_md_v2(text: str) -> str:
@@ -66,6 +67,22 @@ def render_markdown_to_mdv2(text: str) -> str:
         return ""
 
     tokens = _MD.parse(text)
+
+    def render_inline_table_plain(children) -> str:
+        # Keep table cells as plain text for stable monospace alignment.
+        out: List[str] = []
+        for tok in children:
+            if tok.type == "text":
+                out.append(tok.content)
+            elif tok.type == "code_inline":
+                out.append(tok.content)
+            elif tok.type in {"softbreak", "hardbreak"}:
+                out.append(" ")
+            elif tok.type == "image":
+                # markdown-it-py stores alt text in content for images.
+                if tok.content:
+                    out.append(tok.content)
+        return "".join(out)
 
     def render_inline_plain(children) -> str:
         out: List[str] = []
@@ -216,6 +233,95 @@ def render_markdown_to_mdv2(text: str) -> str:
         elif t == "blockquote_close":
             blockquote_level = max(0, blockquote_level - 1)
             out.append("\n")
+        elif t == "table_open":
+            # Telegram MarkdownV2 has no native table support; render as a monospaced
+            # aligned table inside a fenced code block.
+            if pending_prefix:
+                out.append(apply_blockquote(pending_prefix.rstrip()))
+                out.append("\n")
+                pending_prefix = None
+
+            rows: List[List[str]] = []
+            row_is_header: List[bool] = []
+
+            j = i + 1
+            in_thead = False
+            in_row = False
+            current_row: List[str] = []
+            current_row_header = False
+
+            in_cell = False
+            cell_parts: List[str] = []
+
+            while j < len(tokens):
+                tt = tokens[j].type
+                if tt == "thead_open":
+                    in_thead = True
+                elif tt == "thead_close":
+                    in_thead = False
+                elif tt == "tr_open":
+                    in_row = True
+                    current_row = []
+                    current_row_header = in_thead
+                elif tt in {"th_open", "td_open"}:
+                    in_cell = True
+                    cell_parts = []
+                elif tt == "inline" and in_cell:
+                    cell_parts.append(
+                        render_inline_table_plain(tokens[j].children or [])
+                    )
+                elif tt in {"th_close", "td_close"} and in_cell:
+                    cell = " ".join(cell_parts).strip()
+                    current_row.append(cell)
+                    in_cell = False
+                    cell_parts = []
+                elif tt == "tr_close" and in_row:
+                    rows.append(current_row)
+                    row_is_header.append(bool(current_row_header))
+                    in_row = False
+                elif tt == "table_close":
+                    break
+                j += 1
+
+            if rows:
+                col_count = max((len(r) for r in rows), default=0)
+                norm_rows: List[List[str]] = []
+                for r in rows:
+                    if len(r) < col_count:
+                        r = r + [""] * (col_count - len(r))
+                    norm_rows.append(r)
+
+                widths: List[int] = []
+                for c in range(col_count):
+                    w = max((len(r[c]) for r in norm_rows), default=0)
+                    widths.append(max(w, 3))
+
+                def fmt_row(r: List[str]) -> str:
+                    cells = [r[c].ljust(widths[c]) for c in range(col_count)]
+                    return "| " + " | ".join(cells) + " |"
+
+                def fmt_sep() -> str:
+                    cells = ["-" * widths[c] for c in range(col_count)]
+                    return "| " + " | ".join(cells) + " |"
+
+                last_header_idx = -1
+                for idx, is_h in enumerate(row_is_header):
+                    if is_h:
+                        last_header_idx = idx
+
+                lines: List[str] = []
+                for idx, r in enumerate(norm_rows):
+                    lines.append(fmt_row(r))
+                    if idx == last_header_idx:
+                        lines.append(fmt_sep())
+
+                table_text = "\n".join(lines).rstrip()
+                out.append(f"```\n{escape_md_v2_code(table_text)}\n```")
+                out.append("\n")
+
+            # Skip consumed tokens through table_close.
+            i = j + 1
+            continue
         elif t in {"code_block", "fence"}:
             code = escape_md_v2_code(tok.content.rstrip("\n"))
             out.append(f"```\n{code}\n```")
