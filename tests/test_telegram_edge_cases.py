@@ -17,8 +17,9 @@ def test_telegram_platform_init_raises_when_dependency_missing():
 
 @pytest.mark.asyncio
 async def test_telegram_platform_start_requires_token():
-    with patch.dict("os.environ", {}, clear=True), patch(
-        "messaging.telegram.TELEGRAM_AVAILABLE", True
+    with (
+        patch.dict("os.environ", {}, clear=True),
+        patch("messaging.telegram.TELEGRAM_AVAILABLE", True),
     ):
         from messaging.telegram import TelegramPlatform
 
@@ -199,18 +200,16 @@ async def test_telegram_start_retries_on_network_error(monkeypatch):
 
         monkeypatch.setattr(asyncio, "sleep", AsyncMock())
 
-        with patch("telegram.ext.Application.builder") as mock_builder, patch(
-            "messaging.limiter.MessagingRateLimiter.get_instance", AsyncMock()
+        with (
+            patch("telegram.ext.Application.builder") as mock_builder,
+            patch("messaging.limiter.MessagingRateLimiter.get_instance", AsyncMock()),
         ):
             mock_app = MagicMock()
             mock_app.initialize = AsyncMock(side_effect=[NetworkError("no"), None])
             mock_app.start = AsyncMock()
             mock_app.updater = None
 
-            mock_builder.return_value.token.return_value.request.return_value.build.return_value = (
-                mock_app
-            )
+            mock_builder.return_value.token.return_value.request.return_value.build.return_value = mock_app
 
             await platform.start()
             assert platform.is_connected is True
-

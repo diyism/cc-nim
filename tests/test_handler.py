@@ -429,7 +429,9 @@ async def test_handle_message_clear_command_stops_deletes_and_wipes_state(
     handler.stop_all_tasks = AsyncMock(side_effect=_stop)
     mock_platform.queue_delete_message = AsyncMock(side_effect=_del)
 
-    incoming = incoming_message_factory(text="/clear", chat_id="chat_1", message_id="150")
+    incoming = incoming_message_factory(
+        text="/clear", chat_id="chat_1", message_id="150"
+    )
     await handler.handle_message(incoming)
 
     assert events and events[0] == "stop"
@@ -448,7 +450,9 @@ async def test_handle_message_clear_command_with_mention(
 ):
     handler.stop_all_tasks = AsyncMock(return_value=0)
 
-    incoming = incoming_message_factory(text="/clear@MyBot", chat_id="chat_1", message_id="10")
+    incoming = incoming_message_factory(
+        text="/clear@MyBot", chat_id="chat_1", message_id="10"
+    )
     await handler.handle_message(incoming)
 
     handler.stop_all_tasks.assert_called_once()
@@ -467,7 +471,9 @@ async def test_handle_message_clear_command_deletes_message_log_ids(
     handler.stop_all_tasks = AsyncMock(return_value=0)
     mock_session_store.get_message_ids_for_chat.return_value = ["42", "43"]
 
-    incoming = incoming_message_factory(text="/clear", chat_id="chat_1", message_id="150")
+    incoming = incoming_message_factory(
+        text="/clear", chat_id="chat_1", message_id="150"
+    )
     await handler.handle_message(incoming)
 
     deleted = {c.args[1] for c in mock_platform.queue_delete_message.call_args_list}

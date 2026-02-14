@@ -332,7 +332,9 @@ class TreeQueueManager:
             except Exception:
                 # Best-effort: if we can't mutate the queue internals, the node will
                 # still be dequeued later and skipped due to state=ERROR.
-                logger.debug("Failed to remove node from queue; will rely on state=ERROR")
+                logger.debug(
+                    "Failed to remove node from queue; will rely on state=ERROR"
+                )
 
             node.state = MessageState.ERROR
             node.error_message = "Cancelled by user"

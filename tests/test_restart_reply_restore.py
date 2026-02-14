@@ -8,7 +8,9 @@ from messaging.models import IncomingMessage
 
 
 @pytest.mark.asyncio
-async def test_reply_to_old_status_message_after_restore_routes_to_parent(tmp_path, mock_platform, mock_cli_manager):
+async def test_reply_to_old_status_message_after_restore_routes_to_parent(
+    tmp_path, mock_platform, mock_cli_manager
+):
     # Build a persisted tree with a root node A and a bot status message id.
     store_path = tmp_path / "sessions.json"
     store = SessionStore(storage_path=str(store_path))
@@ -21,7 +23,9 @@ async def test_reply_to_old_status_message_after_restore_routes_to_parent(tmp_pa
         message_id="A",
         platform="telegram",
     )
-    tree = await handler1.tree_queue.create_tree("A", a_incoming, status_message_id="status_A")
+    tree = await handler1.tree_queue.create_tree(
+        "A", a_incoming, status_message_id="status_A"
+    )
     handler1.tree_queue.register_node("status_A", tree.root_id)
     store.register_node("status_A", tree.root_id)
     store.save_tree(tree.root_id, tree.to_dict())
@@ -59,7 +63,9 @@ async def test_reply_to_old_status_message_after_restore_routes_to_parent(tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_reply_to_old_status_message_without_mapping_creates_new_conversation(tmp_path, mock_platform, mock_cli_manager):
+async def test_reply_to_old_status_message_without_mapping_creates_new_conversation(
+    tmp_path, mock_platform, mock_cli_manager
+):
     store_path = tmp_path / "sessions.json"
     store = SessionStore(storage_path=str(store_path))
 
@@ -71,7 +77,9 @@ async def test_reply_to_old_status_message_without_mapping_creates_new_conversat
         message_id="A",
         platform="telegram",
     )
-    tree = await handler1.tree_queue.create_tree("A", a_incoming, status_message_id="status_A")
+    tree = await handler1.tree_queue.create_tree(
+        "A", a_incoming, status_message_id="status_A"
+    )
     # Intentionally do NOT register "status_A" mapping.
     store.save_tree(tree.root_id, tree.to_dict())
 
@@ -100,4 +108,3 @@ async def test_reply_to_old_status_message_without_mapping_creates_new_conversat
     new_tree = handler2.tree_queue.get_tree_for_node("R1")
     assert new_tree is not None
     assert new_tree.root_id == "R1"
-

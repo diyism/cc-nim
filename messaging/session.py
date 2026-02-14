@@ -186,7 +186,8 @@ class SessionStore:
                             # Drop oldest entries and rebuild seen set.
                             self._message_log[chat_key] = items[-cap:]
                             self._message_log_ids[chat_key] = {
-                                str(x.get("message_id")) for x in self._message_log[chat_key]
+                                str(x.get("message_id"))
+                                for x in self._message_log[chat_key]
                             }
             except Exception:
                 pass
@@ -198,7 +199,11 @@ class SessionStore:
         chat_key = self._make_chat_key(str(platform), str(chat_id))
         with self._lock:
             items = self._message_log.get(chat_key, [])
-            return [str(x.get("message_id")) for x in items if x.get("message_id") is not None]
+            return [
+                str(x.get("message_id"))
+                for x in items
+                if x.get("message_id") is not None
+            ]
 
     def clear_message_log_for_chat(self, platform: str, chat_id: str) -> None:
         """Clear recorded message IDs for a single chat."""

@@ -41,7 +41,9 @@ logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 _SHUTDOWN_TIMEOUT_S = 5.0
 
 
-async def _best_effort(name: str, awaitable, timeout_s: float = _SHUTDOWN_TIMEOUT_S) -> None:
+async def _best_effort(
+    name: str, awaitable, timeout_s: float = _SHUTDOWN_TIMEOUT_S
+) -> None:
     """Run a shutdown step with timeout; never raise to callers."""
     try:
         await asyncio.wait_for(awaitable, timeout=timeout_s)

@@ -37,14 +37,7 @@ def test_render_markdown_to_mdv2_covers_common_structures():
 
 
 def test_render_markdown_to_mdv2_renders_table_as_code_block():
-    md = (
-        "| a | b |\n"
-        "|---|---|\n"
-        "| 1 | 2 |\n"
-        "| 3 | 4 |\n"
-        "\n"
-        "After.\n"
-    )
+    md = "| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n\nAfter.\n"
     out = render_markdown_to_mdv2(md)
     assert "```" in out
     assert "| a" in out
@@ -54,12 +47,7 @@ def test_render_markdown_to_mdv2_renders_table_as_code_block():
 
 
 def test_render_markdown_to_mdv2_table_without_blank_line_still_renders():
-    md = (
-        "Here's a table:\n"
-        "| a | b |\n"
-        "|---|---|\n"
-        "| 1 | 2 |\n"
-    )
+    md = "Here's a table:\n| a | b |\n|---|---|\n| 1 | 2 |\n"
     out = render_markdown_to_mdv2(md)
     assert "Here's a table" in out
     assert "```" in out
@@ -68,11 +56,7 @@ def test_render_markdown_to_mdv2_table_without_blank_line_still_renders():
 
 
 def test_render_markdown_to_mdv2_table_escapes_backticks_and_backslashes_in_cells():
-    md = (
-        "| a | b |\n"
-        "|---|---|\n"
-        "| \\\\ | `` ` `` |\n"
-    )
+    md = "| a | b |\n|---|---|\n| \\\\ | `` ` `` |\n"
     out = render_markdown_to_mdv2(md)
     assert "```" in out
     # In Telegram code blocks we escape backslashes and backticks.
@@ -81,12 +65,7 @@ def test_render_markdown_to_mdv2_table_escapes_backticks_and_backslashes_in_cell
 
 
 def test_render_markdown_to_mdv2_table_inside_list_keeps_bullet_prefix():
-    md = (
-        "-\n"
-        "  | a | b |\n"
-        "  |---|---|\n"
-        "  | 1 | 2 |\n"
-    )
+    md = "-\n  | a | b |\n  |---|---|\n  | 1 | 2 |\n"
     out = render_markdown_to_mdv2(md)
     assert "```" in out
     assert out.lstrip().startswith("\\-")
@@ -237,7 +216,9 @@ async def test_handle_message_reply_with_tree_but_no_parent_treated_as_new():
     handler.tree_queue = MagicMock()
     handler.tree_queue.get_tree_for_node.return_value = object()
     handler.tree_queue.resolve_parent_node_id.return_value = None
-    handler.tree_queue.create_tree = AsyncMock(return_value=MagicMock(root_id="root", to_dict=MagicMock(return_value={"t": 1})))
+    handler.tree_queue.create_tree = AsyncMock(
+        return_value=MagicMock(root_id="root", to_dict=MagicMock(return_value={"t": 1}))
+    )
     handler.tree_queue.register_node = MagicMock()
     handler.tree_queue.enqueue = AsyncMock(return_value=False)
 

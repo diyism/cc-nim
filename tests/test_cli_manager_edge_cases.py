@@ -82,7 +82,9 @@ async def test_remove_session_active_removes_temp_mapping():
 async def test_get_or_create_session_cleans_up_idle_sessions_when_at_limit():
     from cli.manager import CLISessionManager
 
-    manager = CLISessionManager(workspace_path="/tmp", api_url="http://x/v1", max_sessions=1)
+    manager = CLISessionManager(
+        workspace_path="/tmp", api_url="http://x/v1", max_sessions=1
+    )
 
     idle_session = MagicMock()
     idle_session.is_busy = False
@@ -107,7 +109,9 @@ async def test_get_or_create_session_cleans_up_idle_sessions_when_at_limit():
 async def test_get_or_create_session_raises_when_max_sessions_reached_with_busy_sessions():
     from cli.manager import CLISessionManager
 
-    manager = CLISessionManager(workspace_path="/tmp", api_url="http://x/v1", max_sessions=1)
+    manager = CLISessionManager(
+        workspace_path="/tmp", api_url="http://x/v1", max_sessions=1
+    )
 
     busy_session = MagicMock()
     busy_session.is_busy = True
@@ -140,4 +144,3 @@ async def test_stop_all_handles_stop_exceptions():
     s2.stop.assert_awaited_once()
     assert manager.get_stats()["active_sessions"] == 0
     assert manager.get_stats()["pending_sessions"] == 0
-

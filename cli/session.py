@@ -137,9 +137,7 @@ class CLISession:
                             line = buffer[:newline_pos]
                             buffer = buffer[newline_pos + 1 :]
 
-                            line_str = line.decode(
-                                "utf-8", errors="replace"
-                            ).strip()
+                            line_str = line.decode("utf-8", errors="replace").strip()
                             if line_str:
                                 async for event in self._handle_line_gen(
                                     line_str, session_id_extracted

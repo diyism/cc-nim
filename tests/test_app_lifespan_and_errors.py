@@ -28,8 +28,9 @@ def test_create_app_provider_error_handler_returns_anthropic_format():
         max_cli_sessions=1,
         log_file="server.log",
     )
-    with patch.object(api_app_mod, "get_settings", return_value=settings), patch.object(
-        api_app_mod, "cleanup_provider", new=AsyncMock()
+    with (
+        patch.object(api_app_mod, "get_settings", return_value=settings),
+        patch.object(api_app_mod, "cleanup_provider", new=AsyncMock()),
     ):
         with TestClient(app) as client:
             resp = client.get("/raise_provider")
@@ -60,8 +61,9 @@ def test_create_app_general_exception_handler_returns_500():
         max_cli_sessions=1,
         log_file="server.log",
     )
-    with patch.object(api_app_mod, "get_settings", return_value=settings), patch.object(
-        api_app_mod, "cleanup_provider", new=AsyncMock()
+    with (
+        patch.object(api_app_mod, "get_settings", return_value=settings),
+        patch.object(api_app_mod, "cleanup_provider", new=AsyncMock()),
     ):
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.get("/raise_general")
@@ -71,7 +73,9 @@ def test_create_app_general_exception_handler_returns_500():
             assert body["error"]["type"] == "api_error"
 
 
-@pytest.mark.parametrize("messaging_enabled", [True, False], ids=["with_platform", "no_platform"])
+@pytest.mark.parametrize(
+    "messaging_enabled", [True, False], ids=["with_platform", "no_platform"]
+)
 def test_app_lifespan_sets_state_and_cleans_up(tmp_path, messaging_enabled):
     from api.app import create_app
 
@@ -113,17 +117,18 @@ def test_app_lifespan_sets_state_and_cleans_up(tmp_path, messaging_enabled):
     api_app_mod = importlib.import_module("api.app")
 
     cleanup_provider = AsyncMock()
-    with patch.object(api_app_mod, "get_settings", return_value=settings), patch.object(
-        api_app_mod, "cleanup_provider", new=cleanup_provider
-    ), patch(
-        "messaging.factory.create_messaging_platform",
-        return_value=fake_platform if messaging_enabled else None,
-    ) as create_platform, patch(
-        "messaging.session.SessionStore", return_value=session_store
-    ), patch(
-        "cli.manager.CLISessionManager", return_value=cli_manager
-    ), patch(
-        "messaging.tree_queue.TreeQueueManager.from_dict", return_value=fake_queue
+    with (
+        patch.object(api_app_mod, "get_settings", return_value=settings),
+        patch.object(api_app_mod, "cleanup_provider", new=cleanup_provider),
+        patch(
+            "messaging.factory.create_messaging_platform",
+            return_value=fake_platform if messaging_enabled else None,
+        ) as create_platform,
+        patch("messaging.session.SessionStore", return_value=session_store),
+        patch("cli.manager.CLISessionManager", return_value=cli_manager),
+        patch(
+            "messaging.tree_queue.TreeQueueManager.from_dict", return_value=fake_queue
+        ),
     ):
         with TestClient(app):
             pass
@@ -181,15 +186,15 @@ def test_app_lifespan_cleanup_continues_if_platform_stop_raises(tmp_path):
 
     api_app_mod = importlib.import_module("api.app")
     cleanup_provider = AsyncMock()
-    with patch.object(api_app_mod, "get_settings", return_value=settings), patch.object(
-        api_app_mod, "cleanup_provider", new=cleanup_provider
-    ), patch(
-        "messaging.factory.create_messaging_platform",
-        return_value=fake_platform,
-    ), patch(
-        "messaging.session.SessionStore", return_value=session_store
-    ), patch(
-        "cli.manager.CLISessionManager", return_value=cli_manager
+    with (
+        patch.object(api_app_mod, "get_settings", return_value=settings),
+        patch.object(api_app_mod, "cleanup_provider", new=cleanup_provider),
+        patch(
+            "messaging.factory.create_messaging_platform",
+            return_value=fake_platform,
+        ),
+        patch("messaging.session.SessionStore", return_value=session_store),
+        patch("cli.manager.CLISessionManager", return_value=cli_manager),
     ):
         with TestClient(app):
             pass

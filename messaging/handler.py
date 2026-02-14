@@ -32,9 +32,7 @@ _MD.enable("strikethrough")
 _MD.enable("table")
 
 
-_TABLE_SEP_RE = re.compile(
-    r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$"
-)
+_TABLE_SEP_RE = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$")
 _FENCE_RE = re.compile(r"^\s*```")
 
 

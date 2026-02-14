@@ -70,7 +70,9 @@ class MessagingRateLimiter:
         if self._worker_task and not self._worker_task.done():
             return
         # Named task helps debugging shutdown hangs.
-        self._worker_task = asyncio.create_task(self._worker(), name="msg-limiter-worker")
+        self._worker_task = asyncio.create_task(
+            self._worker(), name="msg-limiter-worker"
+        )
 
     async def _worker(self):
         """Background worker that processes queued messaging tasks."""
