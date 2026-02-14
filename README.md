@@ -6,7 +6,7 @@ Use **Claude Code CLI for free** with NVIDIA NIM's free unlimited 40 reqs/min AP
 
 ## Quick Start
 
-### 1. Get Your Free NVIDIA API Key
+### 1. Prerequisites
 
 1. Get a new API key from [build.nvidia.com/settings/api-keys](https://build.nvidia.com/settings/api-keys)
 2. Install [claude-code](https://github.com/anthropics/claude-code)
