@@ -189,7 +189,7 @@ Hundreds of models from stepfun, OpenAI, Anthropic, Google, and more.
 Examples: 
 - `stepfun/step-3.5-flash:free`
 - `openai/gpt-4o-mini`
-- `anthropic/claude-3.5-sonnet`.
+- `anthropic/claude-3.5-sonnet`
 
 Browse: [openrouter.ai/models](https://openrouter.ai/models)
 
