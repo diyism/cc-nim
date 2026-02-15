@@ -2,6 +2,8 @@
 
 A phased plan to address all issues from the codebase quality review. Tasks are ordered by dependency and risk.
 
+**Running tests:** Use `uv run pytest` (or `uv run pytest <path> -v` for specific suites) to run tests in the project's UV environment.
+
 ---
 
 ## Phase 1: Low-Risk Cleanup (Dead Code & Redundant Wrappers)
@@ -14,7 +16,7 @@ A phased plan to address all issues from the codebase quality review. Tasks are 
 |------|--------|
 | 1 | Search codebase for any `get_queue_position` calls |
 | 2 | Remove the method from `messaging/tree_data.py` (lines 268–276) |
-| 3 | Run tests: `pytest tests/test_tree_*.py tests/test_tree_concurrency.py -v` |
+| 3 | Run tests: `uv run pytest tests/test_tree_*.py tests/test_tree_concurrency.py -v` |
 
 **Verification:** No references remain; tree tests pass.
 
@@ -27,7 +29,7 @@ A phased plan to address all issues from the codebase quality review. Tasks are 
 | 1 | Remove from `providers/nvidia_nim/utils/__init__.py` exports |
 | 2 | Option A: Delete the function from `think_parser.py` if truly unused |
 | 2 | Option B: Keep function, add docstring: "For external/direct delta inspection. NIM client uses getattr(delta, 'reasoning_content') directly." |
-| 3 | Run: `pytest tests/test_nvidia_nim.py tests/test_parsers.py -v` |
+| 3 | Run: `uv run pytest tests/test_nvidia_nim.py tests/test_parsers.py -v` |
 
 **Recommendation:** Option A (delete) — YAGNI. Can reintroduce if needed.
 
@@ -39,7 +41,7 @@ A phased plan to address all issues from the codebase quality review. Tasks are 
 |------|--------|
 | 1 | In `tests/test_extract_text.py`, change import from `providers.logging_utils._extract_text_from_content as logging_extract` to `utils.text.extract_text_from_content as logging_extract` |
 | 2 | Remove `_extract_text_from_content` from `providers/logging_utils.py` |
-| 3 | Run: `pytest tests/test_extract_text.py tests/test_logging_utils*.py -v` |
+| 3 | Run: `uv run pytest tests/test_extract_text.py tests/test_logging_utils*.py -v` |
 
 **Verification:** Tests still pass; no other imports of `_extract_text_from_content`.
 
@@ -60,7 +62,7 @@ A phased plan to address all issues from the codebase quality review. Tasks are 
 | 5 | Update `messaging/handler.py`: `from .telegram_markdown import ...` (all moved symbols) |
 | 6 | Update `messaging/telegram.py`: `from .telegram_markdown import escape_md_v2` and remove local definition |
 | 7 | Update tests: `test_handler_format.py`, `test_robust_formatting.py`, `test_transcript.py`, `test_reliability.py` — import from `messaging.telegram_markdown` |
-| 8 | Run full test suite |
+| 8 | Run full test suite: `uv run pytest` |
 
 **Verification:** All markdown-related tests pass; no duplicate `escape_md_v2`.
 
@@ -72,7 +74,7 @@ A phased plan to address all issues from the codebase quality review. Tasks are 
 |------|--------|
 | 1 | After Phase 2.1, `handler.py` should only contain `ClaudeMessageHandler` and its imports |
 | 2 | Confirm no markdown logic remains in handler |
-| 3 | Run: `pytest tests/test_handler*.py tests/test_transcript.py -v` |
+| 3 | Run: `uv run pytest tests/test_handler*.py tests/test_transcript.py -v` |
 
 ---
 
@@ -90,7 +92,7 @@ A phased plan to address all issues from the codebase quality review. Tasks are 
 | 4 | Extract `_finalize_node_success(tree, node_id, captured_session_id)` — state update + persist |
 | 5 | Extract `_finalize_node_error(node_id, error_msg, tree)` — propagate error, update UI |
 | 6 | Refactor `_process_node` to call these helpers in sequence |
-| 7 | Run: `pytest tests/test_handler*.py tests/test_handler_integration.py -v` |
+| 7 | Run: `uv run pytest tests/test_handler*.py tests/test_handler_integration.py -v` |
 
 **Design note:** Keep `update_ui` as a closure inside `_process_node` (it needs `last_ui_update`, `last_displayed_text`, etc.) or pass a small state object.
 
@@ -109,7 +111,7 @@ A phased plan to address all issues from the codebase quality review. Tasks are 
 | 3 | In `from_dict`, after loading nodes: build `_status_to_node` from all nodes |
 | 4 | Rewrite `find_node_by_status_message`: `node_id = self._status_to_node.get(status_msg_id); return self._nodes.get(node_id) if node_id else None` |
 | 5 | Consider: when a node is removed (e.g. cleanup), remove from `_status_to_node` — currently nodes are rarely removed, so defer if not needed |
-| 6 | Run: `pytest tests/test_tree_repository.py tests/test_tree_concurrency.py tests/test_restart_reply_restore.py -v` |
+| 6 | Run: `uv run pytest tests/test_tree_repository.py tests/test_tree_concurrency.py tests/test_restart_reply_restore.py -v` |
 
 **Verification:** `resolve_parent_node_id` behavior unchanged; tests pass.
 
@@ -131,7 +133,7 @@ A phased plan to address all issues from the codebase quality review. Tasks are 
 | 6 | Remove or deprecate `TreeQueueManager._trees` and `_node_to_tree` properties |
 | 7 | Update `handler._handle_clear_command` if it uses `_trees` directly — it uses `to_dict()` which goes through `TreeRepository.to_dict()`, so likely no change |
 | 8 | Update `tests/test_messaging.py` and any test that asserts on `mgr._trees` — use `mgr.to_dict()` or new accessors |
-| 9 | Run full test suite |
+| 9 | Run full test suite: `uv run pytest` |
 
 ---
 
@@ -143,7 +145,7 @@ A phased plan to address all issues from the codebase quality review. Tasks are 
 | 2 | Add `clear_queue_and_mark_stale() -> List[MessageNode]` — drains queue, returns affected nodes, sets `_is_processing = False` |
 | 3 | Add `get_queue_node_ids() -> List[str]` — returns `list(self._queue._queue)` (or a proper copy method) |
 | 4 | Update `TreeQueueManager.cancel_tree` and `TreeQueueProcessor` to use these methods instead of direct `_queue`, `_lock`, etc. |
-| 5 | Run: `pytest tests/test_tree_*.py tests/test_handler*.py -v` |
+| 5 | Run: `uv run pytest tests/test_tree_*.py tests/test_handler*.py -v` |
 
 **Note:** `TreeQueueProcessor` is tightly coupled to `MessageTree` internals by design (same module). Focus on `TreeQueueManager.cancel_tree` not reaching into `tree._queue._queue` directly.
 
@@ -159,7 +161,7 @@ A phased plan to address all issues from the codebase quality review. Tasks are 
 |------|--------|
 | 1 | In `providers/nvidia_nim/utils/sse_builder.py`, add to `ContentBlockManager`: `task_arg_buffer: Dict[int, str] = field(default_factory=dict)`, `task_args_emitted: Dict[int, bool] = field(default_factory=dict)`, `tool_ids: Dict[int, str] = field(default_factory=dict)` (if not already present) |
 | 2 | In `NvidiaNimProvider._process_tool_call` and `_flush_task_arg_buffers`, remove the `getattr`/`isinstance` checks and use `sse.blocks.task_arg_buffer` etc. directly |
-| 3 | Run: `pytest tests/test_nvidia_nim.py tests/test_sse_builder.py -v` |
+| 3 | Run: `uv run pytest tests/test_nvidia_nim.py tests/test_sse_builder.py -v` |
 
 **Verification:** No dynamic attribute creation; all fields declared.
 
@@ -177,7 +179,7 @@ A phased plan to address all issues from the codebase quality review. Tasks are 
 | 2 | Define `OptimizationResult` (or use `Optional[MessagesResponse]`) |
 | 3 | Implement functions: `try_prefix_detection(request_data, settings) -> Optional[MessagesResponse]`, `try_quota_mock(...)`, `try_title_skip(...)`, `try_suggestion_skip(...)`, `try_filepath_mock(...)` |
 | 4 | In `routes.py`, loop: `for fn in [try_prefix_detection, try_quota_mock, ...]: result = fn(request_data, settings); if result: return result` |
-| 5 | Run: `pytest tests/test_routes_optimizations.py tests/test_api.py -v` |
+| 5 | Run: `uv run pytest tests/test_routes_optimizations.py tests/test_api.py -v` |
 
 **Alternative:** Keep current structure but extract each block into a named function for readability. Less structural change, still improves clarity.
 
@@ -196,7 +198,7 @@ A phased plan to address all issues from the codebase quality review. Tasks are 
 | 3 | Keep `get_token_count` in `request_utils.py` (or move to `providers/model_utils.py`) |
 | 4 | Update `routes.py` and `request_utils.py` imports |
 | 5 | Update `tests/test_request_utils*.py` imports |
-| 6 | Run: `pytest tests/test_request_utils*.py tests/test_routes_optimizations.py -v` |
+| 6 | Run: `uv run pytest tests/test_request_utils*.py tests/test_routes_optimizations.py -v` |
 
 ---
 
