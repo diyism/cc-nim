@@ -240,3 +240,59 @@ This document outlines opportunities to improve efficiency and resource usage ac
 2. **Quick wins:** Lazy tiktoken, single-pass detection, messaging limiter from Settings.
 3. **Next:** Session store debounce, defer message ID recording.
 4. **Larger refactors:** Async session store, lazy messaging init, idle session cleanup, background tree restoration.
+
+---
+
+## 11. What to Move to Golang
+
+Components that would benefit from being rewritten in Go for better efficiency, lower memory, and faster execution. Go excels at: HTTP/streaming, concurrency, subprocess management, and single-binary deployment.
+
+### 11.1 Best Candidates (High ROI, Lower Friction)
+
+| Component | Location | Why Go Helps | Go Alternatives |
+|-----------|----------|--------------|-----------------|
+| **HTTP API + SSE streaming** | `api/routes.py`, `api/app.py` | `net/http` is very efficient; SSE is straightforward; no GIL; lower memory per connection | `net/http`, `encoding/json`, or `chi`/`gin` |
+| **Optimization handlers** | `api/optimization_handlers.py`, `api/detection.py` | Pure logic, string matching, JSON; Go is fast and allocation-friendly | stdlib `strings`, `encoding/json` |
+| **Rate limiters** | `providers/rate_limit.py`, `messaging/limiter.py` | Goroutines + channels; strict sliding window is trivial; no asyncio overhead | `sync.Mutex`, `time.Ticker`, or `golang.org/x/time/rate` |
+| **Session store** | `messaging/session.py` | File I/O, JSON, locking; Go's sync is efficient; no threading.Lock + debounce complexity | `sync.RWMutex`, `encoding/json`, `os.WriteFile` |
+| **CLI subprocess management** | `cli/manager.py`, `cli/session.py`, `cli/process_registry.py` | `exec.Command`, `os.Process`; native process lifecycle; no asyncio.subprocess | `os/exec`, `syscall` |
+
+### 11.2 Medium Candidates (Good ROI, Some Reinvention)
+
+| Component | Location | Why Go Helps | Friction |
+|-----------|----------|--------------|----------|
+| **NVIDIA NIM provider** | `providers/nvidia_nim/` | HTTP streaming, JSON, SSE; Go HTTP client is efficient | Need OpenAI-compatible client; `sashabaranov/go-openai` or custom |
+| **SSE builder / event conversion** | `providers/nvidia_nim/utils/sse_builder.py` | String building, streaming; Go `strings.Builder` is fast | Logic must be ported; think/tool parsing |
+| **Tree queue / processor** | `messaging/tree_queue.py`, `tree_processor.py` | Concurrency, state machines; goroutines fit well | Data structures and callbacks need redesign |
+
+### 11.3 Poor Candidates (Keep in Python)
+
+| Component | Location | Why Keep in Python |
+|-----------|----------|--------------------|
+| **Telegram bot** | `messaging/telegram.py` | `python-telegram-bot` is mature; Go has `go-telegram-bot-api/telegram-bot-api` but different API and less ecosystem |
+| **Token counting (tiktoken)** | `api/request_utils.py`, `sse_builder.py` | OpenAI tiktoken is Python/Rust; Go has `tiktoken-go` (community) or approximations (GPT-2 BPE) — accuracy may differ |
+| **Handler / transcript logic** | `messaging/handler.py`, `transcript.py` | Tightly coupled to Telegram, markdown, event parsing; high porting cost for marginal gain |
+
+### 11.4 Hybrid Architecture Options
+
+1. **Go proxy + Python sidecar**
+   - Go: HTTP API, optimization handlers, rate limiting, session store, CLI process manager.
+   - Python: Telegram bot, NIM streaming (or call Go for NIM if ported), token counting (or approximate in Go).
+   - Communication: HTTP between Go and Python, or shared Redis/DB for session state.
+
+2. **Full Go rewrite**
+   - Port everything except Telegram; run Telegram bot as a separate Python service that forwards to the Go proxy.
+   - Token counting: use `tiktoken-go` or accept approximation (e.g., chars/4).
+
+3. **Go for hot path only**
+   - Go microservice: `/v1/messages` optimization fast-path (quota, prefix, title, suggestion, filepath) + rate limiting.
+   - Python: Full proxy for non-optimized requests, Telegram, CLI management.
+   - Reduces Python load for the majority of requests (optimizations handle many).
+
+### 11.5 Suggested Migration Order (if pursuing Go)
+
+1. **Phase 1:** Go service for optimization handlers + rate limiting (standalone or sidecar). Python proxy forwards to it for fast-path decisions.
+2. **Phase 2:** Port session store to Go (or Redis); Python reads/writes via HTTP or shared store.
+3. **Phase 3:** Port NIM provider + SSE streaming to Go; Python handles only Telegram + CLI.
+4. **Phase 4:** Port CLI manager to Go; Python only for Telegram bot.
+5. **Phase 5 (optional):** Port Telegram to Go if `go-telegram-bot-api` meets needs; then full Go stack.
