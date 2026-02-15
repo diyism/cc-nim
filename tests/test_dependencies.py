@@ -53,6 +53,7 @@ async def test_cleanup_provider():
         mock_settings.return_value = _make_mock_settings()
 
         provider = get_provider()
+        assert isinstance(provider, NvidiaNimProvider)
         provider._client = AsyncMock()
 
         await cleanup_provider()
@@ -90,6 +91,7 @@ async def test_cleanup_provider_aclose_raises():
         mock_settings.return_value = _make_mock_settings()
 
         provider = get_provider()
+        assert isinstance(provider, NvidiaNimProvider)
         provider._client = AsyncMock()
         provider._client.aclose = AsyncMock(side_effect=RuntimeError("cleanup failed"))
 

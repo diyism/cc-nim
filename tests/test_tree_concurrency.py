@@ -112,6 +112,7 @@ class TestMessageTreeConcurrency:
 
         for i in range(5):
             node = tree.get_node(f"n{i}")
+            assert node is not None
             assert node.state == MessageState.IN_PROGRESS
 
     @pytest.mark.asyncio
@@ -321,6 +322,7 @@ class TestTreeQueueManagerConcurrency:
         results = await asyncio.gather(*[add_reply(i) for i in range(5)])
         assert len(results) == 5
         tree = mgr.get_tree("root")
+        assert tree is not None
         assert len(tree.all_nodes()) == 6  # root + 5 replies
 
     @pytest.mark.asyncio
@@ -444,7 +446,9 @@ class TestTreeQueueManagerConcurrency:
         assert count == 2
 
         root = tree.get_node("root")
+        assert root is not None
         assert root.state == MessageState.ERROR
+        assert root.error_message is not None
         assert "restart" in root.error_message
 
     @pytest.mark.asyncio
@@ -459,6 +463,7 @@ class TestTreeQueueManagerConcurrency:
         # root + c1 + c2 should all be marked
         assert len(affected) >= 1
         root = tree.get_node("root")
+        assert root is not None
         assert root.state == MessageState.ERROR
 
     @pytest.mark.asyncio

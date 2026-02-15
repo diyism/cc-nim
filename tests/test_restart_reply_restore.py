@@ -40,8 +40,6 @@ async def test_reply_to_old_status_message_after_restore_routes_to_parent(
     )
 
     # Prevent background task scheduling; we only want to validate routing/tree mutation.
-    handler2.tree_queue.enqueue = AsyncMock(return_value=False)
-
     mock_platform.queue_send_message = AsyncMock(return_value="status_reply")
 
     reply = IncomingMessage(
@@ -53,7 +51,8 @@ async def test_reply_to_old_status_message_after_restore_routes_to_parent(
         reply_to_message_id="status_A",
     )
 
-    await handler2.handle_message(reply)
+    with patch.object(handler2.tree_queue, "enqueue", AsyncMock(return_value=False)):
+        await handler2.handle_message(reply)
 
     restored_tree = handler2.tree_queue.get_tree_for_node("A")
     assert restored_tree is not None
@@ -90,7 +89,6 @@ async def test_reply_to_old_status_message_without_mapping_creates_new_conversat
         queue_update_callback=handler2._update_queue_positions,
         node_started_callback=handler2._mark_node_processing,
     )
-    handler2.tree_queue.enqueue = AsyncMock(return_value=False)
     mock_platform.queue_send_message = AsyncMock(return_value="status_reply")
 
     reply = IncomingMessage(
@@ -102,7 +100,8 @@ async def test_reply_to_old_status_message_without_mapping_creates_new_conversat
         reply_to_message_id="status_A",
     )
 
-    await handler2.handle_message(reply)
+    with patch.object(handler2.tree_queue, "enqueue", AsyncMock(return_value=False)):
+        await handler2.handle_message(reply)
 
     # Since the mapping is missing, this should be treated as a new conversation.
     new_tree = handler2.tree_queue.get_tree_for_node("R1")

@@ -151,8 +151,10 @@ class TestNimSettingsInvalidBounds:
             NimSettings(min_tokens=-1)
 
     def test_reasoning_effort_invalid(self):
+        from typing import Any, cast
+
         with pytest.raises(ValidationError):
-            NimSettings(reasoning_effort="invalid")
+            NimSettings(reasoning_effort=cast(Any, "invalid"))
 
 
 class TestNimSettingsValidators:
@@ -187,8 +189,10 @@ class TestNimSettingsValidators:
 
     def test_extra_forbid_rejects_unknown_field(self):
         """NimSettings with extra='forbid' rejects unknown fields."""
+        from typing import Any, cast
+
         with pytest.raises(ValidationError):
-            NimSettings(unknown_field="value")
+            NimSettings(**cast(Any, {"unknown_field": "value"}))
 
 
 class TestSettingsOptionalStr:

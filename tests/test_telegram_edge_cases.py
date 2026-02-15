@@ -121,9 +121,10 @@ async def test_queue_send_message_without_limiter_calls_send_message():
 
         platform = TelegramPlatform(bot_token="t")
         platform._limiter = None
-        platform.send_message = AsyncMock(return_value="1")
-        assert await platform.queue_send_message("c", "t") == "1"
-        platform.send_message.assert_awaited_once()
+        with patch.object(platform, "send_message", new_callable=AsyncMock) as mock_send:
+            mock_send.return_value = "1"
+            assert await platform.queue_send_message("c", "t") == "1"
+            mock_send.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -133,9 +134,9 @@ async def test_queue_edit_message_without_limiter_calls_edit_message():
 
         platform = TelegramPlatform(bot_token="t")
         platform._limiter = None
-        platform.edit_message = AsyncMock()
-        await platform.queue_edit_message("c", "1", "t")
-        platform.edit_message.assert_awaited_once()
+        with patch.object(platform, "edit_message", new_callable=AsyncMock) as mock_edit:
+            await platform.queue_edit_message("c", "1", "t")
+            mock_edit.assert_awaited_once()
 
 
 def test_fire_and_forget_non_coroutine_uses_ensure_future(monkeypatch):
@@ -157,14 +158,13 @@ async def test_on_start_command_replies_and_forwards():
         from messaging.telegram import TelegramPlatform
 
         platform = TelegramPlatform(bot_token="t")
-        platform._on_telegram_message = AsyncMock()
+        with patch.object(platform, "_on_telegram_message", new_callable=AsyncMock) as mock_msg:
+            update = MagicMock()
+            update.message.reply_text = AsyncMock()
 
-        update = MagicMock()
-        update.message.reply_text = AsyncMock()
-
-        await platform._on_start_command(update, MagicMock())
-        update.message.reply_text.assert_awaited_once()
-        platform._on_telegram_message.assert_awaited_once()
+            await platform._on_start_command(update, MagicMock())
+            update.message.reply_text.assert_awaited_once()
+            mock_msg.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -173,22 +173,21 @@ async def test_on_telegram_message_handler_error_sends_error_message():
         from messaging.telegram import TelegramPlatform
 
         platform = TelegramPlatform(bot_token="t", allowed_user_id="123")
-        platform.send_message = AsyncMock()
+        with patch.object(platform, "send_message", new_callable=AsyncMock) as mock_send:
+            async def _boom(_incoming):
+                raise RuntimeError("bad")
 
-        async def _boom(_incoming):
-            raise RuntimeError("bad")
+            platform.on_message(_boom)
 
-        platform.on_message(_boom)
+            update = MagicMock()
+            update.message.text = "hello"
+            update.message.message_id = 7
+            update.message.reply_to_message = None
+            update.effective_user.id = 123
+            update.effective_chat.id = 456
 
-        update = MagicMock()
-        update.message.text = "hello"
-        update.message.message_id = 7
-        update.message.reply_to_message = None
-        update.effective_user.id = 123
-        update.effective_chat.id = 456
-
-        await platform._on_telegram_message(update, MagicMock())
-        platform.send_message.assert_awaited_once()
+            await platform._on_telegram_message(update, MagicMock())
+            mock_send.assert_awaited_once()
 
 
 @pytest.mark.asyncio

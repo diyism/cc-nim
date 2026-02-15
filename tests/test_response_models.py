@@ -82,8 +82,10 @@ class TestMessagesResponse:
             usage=Usage(input_tokens=1, output_tokens=1),
         )
         assert len(resp.content) == 1
-        assert resp.content[0].type == "text"
-        assert resp.content[0].text == "response"
+        block = resp.content[0]
+        assert isinstance(block, ContentBlockText)
+        assert block.type == "text"
+        assert block.text == "response"
 
     def test_with_tool_use_content(self):
         resp = MessagesResponse(
@@ -100,8 +102,10 @@ class TestMessagesResponse:
             usage=Usage(input_tokens=1, output_tokens=1),
             stop_reason="tool_use",
         )
-        assert resp.content[0].type == "tool_use"
-        assert resp.content[0].name == "Read"
+        block = resp.content[0]
+        assert isinstance(block, ContentBlockToolUse)
+        assert block.type == "tool_use"
+        assert block.name == "Read"
         assert resp.stop_reason == "tool_use"
 
     def test_with_thinking_content(self):
@@ -115,9 +119,13 @@ class TestMessagesResponse:
             usage=Usage(input_tokens=5, output_tokens=10),
         )
         assert len(resp.content) == 2
-        assert resp.content[0].type == "thinking"
-        assert resp.content[0].thinking == "Let me reason..."
-        assert resp.content[1].type == "text"
+        block0 = resp.content[0]
+        assert isinstance(block0, ContentBlockThinking)
+        assert block0.type == "thinking"
+        assert block0.thinking == "Let me reason..."
+        block1 = resp.content[1]
+        assert isinstance(block1, ContentBlockText)
+        assert block1.type == "text"
 
     def test_with_all_content_types(self):
         resp = MessagesResponse(
@@ -143,11 +151,21 @@ class TestMessagesResponse:
             content=[{"type": "custom", "data": "value"}],
             usage=Usage(input_tokens=1, output_tokens=1),
         )
-        assert resp.content[0]["type"] == "custom"
+        block = resp.content[0]
+        assert isinstance(block, dict)
+        assert block["type"] == "custom"
 
     def test_stop_reason_values(self):
         """All valid stop_reason values should be accepted."""
-        for reason in ["end_turn", "max_tokens", "stop_sequence", "tool_use"]:
+        from typing import Literal
+
+        reasons: list[Literal["end_turn", "max_tokens", "stop_sequence", "tool_use"]] = [
+            "end_turn",
+            "max_tokens",
+            "stop_sequence",
+            "tool_use",
+        ]
+        for reason in reasons:
             resp = MessagesResponse(
                 id="msg",
                 model="model",

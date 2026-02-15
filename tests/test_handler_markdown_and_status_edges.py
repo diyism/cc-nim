@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from messaging.handler import ClaudeMessageHandler
 from messaging.telegram_markdown import render_markdown_to_mdv2
@@ -79,14 +79,16 @@ def test_get_initial_status_branches():
     session_store = MagicMock()
     handler = ClaudeMessageHandler(platform, cli_manager, session_store)
 
-    handler.tree_queue.is_node_tree_busy = MagicMock(return_value=True)
-    handler.tree_queue.get_queue_size = MagicMock(return_value=2)
-    s1 = handler._get_initial_status(tree=object(), parent_node_id="p")
+    with (
+        patch.object(handler.tree_queue, "is_node_tree_busy", MagicMock(return_value=True)),
+        patch.object(handler.tree_queue, "get_queue_size", MagicMock(return_value=2)),
+    ):
+        s1 = handler._get_initial_status(tree=object(), parent_node_id="p")
     assert "Queued" in s1
     assert "position 3" in s1 or "position 3" in s1.replace("\\", "")
 
-    handler.tree_queue.is_node_tree_busy = MagicMock(return_value=False)
-    s2 = handler._get_initial_status(tree=object(), parent_node_id="p")
+    with patch.object(handler.tree_queue, "is_node_tree_busy", MagicMock(return_value=False)):
+        s2 = handler._get_initial_status(tree=object(), parent_node_id="p")
     assert "Continuing" in s2
 
     cli_manager.get_stats.return_value = {"active_sessions": 10, "max_sessions": 10}
@@ -149,18 +151,17 @@ async def test_process_node_session_limit_marks_error_and_updates_ui():
 
     fake_tree = MagicMock()
     fake_tree.update_state = AsyncMock()
-    handler.tree_queue.get_tree_for_node = MagicMock(return_value=fake_tree)
+    with patch.object(handler.tree_queue, "get_tree_for_node", MagicMock(return_value=fake_tree)):
+        incoming = IncomingMessage(
+            text="hi",
+            chat_id="c",
+            user_id="u",
+            message_id="n1",
+            platform="telegram",
+        )
+        node = MessageNode(node_id="n1", incoming=incoming, status_message_id="s1")
 
-    incoming = IncomingMessage(
-        text="hi",
-        chat_id="c",
-        user_id="u",
-        message_id="n1",
-        platform="telegram",
-    )
-    node = MessageNode(node_id="n1", incoming=incoming, status_message_id="s1")
-
-    await handler._process_node("n1", node)
+        await handler._process_node("n1", node)
     assert platform.queue_edit_message.await_count >= 1
     fake_tree.update_state.assert_awaited()
 
@@ -189,13 +190,14 @@ async def test_stop_all_tasks_saves_tree_for_cancelled_nodes():
     )
     node = MessageNode(node_id="n1", incoming=incoming, status_message_id="s1")
 
-    handler.tree_queue.cancel_all = AsyncMock(return_value=[node])
     tree = MagicMock()
     tree.root_id = "root"
     tree.to_dict = MagicMock(return_value={"root": "ok"})
-    handler.tree_queue.get_tree_for_node = MagicMock(return_value=tree)
-
-    count = await handler.stop_all_tasks()
+    with (
+        patch.object(handler.tree_queue, "cancel_all", AsyncMock(return_value=[node])),
+        patch.object(handler.tree_queue, "get_tree_for_node", MagicMock(return_value=tree)),
+    ):
+        count = await handler.stop_all_tasks()
     assert count == 1
     cli_manager.stop_all.assert_awaited_once()
     session_store.save_tree.assert_called_once_with("root", {"root": "ok"})

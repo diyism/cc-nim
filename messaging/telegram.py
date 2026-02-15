@@ -181,10 +181,12 @@ class TelegramPlatform(MessagingPlatform):
                     )
                     raise
             except RetryAfter as e:
-                # Telegram explicitly tells us to wait
+                # Telegram explicitly tells us to wait (PTB_TIMEDELTA: retry_after is timedelta)
+                from datetime import timedelta
+
                 retry_after = e.retry_after
-                if hasattr(retry_after, "total_seconds"):
-                    wait_secs = float(retry_after.total_seconds())  # type: ignore
+                if isinstance(retry_after, timedelta):
+                    wait_secs = retry_after.total_seconds()
                 else:
                     wait_secs = float(retry_after)
 
@@ -223,11 +225,12 @@ class TelegramPlatform(MessagingPlatform):
         parse_mode: Optional[str] = "MarkdownV2",
     ) -> str:
         """Send a message to a chat."""
-        if not self._application or not self._application.bot:
+        app = self._application
+        if not app or not app.bot:
             raise RuntimeError("Telegram application or bot not initialized")
 
         async def _do_send(parse_mode=parse_mode):
-            bot = self._application.bot  # type: ignore
+            bot = app.bot
             msg = await bot.send_message(
                 chat_id=chat_id,
                 text=text,
@@ -246,11 +249,12 @@ class TelegramPlatform(MessagingPlatform):
         parse_mode: Optional[str] = "MarkdownV2",
     ) -> None:
         """Edit an existing message."""
-        if not self._application or not self._application.bot:
+        app = self._application
+        if not app or not app.bot:
             raise RuntimeError("Telegram application or bot not initialized")
 
         async def _do_edit(parse_mode=parse_mode):
-            bot = self._application.bot  # type: ignore
+            bot = app.bot
             await bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=int(message_id),
@@ -266,11 +270,12 @@ class TelegramPlatform(MessagingPlatform):
         message_id: str,
     ) -> None:
         """Delete a message from a chat."""
-        if not self._application or not self._application.bot:
+        app = self._application
+        if not app or not app.bot:
             raise RuntimeError("Telegram application or bot not initialized")
 
         async def _do_delete():
-            bot = self._application.bot  # type: ignore
+            bot = app.bot
             await bot.delete_message(chat_id=chat_id, message_id=int(message_id))
 
         await self._with_retry(_do_delete)
@@ -279,11 +284,12 @@ class TelegramPlatform(MessagingPlatform):
         """Delete multiple messages (best-effort)."""
         if not message_ids:
             return
-        if not self._application or not self._application.bot:
+        app = self._application
+        if not app or not app.bot:
             raise RuntimeError("Telegram application or bot not initialized")
 
         # PTB supports bulk deletion via delete_messages; fall back to per-message.
-        bot = self._application.bot  # type: ignore
+        bot = app.bot
         if hasattr(bot, "delete_messages"):
 
             async def _do_bulk():
@@ -296,7 +302,7 @@ class TelegramPlatform(MessagingPlatform):
                 if not mids:
                     return None
                 # delete_messages accepts a sequence of ints (up to 100).
-                await bot.delete_messages(chat_id=chat_id, message_ids=mids)  # type: ignore[attr-defined]
+                await bot.delete_messages(chat_id=chat_id, message_ids=mids)
 
             await self._with_retry(_do_bulk)
             return
@@ -392,7 +398,7 @@ class TelegramPlatform(MessagingPlatform):
     def fire_and_forget(self, task: Awaitable[Any]) -> None:
         """Execute a coroutine without awaiting it."""
         if asyncio.iscoroutine(task):
-            asyncio.create_task(task)  # type: ignore
+            asyncio.create_task(task)
         else:
             asyncio.ensure_future(task)
 
