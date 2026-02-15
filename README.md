@@ -2,7 +2,7 @@
 
 # 🚀 Free Claude Code
 
-### Use Claude Code CLI for free with NVIDIA NIM
+### Use Claude Code for free with NVIDIA NIM
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-orange.svg?style=for-the-badge)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-00c0ff.svg?style=for-the-badge)](https://www.python.org/downloads/)
