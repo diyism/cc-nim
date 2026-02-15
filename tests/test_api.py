@@ -7,9 +7,19 @@ from providers.exceptions import APIError
 
 # Mock provider
 mock_provider = MagicMock(spec=NvidiaNimProvider)
-mock_provider.complete = AsyncMock()
-mock_provider.stream_response = AsyncMock()
-mock_provider.convert_response = MagicMock()
+
+# Track stream_response calls for test_model_mapping
+_stream_response_calls = []
+
+
+async def _mock_stream_response(*args, **kwargs):
+    """Minimal async generator for streaming tests."""
+    _stream_response_calls.append((args, kwargs))
+    yield "event: message_start\ndata: {}\n\n"
+    yield "[DONE]\n\n"
+
+
+mock_provider.stream_response = _mock_stream_response
 
 
 def override_get_provider():
@@ -32,39 +42,33 @@ def test_health():
     assert response.json()["status"] == "healthy"
 
 
-def test_create_message_non_stream():
-    mock_provider.complete.return_value = {"id": "123", "choices": []}
-    mock_provider.convert_response.return_value = {
-        "id": "msg_123",
-        "type": "message",
-        "role": "assistant",
-        "model": "test-model",
-        "content": [{"type": "text", "text": "Hello"}],
-        "usage": {"input_tokens": 10, "output_tokens": 5},
-    }
-
+def test_create_message_stream():
+    """Create message returns streaming response."""
     payload = {
         "model": "claude-3-sonnet",
         "messages": [{"role": "user", "content": "Hi"}],
         "max_tokens": 100,
-        "stream": False,
+        "stream": True,
     }
-
     response = client.post("/v1/messages", json=payload)
     assert response.status_code == 200
-    assert response.json()["content"][0]["text"] == "Hello"
-    mock_provider.complete.assert_called_once()
+    assert "text/event-stream" in response.headers.get("content-type", "")
+    content = b"".join(response.iter_bytes())
+    assert b"message_start" in content or b"event:" in content
 
 
 def test_model_mapping():
     # Test Haiku mapping
+    _stream_response_calls.clear()
     payload_haiku = {
         "model": "claude-3-haiku-20240307",
         "messages": [{"role": "user", "content": "Hi"}],
         "max_tokens": 100,
+        "stream": True,
     }
     client.post("/v1/messages", json=payload_haiku)
-    args, _ = mock_provider.complete.call_args
+    assert len(_stream_response_calls) == 1
+    args = _stream_response_calls[0][0]
     assert args[0].model != "claude-3-haiku-20240307"
     assert args[0].original_model == "claude-3-haiku-20240307"
 
@@ -76,65 +80,77 @@ def test_error_fallbacks():
         OverloadedError,
     )
 
+    base_payload = {"model": "test", "messages": [], "max_tokens": 10, "stream": True}
+
+    def _raise_auth(*args, **kwargs):
+        raise AuthenticationError("Invalid Key")
+
+    def _raise_rate_limit(*args, **kwargs):
+        raise RateLimitError("Too Many Requests")
+
+    def _raise_overloaded(*args, **kwargs):
+        raise OverloadedError("Server Overloaded")
+
     # 1. Authentication Error (401)
-    mock_provider.complete.side_effect = AuthenticationError("Invalid Key")
-    response = client.post(
-        "/v1/messages", json={"model": "test", "messages": [], "max_tokens": 10}
-    )
+    mock_provider.stream_response = _raise_auth
+    response = client.post("/v1/messages", json=base_payload)
     assert response.status_code == 401
     assert response.json()["error"]["type"] == "authentication_error"
 
     # 2. Rate Limit (429)
-    mock_provider.complete.side_effect = RateLimitError("Too Many Requests")
-    response = client.post(
-        "/v1/messages", json={"model": "test", "messages": [], "max_tokens": 10}
-    )
+    mock_provider.stream_response = _raise_rate_limit
+    response = client.post("/v1/messages", json=base_payload)
     assert response.status_code == 429
     assert response.json()["error"]["type"] == "rate_limit_error"
 
     # 3. Overloaded (529)
-    mock_provider.complete.side_effect = OverloadedError("Server Overloaded")
-    response = client.post(
-        "/v1/messages", json={"model": "test", "messages": [], "max_tokens": 10}
-    )
+    mock_provider.stream_response = _raise_overloaded
+    response = client.post("/v1/messages", json=base_payload)
     assert response.status_code == 529
     assert response.json()["error"]["type"] == "overloaded_error"
 
-    # Reset side_effect for subsequent tests
-    mock_provider.complete.side_effect = None
+    # Reset for subsequent tests
+    mock_provider.stream_response = _mock_stream_response
 
 
 def test_generic_exception_returns_500():
     """Non-ProviderError exceptions are caught and returned as HTTPException(500)."""
-    mock_provider.complete.side_effect = RuntimeError("unexpected crash")
+
+    def _raise_runtime(*args, **kwargs):
+        raise RuntimeError("unexpected crash")
+
+    mock_provider.stream_response = _raise_runtime
     response = client.post(
         "/v1/messages",
         json={
             "model": "test",
             "messages": [{"role": "user", "content": "Hi"}],
             "max_tokens": 10,
-            "stream": False,
+            "stream": True,
         },
     )
     assert response.status_code == 500
-    mock_provider.complete.side_effect = None
+    mock_provider.stream_response = _mock_stream_response
 
 
 def test_generic_exception_with_status_code():
     """Exception with status_code attribute uses that status."""
-    exc = APIError("bad gateway", status_code=502)
-    mock_provider.complete.side_effect = exc
+
+    def _raise_api_error(*args, **kwargs):
+        raise APIError("bad gateway", status_code=502)
+
+    mock_provider.stream_response = _raise_api_error
     response = client.post(
         "/v1/messages",
         json={
             "model": "test",
             "messages": [{"role": "user", "content": "Hi"}],
             "max_tokens": 10,
-            "stream": False,
+            "stream": True,
         },
     )
     assert response.status_code == 502
-    mock_provider.complete.side_effect = None
+    mock_provider.stream_response = _mock_stream_response
 
 
 def test_count_tokens_endpoint():

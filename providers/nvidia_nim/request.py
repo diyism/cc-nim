@@ -23,9 +23,7 @@ def _set_extra(
     extra_body[key] = value
 
 
-def build_request_body(
-    request_data: Any, nim: NimSettings, stream: bool = False
-) -> dict:
+def build_request_body(request_data: Any, nim: NimSettings) -> dict:
     """Build OpenAI-format request body from Anthropic request."""
     messages = AnthropicToOpenAIConverter.convert_messages(request_data.messages)
 

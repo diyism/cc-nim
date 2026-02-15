@@ -10,7 +10,6 @@ from openai import AsyncOpenAI
 from providers.base import BaseProvider, ProviderConfig
 from providers.rate_limit import GlobalRateLimiter
 from .request import build_request_body
-from .response import convert_response
 from .errors import map_error
 from .utils import (
     SSEBuilder,
@@ -44,9 +43,9 @@ class NvidiaNimProvider(BaseProvider):
             timeout=300.0,
         )
 
-    def _build_request_body(self, request: Any, stream: bool = False) -> dict:
+    def _build_request_body(self, request: Any) -> dict:
         """Internal helper for tests and shared building."""
-        return build_request_body(request, self._nim_settings, stream=stream)
+        return build_request_body(request, self._nim_settings)
 
     async def stream_response(
         self, request: Any, input_tokens: int = 0
@@ -55,7 +54,7 @@ class NvidiaNimProvider(BaseProvider):
         message_id = f"msg_{uuid.uuid4()}"
         sse = SSEBuilder(message_id, request.model, input_tokens)
 
-        body = self._build_request_body(request, stream=True)
+        body = self._build_request_body(request)
         logger.info(
             f"NIM_STREAM: model={body.get('model')} msgs={len(body.get('messages', []))} tools={len(body.get('tools', []))}"
         )
@@ -219,30 +218,16 @@ class NvidiaNimProvider(BaseProvider):
             if usage_info and hasattr(usage_info, "completion_tokens")
             else sse.estimate_output_tokens()
         )
+        if usage_info and hasattr(usage_info, "prompt_tokens"):
+            provider_input = usage_info.prompt_tokens
+            if isinstance(provider_input, int):
+                diff = provider_input - input_tokens
+                logger.debug(
+                    f"TOKEN_ESTIMATE: our={input_tokens} provider={provider_input} diff={diff:+d}"
+                )
         yield sse.message_delta(map_stop_reason(finish_reason), output_tokens)
         yield sse.message_stop()
         yield sse.done()
-
-    async def complete(self, request: Any) -> dict:
-        """Make a non-streaming completion request."""
-        body = self._build_request_body(request, stream=False)
-        logger.info(
-            f"NIM_COMPLETE: model={body.get('model')} msgs={len(body.get('messages', []))} tools={len(body.get('tools', []))}"
-        )
-
-        try:
-            response = await self._global_rate_limiter.execute_with_retry(
-                self._client.chat.completions.create, **body
-            )
-            # Response converter expects a dict
-            return response.model_dump()
-        except Exception as e:
-            logger.error(f"NIM_ERROR: {type(e).__name__}: {e}")
-            raise map_error(e)
-
-    def convert_response(self, response_json: dict, original_request: Any) -> Any:
-        """Convert provider response to Anthropic format."""
-        return convert_response(response_json, original_request)
 
     def _process_tool_call(self, tc: dict, sse: Any):
         """Process a single tool call delta and yield SSE events.

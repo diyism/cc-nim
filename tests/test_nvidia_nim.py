@@ -65,7 +65,7 @@ async def test_init(provider_config):
 async def test_build_request_body(nim_provider):
     """Test request body construction."""
     req = MockRequest()
-    body = nim_provider._build_request_body(req, stream=True)
+    body = nim_provider._build_request_body(req)
 
     assert body["model"] == "test-model"
     assert body["temperature"] == 0.5
@@ -162,50 +162,6 @@ async def test_stream_response_thinking_reasoning_content(nim_provider):
                 if "Thinking..." in e:
                     found_thinking = True
         assert found_thinking
-
-
-@pytest.mark.asyncio
-async def test_complete_success(nim_provider):
-    """Test successful completion."""
-    req = MockRequest()
-
-    mock_response = MagicMock()
-    mock_response.model_dump.return_value = {
-        "id": "test_id",
-        "choices": [
-            {
-                "message": {"role": "assistant", "content": "Hello world"},
-                "finish_reason": "stop",
-            }
-        ],
-        "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-    }
-
-    with patch.object(
-        nim_provider._client.chat.completions, "create", new_callable=AsyncMock
-    ) as mock_create:
-        mock_create.return_value = mock_response
-
-        result = await nim_provider.complete(req)
-        assert result["id"] == "test_id"
-        assert result["choices"][0]["message"]["content"] == "Hello world"
-
-
-@pytest.mark.asyncio
-async def test_complete_error_handling(nim_provider):
-    """Test error handling on completion."""
-    req = MockRequest()
-
-    import openai
-
-    with patch.object(
-        nim_provider._client.chat.completions,
-        "create",
-        side_effect=openai.APIError("API Error", request=MagicMock(), body=None),
-    ):
-        with pytest.raises(APIError) as exc:
-            await nim_provider.complete(req)
-        assert "API Error" in str(exc.value)
 
 
 @pytest.mark.asyncio

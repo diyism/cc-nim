@@ -281,9 +281,17 @@ class SSEBuilder:
                 name = self.blocks.tool_names.get(idx, "")
                 tool_tokens += len(ENCODER.encode(name))
                 tool_tokens += len(ENCODER.encode(content))
-                tool_tokens += 10  # Control tokens overhead
+                tool_tokens += 15  # Control tokens overhead per tool
 
-            return text_tokens + reasoning_tokens + tool_tokens
+            # Per-block overhead (~4 tokens per content block)
+            block_count = (
+                (1 if self._accumulated_reasoning else 0)
+                + (1 if self._accumulated_text else 0)
+                + len(self.blocks.tool_indices)
+            )
+            block_overhead = block_count * 4
+
+            return text_tokens + reasoning_tokens + tool_tokens + block_overhead
 
         text_tokens = len(self._accumulated_text) // 4
         reasoning_tokens = len(self._accumulated_reasoning) // 4

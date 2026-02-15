@@ -99,7 +99,7 @@ class MessagesRequest(BaseModel):
     messages: List[Message]
     system: Optional[Union[str, List[SystemContent]]] = None
     stop_sequences: Optional[List[str]] = None
-    stream: Optional[bool] = False
+    stream: Optional[bool] = True
     temperature: Optional[float] = None
     top_p: Optional[float] = None
     top_k: Optional[int] = None

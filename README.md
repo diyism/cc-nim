@@ -221,16 +221,8 @@ Extend `BaseProvider` in `providers/` to add support for other APIs:
 from providers.base import BaseProvider, ProviderConfig
 
 class MyProvider(BaseProvider):
-    async def complete(self, request):
-        # Make API call, return raw JSON
-        pass
-
     async def stream_response(self, request, input_tokens=0):
         # Yield Anthropic SSE format events
-        pass
-
-    def convert_response(self, response_json, original_request):
-        # Convert to Anthropic response format
         pass
 ```
 

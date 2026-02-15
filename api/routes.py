@@ -33,7 +33,7 @@ async def create_message(
     provider: BaseProvider = Depends(get_provider),
     settings: Settings = Depends(get_settings),
 ):
-    """Create a message (streaming or non-streaming)."""
+    """Create a message (always streaming)."""
 
     try:
         optimized = try_optimizations(request_data, settings)
@@ -43,22 +43,18 @@ async def create_message(
         request_id = f"req_{uuid.uuid4().hex[:12]}"
         log_request_compact(logger, request_id, request_data)
 
-        if request_data.stream:
-            input_tokens = get_token_count(
-                request_data.messages, request_data.system, request_data.tools
-            )
-            return StreamingResponse(
-                provider.stream_response(request_data, input_tokens=input_tokens),
-                media_type="text/event-stream",
-                headers={
-                    "X-Accel-Buffering": "no",
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                },
-            )
-        else:
-            response_json = await provider.complete(request_data)
-            return provider.convert_response(response_json, request_data)
+        input_tokens = get_token_count(
+            request_data.messages, request_data.system, request_data.tools
+        )
+        return StreamingResponse(
+            provider.stream_response(request_data, input_tokens=input_tokens),
+            media_type="text/event-stream",
+            headers={
+                "X-Accel-Buffering": "no",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            },
+        )
 
     except ProviderError:
         raise

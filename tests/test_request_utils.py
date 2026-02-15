@@ -453,6 +453,100 @@ class TestGetTokenCount:
         # Double message should have more tokens (including overhead)
         assert count_double > count_single
 
+    def test_per_message_overhead_four_tokens(self):
+        """Per-message overhead is 4 tokens (was 3)."""
+        msg = MagicMock()
+        msg.content = "x"  # Minimal content
+        count = get_token_count([msg])
+        # 1 msg * 4 overhead + content tokens
+        assert count >= 5
+
+    def test_system_overhead_added(self):
+        """System prompt adds ~4 tokens overhead."""
+        msg = MagicMock()
+        msg.content = "Hi"
+        count_no_sys = get_token_count([msg])
+        count_with_sys = get_token_count([msg], system="You are helpful")
+        assert count_with_sys >= count_no_sys + 4
+
+    def test_system_as_list_of_dicts(self):
+        """System blocks as dicts (not objects) are counted."""
+        msg = MagicMock()
+        msg.content = "Hi"
+        count_no_sys = get_token_count([msg])
+        system_dicts = [{"type": "text", "text": "System prompt from dict"}]
+        count_with_dict_sys = get_token_count([msg], system=system_dicts)
+        assert count_with_dict_sys > count_no_sys
+
+    def test_tool_use_includes_id(self):
+        """Tool use blocks count id field."""
+        tool_block = MagicMock()
+        tool_block.type = "tool_use"
+        tool_block.name = "search"
+        tool_block.input = {"q": "test"}
+        tool_block.id = "call_abc123"
+        msg = MagicMock()
+        msg.content = [tool_block]
+        count = get_token_count([msg])
+        assert count > 0
+
+    def test_tool_result_includes_tool_use_id(self):
+        """Tool result blocks count tool_use_id field."""
+        result_block = MagicMock()
+        result_block.type = "tool_result"
+        result_block.content = "ok"
+        result_block.tool_use_id = "call_xyz"
+        msg = MagicMock()
+        msg.content = [result_block]
+        count = get_token_count([msg])
+        assert count > 0
+
+    def test_unrecognized_block_type_fallback(self):
+        """Unrecognized block types are tokenized via json.dumps fallback."""
+        unknown_block = {"type": "custom", "spec": "data"}
+        msg = MagicMock()
+        msg.content = [unknown_block]
+        count = get_token_count([msg])
+        assert count > 0
+
+    def test_message_with_image_block(self):
+        """Test token count includes image blocks."""
+        image_block = MagicMock()
+        image_block.type = "image"
+        image_block.source = {
+            "type": "base64",
+            "media_type": "image/png",
+            "data": "x" * 3000,
+        }
+        msg = MagicMock()
+        msg.content = [image_block]
+        count = get_token_count([msg])
+        assert count >= 85
+
+    def test_image_block_with_dict_source(self):
+        """Image block with dict-style source is counted."""
+        image_block = {"type": "image", "source": {"data": "a" * 10000}}
+        msg = MagicMock()
+        msg.content = [image_block]
+        count = get_token_count([msg])
+        assert count >= 85
+
+    def test_known_payload_estimate_range(self):
+        """Known payload produces estimate within expected range (validation harness)."""
+        import tiktoken
+
+        enc = tiktoken.get_encoding("cl100k_base")
+        system_text = "You are a helpful assistant."
+        user_text = "Hello, how are you?"
+        sys_tokens = len(enc.encode(system_text))
+        user_tokens = len(enc.encode(user_text))
+        # Min: content tokens + system overhead (4) + per-msg overhead (4)
+        expected_min = sys_tokens + user_tokens + 4 + 4
+        msg = MagicMock()
+        msg.content = user_text
+        count = get_token_count([msg], system=system_text)
+        assert count >= expected_min, f"count={count} < expected_min={expected_min}"
+
 
 # --- Parametrized Edge Case Tests ---
 
