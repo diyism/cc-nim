@@ -269,6 +269,43 @@ class MessageTree:
         """Get number of messages waiting in queue."""
         return self._queue.qsize()
 
+    def cancel_current_task(self) -> bool:
+        """Cancel the currently running task. Returns True if a task was cancelled."""
+        if self._current_task and not self._current_task.done():
+            self._current_task.cancel()
+            return True
+        return False
+
+    def drain_queue_and_mark_cancelled(
+        self, error_message: str = "Cancelled by user"
+    ) -> List["MessageNode"]:
+        """
+        Drain the queue, mark each node as ERROR, and return affected nodes.
+        Does not acquire lock; caller must ensure no concurrent queue access.
+        """
+        nodes: List[MessageNode] = []
+        while True:
+            try:
+                node_id = self._queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            node = self._nodes.get(node_id)
+            if node:
+                node.state = MessageState.ERROR
+                node.error_message = error_message
+                nodes.append(node)
+        return nodes
+
+    def reset_processing_state(self) -> None:
+        """Reset processing flags after cancel/cleanup."""
+        self._is_processing = False
+        self._current_node_id = None
+
+    @property
+    def current_node_id(self) -> Optional[str]:
+        """Get the ID of the node currently being processed."""
+        return self._current_node_id
+
     def to_dict(self) -> dict:
         """Serialize tree to dictionary."""
         return {
