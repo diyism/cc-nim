@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from messaging.transcript import TranscriptBuffer, RenderCtx
 from messaging.telegram_markdown import (
     escape_md_v2,
@@ -163,9 +165,8 @@ def test_transcript_render_segment_exception_skipped():
     def _raising_render(self, ctx):
         raise ValueError("render failed")
 
-    bad_segment.render = _raising_render  # type: ignore[method-assign]
-
-    out = t.render(_ctx(), limit_chars=3900, status=None)
+    with patch.object(bad_segment, "render", _raising_render):
+        out = t.render(_ctx(), limit_chars=3900, status=None)
     assert "before" in out
     assert "after" in out
     assert "middle" not in out

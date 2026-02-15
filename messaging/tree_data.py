@@ -9,7 +9,7 @@ from collections import deque
 from contextlib import asynccontextmanager
 from enum import Enum
 from datetime import datetime, timezone
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List, Any, cast
 from dataclasses import dataclass, field
 
 from .models import IncomingMessage
@@ -265,7 +265,8 @@ class MessageTree:
         async with self._lock:
             # Read internal deque directly to avoid mutating queue state.
             # Drain/put approach would inflate _unfinished_tasks without task_done().
-            return list(self._queue._queue)  # type: ignore[attr-defined]
+            queue_deque = cast(deque, getattr(self._queue, "_queue"))
+            return list(queue_deque)
 
     def get_queue_size(self) -> int:
         """Get number of messages waiting in queue."""
@@ -281,10 +282,12 @@ class MessageTree:
         Note: asyncio.Queue has no built-in remove; we filter via the internal
         deque. O(n) in queue size; acceptable for typical tree queue sizes.
         """
-        queue_deque: deque = self._queue._queue  # type: ignore[attr-defined]
+        queue_deque = cast(deque, getattr(self._queue, "_queue"))
         if node_id not in queue_deque:
             return False
-        self._queue._queue = deque(x for x in queue_deque if x != node_id)  # type: ignore[attr-defined]
+        object.__setattr__(
+            self._queue, "_queue", deque(x for x in queue_deque if x != node_id)
+        )
         return True
 
     @asynccontextmanager

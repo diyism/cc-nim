@@ -11,6 +11,7 @@ os.environ["PTB_TIMEDELTA"] = "1"
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from providers.base import ProviderConfig
 from providers.nvidia_nim import NvidiaNimProvider
@@ -91,8 +92,22 @@ def mock_session_store():
 
 @pytest.fixture
 def incoming_message_factory():
+    _valid_keys = frozenset(
+        {
+            "text",
+            "chat_id",
+            "user_id",
+            "message_id",
+            "platform",
+            "reply_to_message_id",
+            "username",
+            "timestamp",
+            "raw_event",
+        }
+    )
+
     def _create(**kwargs):
-        defaults = {
+        defaults: dict[str, Any] = {
             "text": "hello",
             "chat_id": "chat_1",
             "user_id": "user_1",
@@ -104,6 +119,7 @@ def incoming_message_factory():
             from datetime import datetime
 
             defaults["timestamp"] = datetime.fromisoformat(defaults["timestamp"])
-        return IncomingMessage(**defaults)  # type: ignore
+        filtered = {k: v for k, v in defaults.items() if k in _valid_keys}
+        return IncomingMessage(**filtered)
 
     return _create

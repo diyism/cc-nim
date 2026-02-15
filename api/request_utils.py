@@ -5,7 +5,7 @@ Contains token counting for API requests.
 
 import json
 import logging
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Union, cast
 
 import tiktoken
 
@@ -18,7 +18,7 @@ __all__ = ["get_token_count"]
 def _get_block_attr(block: object, key: str, default: Any = "") -> Any:
     """Get attribute from block (object or dict)."""
     if isinstance(block, dict):
-        return block.get(key, default)  # type: ignore[no-matching-overload]
+        return cast(dict[str, Any], block).get(key, default)
     return getattr(block, key, default)
 
 

@@ -193,4 +193,5 @@ class GlobalRateLimiter:
                 self.set_blocked(delay)
                 await asyncio.sleep(delay)
 
-        raise last_exc  # type: ignore[misc]
+        assert last_exc is not None
+        raise last_exc
