@@ -11,11 +11,9 @@ def _make_mock_settings(**overrides):
     mock = MagicMock()
     mock.provider_type = "nvidia_nim"
     mock.nvidia_nim_api_key = "test_key"
-    mock.nvidia_nim_rate_limit = 40
-    mock.nvidia_nim_rate_window = 60
+    mock.provider_rate_limit = 40
+    mock.provider_rate_window = 60
     mock.open_router_api_key = "test_openrouter_key"
-    mock.open_router_rate_limit = 40
-    mock.open_router_rate_window = 60
     mock.nim = NimSettings()
     for key, value in overrides.items():
         setattr(mock, key, value)

@@ -21,8 +21,8 @@ class TestSettings:
         from config.settings import Settings
 
         settings = Settings()
-        assert isinstance(settings.nvidia_nim_rate_limit, int)
-        assert isinstance(settings.nvidia_nim_rate_window, int)
+        assert isinstance(settings.provider_rate_limit, int)
+        assert isinstance(settings.provider_rate_window, int)
         assert isinstance(settings.nim.temperature, float)
         assert isinstance(settings.fast_prefix_detection, bool)
         assert isinstance(settings.max_cli_sessions, int)

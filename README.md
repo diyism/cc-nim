@@ -201,10 +201,8 @@ Browse: [openrouter.ai/models](https://openrouter.ai/models)
 | `ALLOWED_TELEGRAM_USER_ID`        | Allowed Telegram User ID        | `""`                          |
 | `MESSAGING_RATE_LIMIT`            | Telegram messages per window    | `1`                           |
 | `MESSAGING_RATE_WINDOW`           | Messaging window (seconds)      | `1`                           |
-| `NVIDIA_NIM_RATE_LIMIT`           | NIM API requests per window    | `40`                          |
-| `NVIDIA_NIM_RATE_WINDOW`          | NIM rate limit window (seconds)| `60`                          |
-| `OPENROUTER_RATE_LIMIT`          | OpenRouter requests per window | `40`                          |
-| `OPENROUTER_RATE_WINDOW`         | OpenRouter rate limit window   | `60`                          |
+| `PROVIDER_RATE_LIMIT`             | LLM API requests per window    | `40`                          |
+| `PROVIDER_RATE_WINDOW`            | Rate limit window (seconds)    | `60`                          |
 
 - **NVIDIA NIM** base URL: `https://integrate.api.nvidia.com/v1`
 - **OpenRouter** base URL: `https://openrouter.ai/api/v1`

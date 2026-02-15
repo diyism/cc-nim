@@ -24,12 +24,6 @@ class Settings(BaseSettings):
 
     # ==================== OpenRouter Config ====================
     open_router_api_key: str = Field(default="", validation_alias="OPENROUTER_API_KEY")
-    open_router_rate_limit: int = Field(
-        default=40, validation_alias="OPENROUTER_RATE_LIMIT"
-    )
-    open_router_rate_window: int = Field(
-        default=60, validation_alias="OPENROUTER_RATE_WINDOW"
-    )
 
     # ==================== Messaging Platform Selection ====================
     messaging_platform: str = "telegram"
@@ -41,9 +35,11 @@ class Settings(BaseSettings):
     # All Claude model requests are mapped to this single model
     model: str = "moonshotai/kimi-k2-thinking"
 
-    # ==================== Rate Limiting ====================
-    nvidia_nim_rate_limit: int = 40
-    nvidia_nim_rate_window: int = 60
+    # ==================== Provider Rate Limiting ====================
+    provider_rate_limit: int = Field(default=40, validation_alias="PROVIDER_RATE_LIMIT")
+    provider_rate_window: int = Field(
+        default=60, validation_alias="PROVIDER_RATE_WINDOW"
+    )
 
     # ==================== Fast Prefix Detection ====================
     fast_prefix_detection: bool = True

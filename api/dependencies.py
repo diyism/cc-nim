@@ -29,8 +29,8 @@ def get_provider() -> BaseProvider:
             config = ProviderConfig(
                 api_key=settings.nvidia_nim_api_key,
                 base_url=NVIDIA_NIM_BASE_URL,
-                rate_limit=settings.nvidia_nim_rate_limit,
-                rate_window=settings.nvidia_nim_rate_window,
+                rate_limit=settings.provider_rate_limit,
+                rate_window=settings.provider_rate_window,
                 nim_settings=settings.nim,
             )
             _provider = NvidiaNimProvider(config)
@@ -41,8 +41,8 @@ def get_provider() -> BaseProvider:
             config = ProviderConfig(
                 api_key=settings.open_router_api_key,
                 base_url="https://openrouter.ai/api/v1",
-                rate_limit=settings.open_router_rate_limit,
-                rate_window=settings.open_router_rate_window,
+                rate_limit=settings.provider_rate_limit,
+                rate_window=settings.provider_rate_window,
                 nim_settings=settings.nim,
             )
             _provider = OpenRouterProvider(config)
