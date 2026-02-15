@@ -3,12 +3,9 @@
 Provides data access layer for managing trees and node mappings.
 """
 
-import logging
 from typing import Dict, Optional, List
 
 from .tree_data import MessageTree, MessageNode, MessageState
-
-logger = logging.getLogger(__name__)
 
 
 class TreeRepository:

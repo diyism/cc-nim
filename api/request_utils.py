@@ -85,6 +85,10 @@ def get_token_count(
                     total_tokens += len(ENCODER.encode(str(tool_use_id)))
                     total_tokens += 8
                 else:
+                    logger.debug(
+                        "Unexpected block type %r, falling back to json/str encoding",
+                        b_type,
+                    )
                     try:
                         total_tokens += len(ENCODER.encode(json.dumps(block)))
                     except TypeError, ValueError:

@@ -1,10 +1,12 @@
 """Dependency injection for FastAPI."""
 
+import logging
 from typing import Optional
 
 from config.settings import Settings, get_settings as _get_settings, NVIDIA_NIM_BASE_URL
 from providers.base import BaseProvider, ProviderConfig
 
+logger = logging.getLogger(__name__)
 
 # Global provider instance (singleton)
 _provider: Optional[BaseProvider] = None
@@ -32,7 +34,12 @@ def get_provider() -> BaseProvider:
                 nim_settings=settings.nim,
             )
             _provider = NvidiaNimProvider(config)
+            logger.info("Provider initialized: %s", settings.provider_type)
         else:
+            logger.error(
+                "Unknown provider_type: '%s'. Supported: 'nvidia_nim'",
+                settings.provider_type,
+            )
             raise ValueError(
                 f"Unknown provider_type: '{settings.provider_type}'. "
                 f"Supported: 'nvidia_nim'"
@@ -48,3 +55,4 @@ async def cleanup_provider():
         if client and hasattr(client, "aclose"):
             await client.aclose()
     _provider = None
+    logger.debug("Provider cleanup completed")
