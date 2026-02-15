@@ -109,7 +109,7 @@ That's it! The Claude Code VSCode extension now uses your configured provider fo
 
 Switch between **NVIDIA NIM** and **OpenRouter** via `PROVIDER_TYPE`:
 
-| Provider      | `PROVIDER_TYPE` | API Key Variable       | Base URL                          |
+| Provider      | PROVIDER_TYPE    | API Key Variable       | Base URL                          |
 | ------------- | ---------------- | ---------------------- | --------------------------------- |
 | NVIDIA NIM    | `nvidia_nim`     | `NVIDIA_NIM_API_KEY`   | `integrate.api.nvidia.com/v1`     |
 | OpenRouter    | `open_router`    | `OPENROUTER_API_KEY`   | `openrouter.ai/api/v1`            |
