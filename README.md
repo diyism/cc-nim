@@ -8,6 +8,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Type checking: Ty](https://img.shields.io/badge/checked%20with-ty-brightgreen.svg)](https://github.com/pypa/ty)
+[![pytest](https://img.shields.io/badge/pytest-100%25-brightgreen.svg)](https://github.com/pytest-dev/pytest)
 
 A lightweight proxy that converts Claude Code's Anthropic API requests to NVIDIA NIM format.  
 **40 reqs/min free** · **Telegram bot** · **VSCode & CLI**
