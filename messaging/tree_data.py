@@ -284,6 +284,9 @@ class MessageTree:
 
         Caller must hold the tree lock (e.g. via with_lock).
         Returns True if node was removed, False if not in queue.
+
+        Note: asyncio.Queue has no built-in remove; we filter via the internal
+        deque. O(n) in queue size; acceptable for typical tree queue sizes.
         """
         queue_deque: deque = self._queue._queue  # type: ignore[attr-defined]
         if node_id not in queue_deque:

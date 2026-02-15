@@ -126,9 +126,10 @@ def try_filepath_mock(
     )
 
 
+# Cheapest/most common optimizations first for faster short-circuit.
 OPTIMIZATION_HANDLERS = [
-    try_prefix_detection,
     try_quota_mock,
+    try_prefix_detection,
     try_title_skip,
     try_suggestion_skip,
     try_filepath_mock,

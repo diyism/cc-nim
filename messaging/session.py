@@ -50,6 +50,9 @@ class SessionStore:
         # Key: "{platform}:{chat_id}" -> list of records
         self._message_log: Dict[str, List[Dict[str, Any]]] = {}
         self._message_log_ids: Dict[str, set[str]] = {}
+        self._dirty = False
+        self._save_timer: Optional[threading.Timer] = None
+        self._save_debounce_secs = 0.5
         self._load()
 
     def _make_key(self, platform: str, chat_id: str, msg_id: str) -> str:
@@ -130,7 +133,7 @@ class SessionStore:
             logger.error(f"Failed to load sessions: {e}")
 
     def _save(self) -> None:
-        """Persist sessions and trees to disk."""
+        """Persist sessions and trees to disk. Caller must hold self._lock."""
         try:
             data = {
                 "sessions": {
@@ -144,6 +147,41 @@ class SessionStore:
                 json.dump(data, f, indent=2)
         except Exception as e:
             logger.error(f"Failed to save sessions: {e}")
+
+    def _schedule_save(self) -> None:
+        """Schedule a debounced save. Caller must hold self._lock."""
+        self._dirty = True
+        if self._save_timer is not None:
+            self._save_timer.cancel()
+            self._save_timer = None
+        self._save_timer = threading.Timer(
+            self._save_debounce_secs, self._save_from_timer
+        )
+        self._save_timer.daemon = True
+        self._save_timer.start()
+
+    def _save_from_timer(self) -> None:
+        """Timer callback: save if dirty. Runs in timer thread."""
+        with self._lock:
+            if not self._dirty:
+                self._save_timer = None
+                return
+            self._save()
+            self._dirty = False
+            self._save_timer = None
+
+    def _flush_save(self) -> None:
+        """Immediate save, cancel any pending debounced save. Caller must hold self._lock."""
+        if self._save_timer is not None:
+            self._save_timer.cancel()
+            self._save_timer = None
+        self._dirty = False
+        self._save()
+
+    def flush_pending_save(self) -> None:
+        """Flush any pending debounced save. Call on shutdown to avoid losing data."""
+        with self._lock:
+            self._flush_save()
 
     def record_message_id(
         self,
@@ -192,7 +230,7 @@ class SessionStore:
             except Exception:
                 pass
 
-            self._save()
+            self._schedule_save()
 
     def get_message_ids_for_chat(self, platform: str, chat_id: str) -> List[str]:
         """Get all recorded message IDs for a chat (in insertion order)."""
@@ -214,7 +252,7 @@ class SessionStore:
             self._node_to_tree.clear()
             self._message_log.clear()
             self._message_log_ids.clear()
-            self._save()
+            self._flush_save()
 
     # ==================== Tree Methods ====================
 
@@ -233,7 +271,7 @@ class SessionStore:
             for node_id in tree_data.get("nodes", {}).keys():
                 self._node_to_tree[node_id] = root_id
 
-            self._save()
+            self._schedule_save()
             logger.debug(f"Saved tree {root_id}")
 
     def get_tree(self, root_id: str) -> Optional[dict]:
@@ -250,7 +288,7 @@ class SessionStore:
         """Register a node ID to a tree root."""
         with self._lock:
             self._node_to_tree[node_id] = root_id
-            self._save()
+            self._schedule_save()
 
     def get_all_trees(self) -> Dict[str, dict]:
         """Get all stored trees (public accessor)."""
@@ -269,7 +307,7 @@ class SessionStore:
         with self._lock:
             self._trees = trees
             self._node_to_tree = node_to_tree
-            self._save()
+            self._schedule_save()
 
     def cleanup_old_trees(self, max_age_days: int = 30) -> int:
         """Remove trees older than max_age_days."""
@@ -299,7 +337,7 @@ class SessionStore:
                 removed += 1
 
             if removed:
-                self._save()
+                self._schedule_save()
                 logger.info(f"Cleaned up {removed} old trees")
 
             return removed

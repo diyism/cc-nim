@@ -32,41 +32,45 @@ logger = logging.getLogger(__name__)
 # Status message prefixes used to filter our own messages (ignore echo)
 STATUS_MESSAGE_PREFIXES = ("⏳", "💭", "🔧", "✅", "❌", "🚀", "🤖", "📋", "📊", "🔄")
 
-# Event types that update the transcript
-TRANSCRIPT_EVENT_TYPES = (
-    "thinking_start",
-    "thinking_delta",
-    "thinking_chunk",
-    "thinking_stop",
-    "text_start",
-    "text_delta",
-    "text_chunk",
-    "text_stop",
-    "tool_use_start",
-    "tool_use_delta",
-    "tool_use_stop",
-    "tool_use",
-    "tool_result",
-    "block_stop",
-    "error",
+# Event types that update the transcript (frozenset for O(1) membership)
+TRANSCRIPT_EVENT_TYPES = frozenset(
+    {
+        "thinking_start",
+        "thinking_delta",
+        "thinking_chunk",
+        "thinking_stop",
+        "text_start",
+        "text_delta",
+        "text_chunk",
+        "text_stop",
+        "tool_use_start",
+        "tool_use_delta",
+        "tool_use_stop",
+        "tool_use",
+        "tool_result",
+        "block_stop",
+        "error",
+    }
 )
 
-# Event types -> (emoji, label) for status updates
+# Event type -> (emoji, label) for status updates (O(1) lookup)
 _EVENT_STATUS_MAP = {
-    ("thinking_start", "thinking_delta", "thinking_chunk"): (
-        "🧠",
-        "Claude is thinking...",
-    ),
-    ("text_start", "text_delta", "text_chunk"): ("🧠", "Claude is working..."),
-    ("tool_result",): ("⏳", "Executing tools..."),
+    "thinking_start": ("🧠", "Claude is thinking..."),
+    "thinking_delta": ("🧠", "Claude is thinking..."),
+    "thinking_chunk": ("🧠", "Claude is thinking..."),
+    "text_start": ("🧠", "Claude is working..."),
+    "text_delta": ("🧠", "Claude is working..."),
+    "text_chunk": ("🧠", "Claude is working..."),
+    "tool_result": ("⏳", "Executing tools..."),
 }
 
 
 def _get_status_for_event(ptype: str, parsed: dict) -> Optional[str]:
     """Return status string for event type, or None if no status update needed."""
-    for types, (emoji, label) in _EVENT_STATUS_MAP.items():
-        if ptype in types:
-            return format_status(emoji, label)
+    entry = _EVENT_STATUS_MAP.get(ptype)
+    if entry is not None:
+        emoji, label = entry
+        return format_status(emoji, label)
     if ptype in ("tool_use_start", "tool_use_delta", "tool_use"):
         if parsed.get("name") == "Task":
             return format_status("🤖", "Subagent working...")
@@ -636,6 +640,7 @@ class ClaudeMessageHandler:
 
     def _update_cancelled_nodes_ui(self, nodes: List[MessageNode]) -> None:
         """Update status messages and persist tree state for cancelled nodes."""
+        trees_to_save: dict[str, MessageTree] = {}
         for node in nodes:
             self.platform.fire_and_forget(
                 self.platform.queue_edit_message(
@@ -647,7 +652,9 @@ class ClaudeMessageHandler:
             )
             tree = self.tree_queue.get_tree_for_node(node.node_id)
             if tree:
-                self.session_store.save_tree(tree.root_id, tree.to_dict())
+                trees_to_save[tree.root_id] = tree
+        for root_id, tree in trees_to_save.items():
+            self.session_store.save_tree(root_id, tree.to_dict())
 
     async def _handle_stop_command(self, incoming: IncomingMessage) -> None:
         """Handle /stop command from messaging platform."""

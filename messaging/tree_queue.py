@@ -254,13 +254,14 @@ class TreeQueueManager:
         # 2. Drain queue and mark nodes as cancelled
         queue_nodes = tree.drain_queue_and_mark_cancelled()
         cancelled_nodes.extend(queue_nodes)
+        cancelled_ids = {n.node_id for n in cancelled_nodes}
 
         # 3. Cleanup: Mark ANY other PENDING or IN_PROGRESS nodes as ERROR
         cleanup_count = 0
         for node in tree.all_nodes():
             if (
                 node.state in (MessageState.PENDING, MessageState.IN_PROGRESS)
-                and node not in cancelled_nodes
+                and node.node_id not in cancelled_ids
             ):
                 node.state = MessageState.ERROR
                 node.error_message = "Stale task cleaned up"

@@ -79,8 +79,6 @@ class MessagingRateLimiter:
     _lock = asyncio.Lock()
 
     def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            pass
         return super(MessagingRateLimiter, cls).__new__(cls)
 
     @classmethod

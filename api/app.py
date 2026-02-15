@@ -145,6 +145,11 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup
+    if message_handler and hasattr(message_handler, "session_store"):
+        try:
+            message_handler.session_store.flush_pending_save()
+        except Exception as e:
+            logger.warning(f"Session store flush on shutdown: {e}")
     logger.info("Shutdown requested, cleaning up...")
     if messaging_platform:
         await _best_effort("messaging_platform.stop", messaging_platform.stop())

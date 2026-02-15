@@ -123,6 +123,20 @@ def test_transcript_truncates_by_dropping_oldest_segments():
     assert escape_md_v2("segment_0") not in out
 
 
+def test_transcript_render_many_segments_completes_quickly():
+    """Render with 200+ segments exercises O(n) truncation (deque popleft)."""
+    t = TranscriptBuffer()
+    for i in range(200):
+        t.apply({"type": "text_start", "index": i})
+        t.apply({"type": "text_delta", "index": i, "text": f"seg_{i} " + ("y" * 80)})
+        t.apply({"type": "block_stop", "index": i})
+
+    out = t.render(_ctx(), limit_chars=500, status="ok")
+    assert escape_md_v2("... (truncated)") in out
+    assert "199" in out  # last segment (MarkdownV2 escapes underscores)
+    assert "seg_0 " not in out  # oldest segment dropped
+
+
 def test_transcript_reused_index_closes_previous_open_block():
     t = TranscriptBuffer()
     # Open a text block at index 0, but never close it.

@@ -29,6 +29,7 @@ async def test_reply_to_old_status_message_after_restore_routes_to_parent(
     handler1.tree_queue.register_node("status_A", tree.root_id)
     store.register_node("status_A", tree.root_id)
     store.save_tree(tree.root_id, tree.to_dict())
+    store.flush_pending_save()
 
     # "Restart": new store instance loads from disk, and we restore TreeQueueManager.
     store2 = SessionStore(storage_path=str(store_path))
@@ -81,6 +82,7 @@ async def test_reply_to_old_status_message_without_mapping_creates_new_conversat
     )
     # Intentionally do NOT register "status_A" mapping.
     store.save_tree(tree.root_id, tree.to_dict())
+    store.flush_pending_save()
 
     store2 = SessionStore(storage_path=str(store_path))
     handler2 = ClaudeMessageHandler(mock_platform, mock_cli_manager, store2)

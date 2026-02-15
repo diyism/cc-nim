@@ -5,7 +5,7 @@ Contains token counting for API requests.
 
 import json
 import logging
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import tiktoken
 
@@ -13,6 +13,13 @@ logger = logging.getLogger(__name__)
 ENCODER = tiktoken.get_encoding("cl100k_base")
 
 __all__ = ["get_token_count"]
+
+
+def _get_block_attr(block: object, key: str, default: Any = "") -> Any:
+    """Get attribute from block (object or dict)."""
+    if isinstance(block, dict):
+        return block.get(key, default)  # type: ignore[no-matching-overload]
+    return getattr(block, key, default)
 
 
 def get_token_count(
@@ -32,13 +39,9 @@ def get_token_count(
             total_tokens += len(ENCODER.encode(system))
         elif isinstance(system, list):
             for block in system:
-                text = (
-                    getattr(block, "text", None)
-                    if hasattr(block, "text")
-                    else (block.get("text", "") if isinstance(block, dict) else "")
-                )
+                text = _get_block_attr(block, "text", "")
                 if text:
-                    total_tokens += len(ENCODER.encode(text))
+                    total_tokens += len(ENCODER.encode(str(text)))
         total_tokens += 4  # System block formatting overhead
 
     for msg in messages:
@@ -46,38 +49,24 @@ def get_token_count(
             total_tokens += len(ENCODER.encode(msg.content))
         elif isinstance(msg.content, list):
             for block in msg.content:
-                b_type = getattr(block, "type", None) or (
-                    block.get("type") if isinstance(block, dict) else None
-                )
+                b_type = _get_block_attr(block, "type") or None
 
                 if b_type == "text":
-                    text = getattr(block, "text", "") or (
-                        block.get("text", "") if isinstance(block, dict) else ""
-                    )
-                    total_tokens += len(ENCODER.encode(text))
+                    text = _get_block_attr(block, "text", "")
+                    total_tokens += len(ENCODER.encode(str(text)))
                 elif b_type == "thinking":
-                    thinking = getattr(block, "thinking", "") or (
-                        block.get("thinking", "") if isinstance(block, dict) else ""
-                    )
-                    total_tokens += len(ENCODER.encode(thinking))
+                    thinking = _get_block_attr(block, "thinking", "")
+                    total_tokens += len(ENCODER.encode(str(thinking)))
                 elif b_type == "tool_use":
-                    name = getattr(block, "name", "") or (
-                        block.get("name", "") if isinstance(block, dict) else ""
-                    )
-                    inp = getattr(block, "input", {}) or (
-                        block.get("input", {}) if isinstance(block, dict) else {}
-                    )
-                    block_id = getattr(block, "id", "") or (
-                        block.get("id", "") if isinstance(block, dict) else ""
-                    )
-                    total_tokens += len(ENCODER.encode(name))
+                    name = _get_block_attr(block, "name", "")
+                    inp = _get_block_attr(block, "input", {})
+                    block_id = _get_block_attr(block, "id", "")
+                    total_tokens += len(ENCODER.encode(str(name)))
                     total_tokens += len(ENCODER.encode(json.dumps(inp)))
                     total_tokens += len(ENCODER.encode(str(block_id)))
                     total_tokens += 15
                 elif b_type == "image":
-                    source = getattr(block, "source", None) or (
-                        block.get("source", {}) if isinstance(block, dict) else {}
-                    )
+                    source = _get_block_attr(block, "source")
                     if isinstance(source, dict):
                         data = source.get("data") or source.get("base64") or ""
                         if data:
@@ -87,12 +76,8 @@ def get_token_count(
                     else:
                         total_tokens += 765
                 elif b_type == "tool_result":
-                    content = getattr(block, "content", "") or (
-                        block.get("content", "") if isinstance(block, dict) else ""
-                    )
-                    tool_use_id = getattr(block, "tool_use_id", "") or (
-                        block.get("tool_use_id", "") if isinstance(block, dict) else ""
-                    )
+                    content = _get_block_attr(block, "content", "")
+                    tool_use_id = _get_block_attr(block, "tool_use_id", "")
                     if isinstance(content, str):
                         total_tokens += len(ENCODER.encode(content))
                     else:
@@ -102,7 +87,7 @@ def get_token_count(
                 else:
                     try:
                         total_tokens += len(ENCODER.encode(json.dumps(block)))
-                    except (TypeError, ValueError):
+                    except TypeError, ValueError:
                         total_tokens += len(ENCODER.encode(str(block)))
 
     if tools:

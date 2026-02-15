@@ -152,6 +152,7 @@ class TestSessionStoreClearAll:
         ids = store.get_message_ids_for_chat("telegram", "c1")
         assert ids == ["1", "2"]
 
+        store.flush_pending_save()
         store2 = SessionStore(storage_path=path)
         assert store2.get_message_ids_for_chat("telegram", "c1") == ["1", "2"]
 

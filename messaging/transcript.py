@@ -11,8 +11,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 
 logger = logging.getLogger(__name__)
@@ -299,6 +300,18 @@ class TranscriptBuffer:
         if not self._subagent_stack:
             return
         if tool_id:
+            # O(1) common case: LIFO - top of stack matches.
+            if self._subagent_stack[-1] == tool_id:
+                self._subagent_stack.pop()
+                if self._subagent_segments:
+                    self._subagent_segments.pop()
+                if self._debug_subagent_stack:
+                    logger.debug(
+                        "SUBAGENT_STACK: pop id=%r depth=%d (LIFO)",
+                        tool_id,
+                        len(self._subagent_stack),
+                    )
+                return
             # Pop to the matching id (defensive against non-LIFO emissions).
             try:
                 idx = (
@@ -545,7 +558,7 @@ class TranscriptBuffer:
         status_text = f"\n\n{status}" if status else ""
         prefix_marker = ctx.escape_text("... (truncated)\n")
 
-        def _join(parts: List[str], add_marker: bool) -> str:
+        def _join(parts: Iterable[str], add_marker: bool) -> str:
             body = "\n".join(parts)
             if add_marker and body:
                 body = prefix_marker + body
@@ -557,13 +570,14 @@ class TranscriptBuffer:
             return candidate
 
         # Drop oldest segments until under limit (keep the tail).
-        parts = list(rendered)
+        # Use deque for O(1) popleft; list.pop(0) would be O(n) per iteration.
+        parts: deque[str] = deque(rendered)
         dropped = False
         while parts:
             candidate = _join(parts, add_marker=True)
             if len(candidate) <= limit_chars:
                 return candidate
-            parts.pop(0)
+            parts.popleft()
             dropped = True
 
         # Nothing fits; return status only with marker if possible.
