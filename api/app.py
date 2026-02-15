@@ -11,32 +11,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from config.settings import get_settings
+from config.logging_config import configure_logging
+
+# Configure logging first (before any module logs)
+_settings = get_settings()
+configure_logging(_settings.log_file)
+
 from .routes import router
 from .dependencies import cleanup_provider
 from providers.exceptions import ProviderError
-from config.settings import get_settings
-
-# Configure logging (atomic - only on true fresh start)
-_settings = get_settings()
-LOG_FILE = _settings.log_file
-
-# Check if logging is already configured (e.g., hot reload)
-# If handlers exist, skip setup to avoid clearing logs mid-session
-if not logging.root.handlers:
-    # Fresh start - clear log file and configure
-    open(LOG_FILE, "w", encoding="utf-8").close()
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[logging.FileHandler(LOG_FILE, encoding="utf-8", mode="a")],
-    )
 
 logger = logging.getLogger(__name__)
-
-# Suppress noisy uvicorn logs
-logging.getLogger("uvicorn").setLevel(logging.WARNING)
-logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 
 _SHUTDOWN_TIMEOUT_S = 5.0
 

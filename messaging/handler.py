@@ -53,7 +53,10 @@ TRANSCRIPT_EVENT_TYPES = (
 
 # Event types -> (emoji, label) for status updates
 _EVENT_STATUS_MAP = {
-    ("thinking_start", "thinking_delta", "thinking_chunk"): ("🧠", "Claude is thinking..."),
+    ("thinking_start", "thinking_delta", "thinking_chunk"): (
+        "🧠",
+        "Claude is thinking...",
+    ),
     ("text_start", "text_delta", "text_chunk"): ("🧠", "Claude is working..."),
     ("tool_result",): ("⏳", "Executing tools..."),
 }
@@ -341,7 +344,7 @@ class ClaudeMessageHandler:
                 self.session_store.save_tree(tree.root_id, tree.to_dict())
         elif ptype == "error":
             error_msg = parsed.get("message", "Unknown error")
-            logger.error(f"HANDLER: Error event received: {error_msg[:200]}")
+            logger.error(f"HANDLER: Error event received: {error_msg}")
             logger.info("HANDLER: Updating UI with error status")
             await update_ui(format_status("❌", "Error"), force=True)
             if tree:

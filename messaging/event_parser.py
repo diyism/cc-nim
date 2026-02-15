@@ -143,7 +143,7 @@ def parse_cli_event(event: Any) -> List[Dict]:
     if etype == "error":
         err = event.get("error")
         msg = err.get("message") if isinstance(err, dict) else str(err)
-        logger.info(f"CLI_PARSER: Parsed error event: {msg[:100]}")
+        logger.info(f"CLI_PARSER: Parsed error event: {msg}")
         return [{"type": "error", "message": msg}]
     elif etype == "exit":
         code = event.get("code", 0)
@@ -154,7 +154,7 @@ def parse_cli_event(event: Any) -> List[Dict]:
         else:
             # Non-zero exit is an error
             error_msg = stderr if stderr else f"Process exited with code {code}"
-            logger.warning(f"CLI_PARSER: Error exit (code={code}): {error_msg[:100]}")
+            logger.warning(f"CLI_PARSER: Error exit (code={code}): {error_msg}")
             return [
                 {"type": "error", "message": error_msg},
                 {"type": "complete", "status": "failed"},

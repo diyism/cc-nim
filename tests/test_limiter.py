@@ -11,8 +11,6 @@ os.environ["MESSAGING_RATE_WINDOW"] = "0.5"
 
 from messaging.limiter import MessagingRateLimiter
 
-# Configure logging for tests
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

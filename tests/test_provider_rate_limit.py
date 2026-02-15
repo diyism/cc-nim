@@ -7,8 +7,6 @@ import logging
 
 from providers.rate_limit import GlobalRateLimiter
 
-# Configure logging for tests
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

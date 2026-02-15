@@ -203,7 +203,7 @@ class CLISession:
 
             yield event
         except json.JSONDecodeError:
-            logger.debug(f"Non-JSON output: {line_str[:100]}")
+            logger.debug(f"Non-JSON output: {line_str}")
             yield {"type": "raw", "content": line_str}
 
     def _extract_session_id(self, event: Any) -> Optional[str]:
