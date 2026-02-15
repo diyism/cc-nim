@@ -468,8 +468,8 @@ class TestSessionStoreTrees:
         assert retrieved is not None
         assert retrieved["root_id"] == "root_1"
 
-    def test_get_tree_by_node(self, tmp_path):
-        """Test getting tree by node ID."""
+    def test_get_tree_by_root_id(self, tmp_path):
+        """Test getting tree by root ID and node mapping."""
         from messaging.session import SessionStore
 
         store = SessionStore(storage_path=str(tmp_path / "sessions.json"))
@@ -484,10 +484,10 @@ class TestSessionStoreTrees:
 
         store.save_tree("root", tree_data)
 
-        # Should find tree by child node
-        retrieved = store.get_tree_by_node("child")
+        retrieved = store.get_tree("root")
         assert retrieved is not None
         assert retrieved["root_id"] == "root"
+        assert store.get_tree_root_for_node("child") == "root"
 
     def test_register_node(self, tmp_path):
         """Test registering a node to a tree."""

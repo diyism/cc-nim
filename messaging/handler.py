@@ -10,7 +10,7 @@ import time
 import asyncio
 import logging
 import os
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from .base import MessagingPlatform, SessionManagerInterface
 from .models import IncomingMessage
@@ -28,6 +28,47 @@ from .telegram_markdown import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Status message prefixes used to filter our own messages (ignore echo)
+STATUS_MESSAGE_PREFIXES = ("⏳", "💭", "🔧", "✅", "❌", "🚀", "🤖", "📋", "📊", "🔄")
+
+# Event types that update the transcript
+TRANSCRIPT_EVENT_TYPES = (
+    "thinking_start",
+    "thinking_delta",
+    "thinking_chunk",
+    "thinking_stop",
+    "text_start",
+    "text_delta",
+    "text_chunk",
+    "text_stop",
+    "tool_use_start",
+    "tool_use_delta",
+    "tool_use_stop",
+    "tool_use",
+    "tool_result",
+    "block_stop",
+    "error",
+)
+
+# Event types -> (emoji, label) for status updates
+_EVENT_STATUS_MAP = {
+    ("thinking_start", "thinking_delta", "thinking_chunk"): ("🧠", "Claude is thinking..."),
+    ("text_start", "text_delta", "text_chunk"): ("🧠", "Claude is working..."),
+    ("tool_result",): ("⏳", "Executing tools..."),
+}
+
+
+def _get_status_for_event(ptype: str, parsed: dict) -> Optional[str]:
+    """Return status string for event type, or None if no status update needed."""
+    for types, (emoji, label) in _EVENT_STATUS_MAP.items():
+        if ptype in types:
+            return format_status(emoji, label)
+    if ptype in ("tool_use_start", "tool_use_delta", "tool_use"):
+        if parsed.get("name") == "Task":
+            return format_status("🤖", "Subagent working...")
+        return format_status("⏳", "Executing tools...")
+    return None
 
 
 class ClaudeMessageHandler:
@@ -95,10 +136,7 @@ class ClaudeMessageHandler:
             return
 
         # Filter out status messages (our own messages)
-        if any(
-            incoming.text.startswith(p)
-            for p in ["⏳", "💭", "🔧", "✅", "❌", "🚀", "🤖", "📋", "📊", "🔄"]
-        ):
+        if any(incoming.text.startswith(p) for p in STATUS_MESSAGE_PREFIXES):
             return
 
         # Check if this is a reply to an existing node in a tree
@@ -131,17 +169,9 @@ class ClaudeMessageHandler:
             reply_to=incoming.message_id,
             fire_and_forget=False,
         )
-        try:
-            if status_msg_id:
-                self.session_store.record_message_id(
-                    incoming.platform,
-                    incoming.chat_id,
-                    str(status_msg_id),
-                    direction="out",
-                    kind="status",
-                )
-        except Exception as e:
-            logger.debug(f"Failed to record status message_id: {e}")
+        self._record_outgoing_message(
+            incoming.platform, incoming.chat_id, status_msg_id, "status"
+        )
 
         # Create or extend tree
         if parent_node_id and tree and status_msg_id:
@@ -285,45 +315,16 @@ class ClaudeMessageHandler:
         captured_session_id: Optional[str],
     ) -> Tuple[Optional[str], bool]:
         """Process a single parsed CLI event. Returns (last_status, had_transcript_events)."""
-        ptype = parsed.get("type")
-        transcript_types = (
-            "thinking_start",
-            "thinking_delta",
-            "thinking_chunk",
-            "thinking_stop",
-            "text_start",
-            "text_delta",
-            "text_chunk",
-            "text_stop",
-            "tool_use_start",
-            "tool_use_delta",
-            "tool_use_stop",
-            "tool_use",
-            "tool_result",
-            "block_stop",
-            "error",
-        )
+        ptype = parsed.get("type") or ""
 
-        if ptype in transcript_types:
+        if ptype in TRANSCRIPT_EVENT_TYPES:
             transcript.apply(parsed)
             had_transcript_events = True
 
-        if ptype in ("thinking_start", "thinking_delta", "thinking_chunk"):
-            await update_ui(format_status("🧠", "Claude is thinking..."))
-            last_status = format_status("🧠", "Claude is thinking...")
-        elif ptype in ("text_start", "text_delta", "text_chunk"):
-            await update_ui(format_status("🧠", "Claude is working..."))
-            last_status = format_status("🧠", "Claude is working...")
-        elif ptype in ("tool_use_start", "tool_use_delta", "tool_use"):
-            if parsed.get("name") == "Task":
-                await update_ui(format_status("🤖", "Subagent working..."))
-                last_status = format_status("🤖", "Subagent working...")
-            else:
-                await update_ui(format_status("⏳", "Executing tools..."))
-                last_status = format_status("⏳", "Executing tools...")
-        elif ptype == "tool_result":
-            await update_ui(format_status("⏳", "Executing tools..."))
-            last_status = format_status("⏳", "Executing tools...")
+        status = _get_status_for_event(ptype, parsed)
+        if status is not None:
+            await update_ui(status)
+            last_status = status
         elif ptype == "block_stop":
             await update_ui(last_status, force=True)
         elif ptype == "complete":
@@ -584,20 +585,7 @@ class ClaudeMessageHandler:
         await self.cli_manager.stop_all()
 
         # 3. Update UI and persist state for all cancelled nodes
-        for node in cancelled_nodes:
-            self.platform.fire_and_forget(
-                self.platform.queue_edit_message(
-                    node.incoming.chat_id,
-                    node.status_message_id,
-                    format_status("⏹", "Stopped."),
-                    parse_mode="MarkdownV2",
-                )
-            )
-
-            # Persist tree state
-            tree = self.tree_queue.get_tree_for_node(node.node_id)
-            if tree:
-                self.session_store.save_tree(tree.root_id, tree.to_dict())
+        self._update_cancelled_nodes_ui(cancelled_nodes)
 
         return len(cancelled_nodes)
 
@@ -615,8 +603,29 @@ class ClaudeMessageHandler:
                 node.context = {"cancel_reason": "stop"}
 
         cancelled_nodes = await self.tree_queue.cancel_node(node_id)
+        self._update_cancelled_nodes_ui(cancelled_nodes)
+        return len(cancelled_nodes)
 
-        for node in cancelled_nodes:
+    def _record_outgoing_message(
+        self,
+        platform: str,
+        chat_id: str,
+        msg_id: Optional[str],
+        kind: str,
+    ) -> None:
+        """Record outgoing message ID for /clear. Best-effort, never raises."""
+        if not msg_id:
+            return
+        try:
+            self.session_store.record_message_id(
+                platform, chat_id, str(msg_id), direction="out", kind=kind
+            )
+        except Exception as e:
+            logger.debug(f"Failed to record message_id: {e}")
+
+    def _update_cancelled_nodes_ui(self, nodes: List[MessageNode]) -> None:
+        """Update status messages and persist tree state for cancelled nodes."""
+        for node in nodes:
             self.platform.fire_and_forget(
                 self.platform.queue_edit_message(
                     node.incoming.chat_id,
@@ -625,12 +634,9 @@ class ClaudeMessageHandler:
                     parse_mode="MarkdownV2",
                 )
             )
-
             tree = self.tree_queue.get_tree_for_node(node.node_id)
             if tree:
                 self.session_store.save_tree(tree.root_id, tree.to_dict())
-
-        return len(cancelled_nodes)
 
     async def _handle_stop_command(self, incoming: IncomingMessage) -> None:
         """Handle /stop command from messaging platform."""
@@ -646,17 +652,9 @@ class ClaudeMessageHandler:
                     format_status("⏹", "Stopped.", "Nothing to stop for that message."),
                     fire_and_forget=False,
                 )
-                try:
-                    if msg_id:
-                        self.session_store.record_message_id(
-                            incoming.platform,
-                            incoming.chat_id,
-                            str(msg_id),
-                            direction="out",
-                            kind="command",
-                        )
-                except Exception:
-                    pass
+                self._record_outgoing_message(
+                    incoming.platform, incoming.chat_id, msg_id, "command"
+                )
                 return
 
             count = await self.stop_task(node_id)
@@ -666,17 +664,9 @@ class ClaudeMessageHandler:
                 format_status("⏹", "Stopped.", f"Cancelled {count} {noun}."),
                 fire_and_forget=False,
             )
-            try:
-                if msg_id:
-                    self.session_store.record_message_id(
-                        incoming.platform,
-                        incoming.chat_id,
-                        str(msg_id),
-                        direction="out",
-                        kind="command",
-                    )
-            except Exception:
-                pass
+            self._record_outgoing_message(
+                incoming.platform, incoming.chat_id, msg_id, "command"
+            )
             return
 
         # Global stop: legacy behavior (stop everything)
@@ -688,17 +678,9 @@ class ClaudeMessageHandler:
             ),
             fire_and_forget=False,
         )
-        try:
-            if msg_id:
-                self.session_store.record_message_id(
-                    incoming.platform,
-                    incoming.chat_id,
-                    str(msg_id),
-                    direction="out",
-                    kind="command",
-                )
-        except Exception:
-            pass
+        self._record_outgoing_message(
+            incoming.platform, incoming.chat_id, msg_id, "command"
+        )
 
     async def _handle_stats_command(self, incoming: IncomingMessage) -> None:
         """Handle /stats command."""
@@ -716,17 +698,9 @@ class ClaudeMessageHandler:
             + escape_md_v2(f"• Message Trees: {tree_count}"),
             fire_and_forget=False,
         )
-        try:
-            if msg_id:
-                self.session_store.record_message_id(
-                    incoming.platform,
-                    incoming.chat_id,
-                    str(msg_id),
-                    direction="out",
-                    kind="command",
-                )
-        except Exception:
-            pass
+        self._record_outgoing_message(
+            incoming.platform, incoming.chat_id, msg_id, "command"
+        )
 
     async def _handle_clear_command(self, incoming: IncomingMessage) -> None:
         """

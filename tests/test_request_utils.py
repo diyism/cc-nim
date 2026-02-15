@@ -3,13 +3,13 @@
 import pytest
 from unittest.mock import MagicMock
 
-from api.request_utils import (
+from api.detection import (
     is_quota_check_request,
     is_title_generation_request,
-    extract_command_prefix,
     is_prefix_detection_request,
-    get_token_count,
 )
+from api.command_utils import extract_command_prefix
+from api.request_utils import get_token_count
 from api.models.anthropic import MessagesRequest, Message
 
 

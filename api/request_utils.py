@@ -1,6 +1,6 @@
 """Request utility functions for API route handlers.
 
-Contains token counting and re-exports detection/command utilities.
+Contains token counting for API requests.
 """
 
 import json
@@ -9,29 +9,10 @@ from typing import List, Optional, Union
 
 import tiktoken
 
-from .models.anthropic import MessagesRequest
-from .detection import (
-    is_quota_check_request,
-    is_title_generation_request,
-    is_prefix_detection_request,
-    is_suggestion_mode_request,
-    is_filepath_extraction_request,
-)
-from .command_utils import extract_command_prefix, extract_filepaths_from_command
-
 logger = logging.getLogger(__name__)
 ENCODER = tiktoken.get_encoding("cl100k_base")
 
-__all__ = [
-    "is_quota_check_request",
-    "is_title_generation_request",
-    "is_prefix_detection_request",
-    "is_suggestion_mode_request",
-    "is_filepath_extraction_request",
-    "extract_command_prefix",
-    "extract_filepaths_from_command",
-    "get_token_count",
-]
+__all__ = ["get_token_count"]
 
 
 def get_token_count(

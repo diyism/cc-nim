@@ -5,6 +5,8 @@ Contains MessageState, MessageNode, and MessageTree classes.
 
 import asyncio
 import logging
+from collections import deque
+from contextlib import asynccontextmanager
 from enum import Enum
 from datetime import datetime, timezone
 from typing import Dict, Optional, List, Any
@@ -275,6 +277,42 @@ class MessageTree:
     def get_queue_size(self) -> int:
         """Get number of messages waiting in queue."""
         return self._queue.qsize()
+
+    def remove_from_queue(self, node_id: str) -> bool:
+        """
+        Remove node_id from the internal queue if present.
+
+        Caller must hold the tree lock (e.g. via with_lock).
+        Returns True if node was removed, False if not in queue.
+        """
+        queue_deque: deque = self._queue._queue  # type: ignore[attr-defined]
+        if node_id not in queue_deque:
+            return False
+        self._queue._queue = deque(x for x in queue_deque if x != node_id)  # type: ignore[attr-defined]
+        return True
+
+    @asynccontextmanager
+    async def with_lock(self):
+        """Async context manager for tree lock. Use when multiple operations need atomicity."""
+        async with self._lock:
+            yield
+
+    def set_processing_state(self, node_id: Optional[str], is_processing: bool) -> None:
+        """Set processing state. Caller must hold lock for consistency with queue operations."""
+        self._is_processing = is_processing
+        self._current_node_id = node_id if is_processing else None
+
+    def clear_current_node(self) -> None:
+        """Clear the currently processing node ID. Caller must hold lock."""
+        self._current_node_id = None
+
+    def is_current_node(self, node_id: str) -> bool:
+        """Check if node_id is the currently processing node."""
+        return self._current_node_id == node_id
+
+    def put_queue_unlocked(self, node_id: str) -> None:
+        """Add node to queue. Caller must hold lock (e.g. via with_lock)."""
+        self._queue.put_nowait(node_id)
 
     def cancel_current_task(self) -> bool:
         """Cancel the currently running task. Returns True if a task was cancelled."""

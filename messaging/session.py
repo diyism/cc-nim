@@ -205,14 +205,6 @@ class SessionStore:
                 if x.get("message_id") is not None
             ]
 
-    def clear_message_log_for_chat(self, platform: str, chat_id: str) -> None:
-        """Clear recorded message IDs for a single chat."""
-        chat_key = self._make_chat_key(str(platform), str(chat_id))
-        with self._lock:
-            self._message_log.pop(chat_key, None)
-            self._message_log_ids.pop(chat_key, None)
-            self._save()
-
     def clear_all(self) -> None:
         """Clear all stored sessions/trees/mappings and persist an empty store."""
         with self._lock:
@@ -223,124 +215,6 @@ class SessionStore:
             self._message_log.clear()
             self._message_log_ids.clear()
             self._save()
-
-    # ==================== Session Methods ====================
-
-    def save_session(
-        self,
-        session_id: str,
-        chat_id: str,
-        initial_msg_id: str,
-        platform: str = "telegram",
-    ) -> None:
-        """Save a new session mapping."""
-        with self._lock:
-            now = datetime.now(timezone.utc).isoformat()
-            record = SessionRecord(
-                session_id=session_id,
-                chat_id=str(chat_id),
-                initial_msg_id=str(initial_msg_id),
-                last_msg_id=str(initial_msg_id),
-                platform=platform,
-                created_at=now,
-                updated_at=now,
-            )
-            self._sessions[session_id] = record
-            self._msg_to_session[
-                self._make_key(platform, str(chat_id), str(initial_msg_id))
-            ] = session_id
-            self._save()
-            logger.info(
-                f"Saved session {session_id} for {platform} chat {chat_id}, msg {initial_msg_id}"
-            )
-
-    def get_session_by_msg(
-        self, chat_id: str, msg_id: str, platform: str = "telegram"
-    ) -> Optional[str]:
-        """Look up a session ID by a message that's part of that session."""
-        with self._lock:
-            key = self._make_key(platform, str(chat_id), str(msg_id))
-            return self._msg_to_session.get(key)
-
-    def update_last_message(self, session_id: str, msg_id: str) -> None:
-        """Update the last message ID for a session."""
-        with self._lock:
-            if session_id not in self._sessions:
-                logger.warning(f"Session {session_id} not found for update")
-                return
-
-            record = self._sessions[session_id]
-            record.last_msg_id = str(msg_id)
-            record.updated_at = datetime.now(timezone.utc).isoformat()
-            new_key = self._make_key(record.platform, record.chat_id, str(msg_id))
-            self._msg_to_session[new_key] = session_id
-            self._save()
-            logger.debug(f"Updated session {session_id} last_msg to {msg_id}")
-
-    def rename_session(self, old_id: str, new_id: str) -> bool:
-        """Rename a session ID, migrating all message mappings."""
-        with self._lock:
-            if old_id not in self._sessions:
-                logger.warning(f"Session {old_id} not found for rename to {new_id}")
-                return False
-
-            record = self._sessions.pop(old_id)
-            record.session_id = new_id
-            record.updated_at = datetime.now(timezone.utc).isoformat()
-            self._sessions[new_id] = record
-
-            items_to_update = [
-                k for k, v in self._msg_to_session.items() if v == old_id
-            ]
-            for key in items_to_update:
-                self._msg_to_session[key] = new_id
-
-            self._save()
-            logger.info(
-                f"Renamed session {old_id} to {new_id} ({len(items_to_update)} mappings updated)"
-            )
-            return True
-
-    def get_session_record(self, session_id: str) -> Optional[SessionRecord]:
-        """Get full session record."""
-        with self._lock:
-            return self._sessions.get(session_id)
-
-    def cleanup_old_sessions(self, max_age_days: int = 30) -> int:
-        """Remove sessions older than max_age_days."""
-        with self._lock:
-            cutoff = datetime.now(timezone.utc)
-            removed = 0
-
-            to_remove = []
-            for sid, record in self._sessions.items():
-                try:
-                    created = datetime.fromisoformat(record.created_at)
-                    age_days = (cutoff - created).days
-                    if age_days > max_age_days:
-                        to_remove.append(sid)
-                except Exception:
-                    pass
-
-            for sid in to_remove:
-                record = self._sessions.pop(sid)
-                self._msg_to_session.pop(
-                    self._make_key(
-                        record.platform, record.chat_id, record.initial_msg_id
-                    ),
-                    None,
-                )
-                self._msg_to_session.pop(
-                    self._make_key(record.platform, record.chat_id, record.last_msg_id),
-                    None,
-                )
-                removed += 1
-
-            if removed:
-                self._save()
-                logger.info(f"Cleaned up {removed} old sessions")
-
-            return removed
 
     # ==================== Tree Methods ====================
 
@@ -367,14 +241,6 @@ class SessionStore:
         with self._lock:
             return self._trees.get(root_id)
 
-    def get_tree_by_node(self, node_id: str) -> Optional[dict]:
-        """Get the tree containing a node."""
-        with self._lock:
-            root_id = self._node_to_tree.get(node_id)
-            if not root_id:
-                return None
-            return self._trees.get(root_id)
-
     def get_tree_root_for_node(self, node_id: str) -> Optional[str]:
         """Get the root ID of the tree containing a node."""
         with self._lock:
@@ -383,20 +249,6 @@ class SessionStore:
     def register_node(self, node_id: str, root_id: str) -> None:
         """Register a node ID to a tree root."""
         with self._lock:
-            self._node_to_tree[node_id] = root_id
-            self._save()
-
-    def update_tree_node(self, root_id: str, node_id: str, node_data: dict) -> None:
-        """Update a specific node in a tree."""
-        with self._lock:
-            if root_id not in self._trees:
-                logger.warning(f"Tree {root_id} not found")
-                return
-
-            if "nodes" not in self._trees[root_id]:
-                self._trees[root_id]["nodes"] = {}
-
-            self._trees[root_id]["nodes"][node_id] = node_data
             self._node_to_tree[node_id] = root_id
             self._save()
 

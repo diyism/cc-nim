@@ -6,7 +6,6 @@ Uses TreeRepository for data, TreeQueueProcessor for async logic.
 
 import asyncio
 import logging
-from collections import deque
 from datetime import datetime, timezone
 from typing import Callable, Awaitable, List, Optional
 
@@ -293,7 +292,7 @@ class TreeQueueManager:
         if not tree:
             return []
 
-        async with tree._lock:
+        async with tree.with_lock():
             node = tree.get_node(node_id)
             if not node:
                 return []
@@ -301,18 +300,12 @@ class TreeQueueManager:
             if node.state in (MessageState.COMPLETED, MessageState.ERROR):
                 return []
 
-            # Cancel running task if this is the current node.
-            if tree._current_node_id == node_id:
+            if tree.is_current_node(node_id):
                 self._processor.cancel_current(tree)
 
-            # Remove from queue if present (asyncio.Queue exposes its internal deque).
             try:
-                q = tree._queue._queue  # type: ignore[attr-defined]
-                if q and node_id in q:
-                    tree._queue._queue = deque(x for x in q if x != node_id)  # type: ignore[attr-defined]
+                tree.remove_from_queue(node_id)
             except Exception:
-                # Best-effort: if we can't mutate the queue internals, the node will
-                # still be dequeued later and skipped due to state=ERROR.
                 logger.debug(
                     "Failed to remove node from queue; will rely on state=ERROR"
                 )

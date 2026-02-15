@@ -90,7 +90,7 @@ class TreeQueueProcessor:
                 node.node_id, MessageState.ERROR, error_message=str(e)
             )
         finally:
-            tree._current_node_id = None
+            tree.clear_current_node()
             # Check if there are more messages in the queue
             await self._process_next(tree, processor)
 
@@ -102,16 +102,15 @@ class TreeQueueProcessor:
         """Process the next message in queue, if any."""
         next_node_id = None
         node = None
-        async with tree._lock:
+        async with tree.with_lock():
             next_node_id = await tree.dequeue()
 
             if not next_node_id:
-                # No more messages, mark tree as free
-                tree._is_processing = False
+                tree.set_processing_state(None, False)
                 logger.debug(f"Tree {tree.root_id} queue empty, marking as free")
                 return
 
-            tree._current_node_id = next_node_id
+            tree.set_processing_state(next_node_id, True)
             logger.info(f"Processing next queued node {next_node_id}")
 
             # Process next node (outside lock)
@@ -143,17 +142,14 @@ class TreeQueueProcessor:
         Returns:
             True if queued, False if processing immediately
         """
-        async with tree._lock:
-            if tree._is_processing:
-                # Tree is busy, queue the message
-                await tree._queue.put(node_id)
-                queue_size = tree._queue.qsize()
+        async with tree.with_lock():
+            if tree.is_processing:
+                tree.put_queue_unlocked(node_id)
+                queue_size = tree.get_queue_size()
                 logger.info(f"Queued node {node_id}, position {queue_size}")
                 return True
             else:
-                # Tree is free, start processing
-                tree._is_processing = True
-                tree._current_node_id = node_id
+                tree.set_processing_state(node_id, True)
 
                 # Process outside the lock
                 node = tree.get_node(node_id)
