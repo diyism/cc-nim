@@ -7,7 +7,7 @@ from providers.nvidia_nim.utils.message_converter import AnthropicToOpenAIConver
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_DEFAULT_MAX_TOKENS = 8192
+OPENROUTER_DEFAULT_MAX_TOKENS = 81920
 
 
 def _set_if_not_none(body: Dict[str, Any], key: str, value: Any) -> None:
