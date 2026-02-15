@@ -120,6 +120,9 @@ class MessageTree:
         """
         self.root_id = root_node.node_id
         self._nodes: Dict[str, MessageNode] = {root_node.node_id: root_node}
+        self._status_to_node: Dict[str, str] = {
+            root_node.status_message_id: root_node.node_id
+        }
         self._queue: asyncio.Queue[str] = asyncio.Queue()
         self._lock = asyncio.Lock()
         self._is_processing = False
@@ -165,6 +168,7 @@ class MessageTree:
             )
 
             self._nodes[node_id] = node
+            self._status_to_node[status_message_id] = node_id
             self._nodes[parent_id].children_ids.append(node_id)
 
             logger.debug(f"Added node {node_id} as child of {parent_id}")
@@ -282,10 +286,12 @@ class MessageTree:
         root_node = MessageNode.from_dict(nodes_data[root_id])
         tree = cls(root_node)
 
-        # Add remaining nodes
+        # Add remaining nodes and build status->node index
         for node_id, node_data in nodes_data.items():
             if node_id != root_id:
-                tree._nodes[node_id] = MessageNode.from_dict(node_data)
+                node = MessageNode.from_dict(node_data)
+                tree._nodes[node_id] = node
+                tree._status_to_node[node.status_message_id] = node_id
 
         return tree
 
@@ -298,8 +304,6 @@ class MessageTree:
         return node_id in self._nodes
 
     def find_node_by_status_message(self, status_msg_id: str) -> Optional[MessageNode]:
-        """Find the node that has this status message ID."""
-        for node in self._nodes.values():
-            if node.status_message_id == status_msg_id:
-                return node
-        return None
+        """Find the node that has this status message ID (O(1) lookup)."""
+        node_id = self._status_to_node.get(status_msg_id)
+        return self._nodes.get(node_id) if node_id else None
