@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from api.dependencies import get_provider, get_settings, cleanup_provider
 from providers.nvidia_nim import NvidiaNimProvider
+from providers.open_router import OpenRouterProvider
 from config.nim import NimSettings
 
 
@@ -12,6 +13,9 @@ def _make_mock_settings(**overrides):
     mock.nvidia_nim_api_key = "test_key"
     mock.nvidia_nim_rate_limit = 40
     mock.nvidia_nim_rate_window = 60
+    mock.open_router_api_key = "test_openrouter_key"
+    mock.open_router_rate_limit = 40
+    mock.open_router_rate_window = 60
     mock.nim = NimSettings()
     for key, value in overrides.items():
         setattr(mock, key, value)
@@ -72,6 +76,19 @@ async def test_cleanup_provider_no_client():
 
         await cleanup_provider()
         # Should not raise
+
+
+@pytest.mark.asyncio
+async def test_get_provider_open_router():
+    """Test that provider_type=open_router returns OpenRouterProvider."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings(provider_type="open_router")
+
+        provider = get_provider()
+
+        assert isinstance(provider, OpenRouterProvider)
+        assert provider._base_url == "https://openrouter.ai/api/v1"
+        assert provider._api_key == "test_openrouter_key"
 
 
 @pytest.mark.asyncio

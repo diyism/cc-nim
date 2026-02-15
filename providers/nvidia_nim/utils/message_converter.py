@@ -22,8 +22,17 @@ class AnthropicToOpenAIConverter:
     """Converts Anthropic message format to OpenAI format."""
 
     @staticmethod
-    def convert_messages(messages: List[Any]) -> List[Dict[str, Any]]:
-        """Convert a list of Anthropic messages to OpenAI format."""
+    def convert_messages(
+        messages: List[Any],
+        *,
+        include_reasoning_for_openrouter: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Convert a list of Anthropic messages to OpenAI format.
+
+        When include_reasoning_for_openrouter is True, assistant messages with
+        thinking blocks get reasoning_content added for OpenRouter multi-turn
+        reasoning continuation.
+        """
         result = []
 
         for msg in messages:
@@ -35,7 +44,10 @@ class AnthropicToOpenAIConverter:
             elif isinstance(content, list):
                 if role == "assistant":
                     result.extend(
-                        AnthropicToOpenAIConverter._convert_assistant_message(content)
+                        AnthropicToOpenAIConverter._convert_assistant_message(
+                            content,
+                            include_reasoning_for_openrouter=include_reasoning_for_openrouter,
+                        )
                     )
                 elif role == "user":
                     result.extend(
@@ -47,9 +59,14 @@ class AnthropicToOpenAIConverter:
         return result
 
     @staticmethod
-    def _convert_assistant_message(content: List[Any]) -> List[Dict[str, Any]]:
+    def _convert_assistant_message(
+        content: List[Any],
+        *,
+        include_reasoning_for_openrouter: bool = False,
+    ) -> List[Dict[str, Any]]:
         """Convert assistant message blocks, preserving interleaved thinking+text order."""
         content_parts: List[str] = []
+        thinking_parts: List[str] = []
         tool_calls: List[Dict[str, Any]] = []
 
         for block in content:
@@ -60,6 +77,8 @@ class AnthropicToOpenAIConverter:
             elif block_type == "thinking":
                 thinking = get_block_attr(block, "thinking", "")
                 content_parts.append(f"<think>\n{thinking}\n</think>")
+                if include_reasoning_for_openrouter:
+                    thinking_parts.append(thinking)
             elif block_type == "tool_use":
                 tool_input = get_block_attr(block, "input", {})
                 tool_calls.append(
@@ -88,6 +107,8 @@ class AnthropicToOpenAIConverter:
         }
         if tool_calls:
             msg["tool_calls"] = tool_calls
+        if include_reasoning_for_openrouter and thinking_parts:
+            msg["reasoning_content"] = "\n".join(thinking_parts)
 
         return [msg]
 

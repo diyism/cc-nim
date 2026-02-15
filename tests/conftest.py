@@ -38,6 +38,13 @@ def nim_provider(provider_config):
 
 
 @pytest.fixture
+def open_router_provider(provider_config):
+    from providers.open_router import OpenRouterProvider
+
+    return OpenRouterProvider(provider_config)
+
+
+@pytest.fixture
 def mock_cli_session():
     session = MagicMock(spec=CLISession)
     session.start_task = MagicMock()  # This will return an async generator

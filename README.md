@@ -2,7 +2,7 @@
 
 # 🚀 Free Claude Code
 
-### Use Claude Code for free with NVIDIA NIM
+### Use Claude Code for free with NVIDIA NIM or OpenRouter
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Python 3.14](https://img.shields.io/badge/python-3.14-3776ab.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
@@ -12,10 +12,10 @@
 [![Code style: Ruff](https://img.shields.io/badge/code%20formatting-ruff-f5a623.svg?style=for-the-badge)](https://github.com/astral-sh/ruff)
 [![Logging: Loguru](https://img.shields.io/badge/logging-loguru-4ecdc4.svg?style=for-the-badge)](https://github.com/Delgan/loguru)
 
-A lightweight proxy that converts Claude Code's Anthropic API requests to NVIDIA NIM format.  
-**40 reqs/min free** · **Telegram bot** · **VSCode & CLI**
+A lightweight proxy that converts Claude Code's Anthropic API requests to NVIDIA NIM or OpenRouter format.  
+**40 reqs/min free** · **Provider switching** · **Telegram bot** · **VSCode & CLI**
 
-[Quick Start](#quick-start) · [Telegram Bot](#telegram-bot-integration) · [Models](#available-models) · [Configuration](#configuration)
+[Quick Start](#quick-start) · [Provider Switching](#provider-switching) · [Telegram Bot](#telegram-bot-integration) · [Models](#available-models) · [Configuration](#configuration)
 
 ---
 
@@ -27,7 +27,9 @@ A lightweight proxy that converts Claude Code's Anthropic API requests to NVIDIA
 
 ### 1. Prerequisites
 
-1. Get a new API key from [build.nvidia.com/settings/api-keys](https://build.nvidia.com/settings/api-keys)
+1. Get an API key:
+   - **NVIDIA NIM**: [build.nvidia.com/settings/api-keys](https://build.nvidia.com/settings/api-keys)
+   - **OpenRouter**: [openrouter.ai/keys](https://openrouter.ai/keys)
 2. Install [claude-code](https://github.com/anthropics/claude-code)
 3. Install [uv](https://github.com/astral-sh/uv)
 
@@ -40,11 +42,20 @@ cd free-claude-code
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` for **NVIDIA NIM** (default):
 
 ```dotenv
+PROVIDER_TYPE=nvidia_nim
 NVIDIA_NIM_API_KEY=nvapi-your-key-here
 MODEL=moonshotai/kimi-k2-thinking
+```
+
+Or for **OpenRouter**:
+
+```dotenv
+PROVIDER_TYPE=open_router
+OPENROUTER_API_KEY=sk-or-your-key-here
+MODEL=stepfun/step-3.5-flash:free
 ```
 
 ---
@@ -63,7 +74,7 @@ uv run uvicorn server:app --host 0.0.0.0 --port 8082
 ANTHROPIC_AUTH_TOKEN=freecc ANTHROPIC_BASE_URL=http://localhost:8082 claude
 ```
 
-That's it! Claude Code now uses NVIDIA NIM for free.
+That's it! Claude Code now uses your configured provider for free.
 
 ---
 
@@ -90,7 +101,20 @@ uv run uvicorn server:app --host 0.0.0.0 --port 8082
 
 6. **If you see the login screen** ("How do you want to log in?"): Click **Anthropic Console**, then authorize. The extension will start working. You may be redirected to buy credits in the browser—ignore that; the extension already works.
 
-That's it! The Claude Code VSCode extension now uses NVIDIA NIM for free. To go back to Anthropic models just comment out the added block and reload extensions.
+That's it! The Claude Code VSCode extension now uses your configured provider for free. To go back to Anthropic models just comment out the added block and reload extensions.
+
+---
+
+### Provider Switching
+
+Switch between **NVIDIA NIM** and **OpenRouter** via `PROVIDER_TYPE`:
+
+| Provider      | `PROVIDER_TYPE` | API Key Variable       | Base URL                          |
+| ------------- | ---------------- | ---------------------- | --------------------------------- |
+| NVIDIA NIM    | `nvidia_nim`     | `NVIDIA_NIM_API_KEY`   | `integrate.api.nvidia.com/v1`     |
+| OpenRouter    | `open_router`    | `OPENROUTER_API_KEY`   | `openrouter.ai/api/v1`            |
+
+OpenRouter gives access to hundreds of models (stepfun, OpenAI, Anthropic, etc.) through a single API. Set `MODEL` to any OpenRouter model ID, e.g. `stepfun/step-3.5-flash:free`.
 
 ---
 
@@ -139,9 +163,7 @@ uv run uvicorn server:app --host 0.0.0.0 --port 8082
 
 ## Available Models
 
-See [`nvidia_nim_models.json`](nvidia_nim_models.json) for the full list of supported models.
-
-Popular choices:
+**NVIDIA NIM** (`PROVIDER_TYPE=nvidia_nim`): See [`nvidia_nim_models.json`](nvidia_nim_models.json) for the full list. Popular choices:
 
 - `z-ai/glm5`
 - `stepfun-ai/step-3.5-flash`
@@ -149,21 +171,31 @@ Popular choices:
 - `minimaxai/minimax-m2.1`
 - `mistralai/devstral-2-123b-instruct-2512`
 
-Browse all models at [build.nvidia.com](https://build.nvidia.com/explore/discover)
+Browse at [build.nvidia.com](https://build.nvidia.com/explore/discover).
 
-### Updating the Model List
+### Updating the NIM Model List
 
-To update `nvidia_nim_models.json` with the latest models from NVIDIA NIM, run the following command:
+To update `nvidia_nim_models.json` with the latest models from NVIDIA NIM:
 
 ```bash
 curl "https://integrate.api.nvidia.com/v1/models" > nvidia_nim_models.json
 ```
 
+**OpenRouter** (`PROVIDER_TYPE=open_router`): Hundreds of models from stepfun, OpenAI, Anthropic, Google, etc. Examples:
+
+- `stepfun/step-3.5-flash:free`
+- `openai/gpt-4o-mini`
+- `anthropic/claude-3.5-sonnet`
+
+Browse at [openrouter.ai/models](https://openrouter.ai/models).
+
 ## Configuration
 
 | Variable                          | Description                     | Default                       |
 | --------------------------------- | ------------------------------- | ----------------------------- |
-| `NVIDIA_NIM_API_KEY`              | Your NVIDIA API key             | required                      |
+| `PROVIDER_TYPE`                   | Provider: `nvidia_nim` or `open_router` | `nvidia_nim`           |
+| `NVIDIA_NIM_API_KEY`              | Your NVIDIA API key (NIM provider) | required                   |
+| `OPENROUTER_API_KEY`              | Your OpenRouter API key (OpenRouter provider) | required        |
 | `MODEL`                           | Model to use for all requests   | `stepfun-ai/step-3.5-flash` |
 | `CLAUDE_WORKSPACE`                | Directory for agent workspace   | `./agent_workspace`           |
 | `ALLOWED_DIR`                     | Allowed directories for agent   | `""`                          |
@@ -177,10 +209,13 @@ curl "https://integrate.api.nvidia.com/v1/models" > nvidia_nim_models.json
 | `ALLOWED_TELEGRAM_USER_ID`        | Allowed Telegram User ID        | `""`                          |
 | `MESSAGING_RATE_LIMIT`            | Telegram messages per window    | `1`                           |
 | `MESSAGING_RATE_WINDOW`           | Messaging window (seconds)      | `1`                           |
-| `NVIDIA_NIM_RATE_LIMIT`           | API requests per window         | `40`                          |
-| `NVIDIA_NIM_RATE_WINDOW`          | Rate limit window (seconds)     | `60`                          |
+| `NVIDIA_NIM_RATE_LIMIT`           | NIM API requests per window    | `40`                          |
+| `NVIDIA_NIM_RATE_WINDOW`          | NIM rate limit window (seconds)| `60`                          |
+| `OPENROUTER_RATE_LIMIT`          | OpenRouter requests per window | `40`                          |
+| `OPENROUTER_RATE_WINDOW`         | OpenRouter rate limit window   | `60`                          |
 
-The NVIDIA NIM base URL is fixed to `https://integrate.api.nvidia.com/v1`.
+- **NVIDIA NIM** base URL: `https://integrate.api.nvidia.com/v1`
+- **OpenRouter** base URL: `https://openrouter.ai/api/v1`
 
 **NIM Settings (prefix `NVIDIA_NIM_`)**
 

@@ -19,7 +19,17 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # ==================== Provider Selection ====================
+    # Valid: "nvidia_nim" | "open_router"
     provider_type: str = "nvidia_nim"
+
+    # ==================== OpenRouter Config ====================
+    open_router_api_key: str = Field(default="", validation_alias="OPENROUTER_API_KEY")
+    open_router_rate_limit: int = Field(
+        default=40, validation_alias="OPENROUTER_RATE_LIMIT"
+    )
+    open_router_rate_window: int = Field(
+        default=60, validation_alias="OPENROUTER_RATE_WINDOW"
+    )
 
     # ==================== Messaging Platform Selection ====================
     messaging_platform: str = "telegram"

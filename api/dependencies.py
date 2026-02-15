@@ -35,14 +35,26 @@ def get_provider() -> BaseProvider:
             )
             _provider = NvidiaNimProvider(config)
             logger.info("Provider initialized: %s", settings.provider_type)
+        elif settings.provider_type == "open_router":
+            from providers.open_router import OpenRouterProvider
+
+            config = ProviderConfig(
+                api_key=settings.open_router_api_key,
+                base_url="https://openrouter.ai/api/v1",
+                rate_limit=settings.open_router_rate_limit,
+                rate_window=settings.open_router_rate_window,
+                nim_settings=settings.nim,
+            )
+            _provider = OpenRouterProvider(config)
+            logger.info("Provider initialized: %s", settings.provider_type)
         else:
             logger.error(
-                "Unknown provider_type: '%s'. Supported: 'nvidia_nim'",
+                "Unknown provider_type: '%s'. Supported: 'nvidia_nim', 'open_router'",
                 settings.provider_type,
             )
             raise ValueError(
                 f"Unknown provider_type: '{settings.provider_type}'. "
-                f"Supported: 'nvidia_nim'"
+                f"Supported: 'nvidia_nim', 'open_router'"
             )
     return _provider
 

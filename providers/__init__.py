@@ -2,6 +2,7 @@
 
 from .base import BaseProvider, ProviderConfig
 from .nvidia_nim import NvidiaNimProvider
+from .open_router import OpenRouterProvider
 from .exceptions import (
     ProviderError,
     AuthenticationError,
@@ -15,6 +16,7 @@ __all__ = [
     "BaseProvider",
     "ProviderConfig",
     "NvidiaNimProvider",
+    "OpenRouterProvider",
     "ProviderError",
     "AuthenticationError",
     "InvalidRequestError",
