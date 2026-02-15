@@ -160,7 +160,7 @@ curl "https://integrate.api.nvidia.com/v1/models" > nvidia_nim_models.json
 | Variable                          | Description                     | Default                       |
 | --------------------------------- | ------------------------------- | ----------------------------- |
 | `NVIDIA_NIM_API_KEY`              | Your NVIDIA API key             | required                      |
-| `MODEL`                           | Model to use for all requests   | `moonshotai/kimi-k2-thinking` |
+| `MODEL`                           | Model to use for all requests   | `stepfun-ai/step-3.5-flash` |
 | `CLAUDE_WORKSPACE`                | Directory for agent workspace   | `./agent_workspace`           |
 | `ALLOWED_DIR`                     | Allowed directories for agent   | `""`                          |
 | `MAX_CLI_SESSIONS`                | Max concurrent CLI sessions     | `10`                          |
