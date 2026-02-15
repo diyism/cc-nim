@@ -135,10 +135,13 @@ def test_generic_exception_returns_500():
 def test_generic_exception_with_status_code():
     """Generic exception with status_code attribute uses that status (getattr fallback)."""
 
+    class ExceptionWithStatus(RuntimeError):
+        def __init__(self, msg: str, status_code: int = 500):
+            super().__init__(msg)
+            self.status_code = status_code
+
     def _raise_with_status(*args, **kwargs):
-        e = RuntimeError("bad gateway")
-        e.status_code = 502
-        raise e
+        raise ExceptionWithStatus("bad gateway", 502)
 
     mock_provider.stream_response = _raise_with_status
     response = client.post(
