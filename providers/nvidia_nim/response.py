@@ -4,7 +4,7 @@ import json
 import uuid
 from typing import Any
 
-from .utils import map_stop_reason, extract_think_content
+from .utils import map_stop_reason, extract_think_content_interleaved
 
 
 def convert_response(response_json: dict, original_request: Any) -> dict:
@@ -27,16 +27,21 @@ def convert_response(response_json: dict, original_request: Any) -> dict:
     if reasoning:
         content.append({"type": "thinking", "thinking": reasoning})
 
-    # Extract text content (with think tag handling)
+    # Extract text content (with think tag handling, preserving interleaving)
     if message.get("content"):
         raw_content = message["content"]
         if isinstance(raw_content, str):
             if not reasoning:
-                think_content, raw_content = extract_think_content(raw_content)
-                if think_content:
-                    content.append({"type": "thinking", "thinking": think_content})
-            if raw_content:
-                content.append({"type": "text", "text": raw_content})
+                for block_type, block_content in extract_think_content_interleaved(
+                    raw_content
+                ):
+                    if block_type == "thinking":
+                        content.append({"type": "thinking", "thinking": block_content})
+                    else:
+                        content.append({"type": "text", "text": block_content})
+            else:
+                if raw_content.strip():
+                    content.append({"type": "text", "text": raw_content.strip()})
         elif isinstance(raw_content, list):
             for item in raw_content:
                 if isinstance(item, dict) and item.get("type") == "text":
