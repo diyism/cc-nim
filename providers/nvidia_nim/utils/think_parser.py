@@ -2,7 +2,7 @@
 
 import re
 from dataclasses import dataclass
-from typing import Optional, Tuple, Iterator
+from typing import List, Optional, Tuple, Iterator
 from enum import Enum
 
 
@@ -173,6 +173,8 @@ def extract_think_content(text: str) -> Tuple[Optional[str], str]:
     Extract thinking content from text (non-streaming).
 
     Returns: (thinking_content, remaining_text)
+    Merges all think blocks and strips them from text. Use extract_think_content_interleaved
+    when interleaved order must be preserved.
     """
     think_pattern = re.compile(r"<think>(.*?)</think>", re.DOTALL)
     matches = think_pattern.findall(text)
@@ -183,3 +185,25 @@ def extract_think_content(text: str) -> Tuple[Optional[str], str]:
         return thinking, remaining
 
     return None, text
+
+
+def extract_think_content_interleaved(text: str) -> List[Tuple[str, str]]:
+    """
+    Parse content and return blocks in order, preserving interleaving of
+    <think>...</think> and text.
+
+    Returns: [(type, content), ...] where type is "thinking" or "text".
+    """
+    blocks: List[Tuple[str, str]] = []
+    pattern = re.compile(r"<think>(.*?)</think>", re.DOTALL)
+    last_end = 0
+    for m in pattern.finditer(text):
+        before = text[last_end : m.start()].strip()
+        if before:
+            blocks.append(("text", before))
+        blocks.append(("thinking", m.group(1)))
+        last_end = m.end()
+    after = text[last_end:].strip()
+    if after:
+        blocks.append(("text", after))
+    return blocks

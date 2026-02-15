@@ -141,20 +141,10 @@ def test_convert_user_message_mixed_text_and_tool_result():
     messages = [MockMessage("user", content)]
     result = AnthropicToOpenAIConverter.convert_messages(messages)
 
-    # Expected: Tool messages come first? Or order is preserved?
-    # Logic: loop over blocks. if tool_result -> append to result. if text -> append to text_parts.
-    # finally if text_parts -> append new user message.
-    # So tool results come first in the list, then the text message.
-    # Wait, looking at code:
-    # for block in content:
-    #   if tool_result: result.append(...)
-    #   if text: text_parts.append(...)
-    # if text_parts: result.append(...)
-    # Yes, tool results first, then user text.
-
+    # Order is preserved: user text first, then tool result.
     assert len(result) == 2
-    assert result[0] == {"role": "tool", "tool_call_id": "tool_789", "content": "42"}
-    assert result[1] == {"role": "user", "content": "Here is the result:"}
+    assert result[0] == {"role": "user", "content": "Here is the result:"}
+    assert result[1] == {"role": "tool", "tool_call_id": "tool_789", "content": "42"}
 
 
 # --- Message Conversion Tests: Assistant ---
@@ -342,6 +332,56 @@ def test_convert_tool_use_none_input():
     result = AnthropicToOpenAIConverter.convert_messages(messages)
     assert len(result) == 1
     assert "tool_calls" in result[0]
+
+
+def test_convert_assistant_interleaved_order_preserved():
+    """Interleaved thinking, text, tool_use should preserve thinking+text order in content.
+
+    Bug: Current implementation collects all thinking, then all text, then tool_calls.
+    Original order [thinking, text, thinking, tool_use] becomes [all thinking, all text, tool_calls],
+    losing the interleaving. Content string should reflect original block order for thinking+text.
+    Tool calls stay at end (API constraint).
+    """
+    content = [
+        MockBlock(type="thinking", thinking="First thought."),
+        MockBlock(type="text", text="Here is the answer."),
+        MockBlock(type="thinking", thinking="Second thought."),
+        MockBlock(type="tool_use", id="call_1", name="search", input={"q": "x"}),
+    ]
+    messages = [MockMessage("assistant", content)]
+    result = AnthropicToOpenAIConverter.convert_messages(messages)
+
+    assert len(result) == 1
+    msg = result[0]
+    # Expected: thinking1, text, thinking2 in that order within content; tool_calls at end
+    expected_content = (
+        "<think>\nFirst thought.\n</think>\n\nHere is the answer.\n\n<think>\nSecond thought.\n</think>"
+    )
+    assert msg["content"] == expected_content, (
+        f"Interleaved order lost. Got: {msg['content']!r}"
+    )
+    assert len(msg["tool_calls"]) == 1
+
+
+def test_convert_user_message_text_before_tool_result_order():
+    """User message with text then tool_result should preserve order: user text first, then tool.
+
+    Bug: Current implementation emits tool_result immediately, then user text at end.
+    Anthropic order is typically: user says something, then provides tool results.
+    """
+    content = [
+        MockBlock(type="text", text="Please use this result:"),
+        MockBlock(type="tool_result", tool_use_id="t1", content="42"),
+    ]
+    messages = [MockMessage("user", content)]
+    result = AnthropicToOpenAIConverter.convert_messages(messages)
+
+    assert len(result) == 2
+    # Expected: user text first, then tool result
+    assert result[0]["role"] == "user"
+    assert result[0]["content"] == "Please use this result:"
+    assert result[1]["role"] == "tool"
+    assert result[1]["tool_call_id"] == "t1"
 
 
 def test_convert_multiple_tool_results():

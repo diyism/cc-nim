@@ -194,3 +194,23 @@ class TestConvertResponse:
         resp = _make_response()
         result = convert_response(resp, _make_request(model="claude-3"))
         assert result["model"] == "claude-3"
+
+    def test_interleaved_think_tags_in_content_preserved(self):
+        """Interleaved <think>...</think> and text in content should preserve order.
+
+        Bug: extract_think_content uses findall and joins all matches, then strips
+        tags from content. So "<think>a</think>x<think>b</think>" becomes thinking="a\\nb", remaining="x".
+        Output is [thinking, text] instead of [thinking, text, thinking].
+        """
+        resp = _make_response(content="<think>first</think>middle<think>second</think>")
+        result = convert_response(resp, _make_request())
+        types = [b["type"] for b in result["content"]]
+        # Expected: thinking, text, thinking (interleaved order)
+        assert types == ["thinking", "text", "thinking"], (
+            f"Interleaved order lost. Got types: {types}"
+        )
+        thinking_blocks = [b for b in result["content"] if b["type"] == "thinking"]
+        assert thinking_blocks[0]["thinking"] == "first"
+        assert thinking_blocks[1]["thinking"] == "second"
+        text_blocks = [b for b in result["content"] if b["type"] == "text"]
+        assert text_blocks[0]["text"] == "middle"
