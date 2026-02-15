@@ -2,13 +2,39 @@
 
 All logs are written to server.log as JSON lines for full traceability.
 Stdlib logging is intercepted and funneled to loguru.
+Context vars (request_id, node_id, chat_id) from contextualize() are
+included at top level for easy grep/filter.
 """
 
+import json
 import logging
 from loguru import logger
 
 
 _configured = False
+
+# Context keys we promote to top-level JSON for traceability
+_CONTEXT_KEYS = ("request_id", "node_id", "chat_id")
+
+
+def _serialize_with_context(record) -> str:
+    """Format record as JSON with context vars at top level.
+    Returns a format template; we inject _json into record for output.
+    """
+    extra = record.get("extra", {})
+    out = {
+        "time": str(record["time"]),
+        "level": record["level"].name,
+        "message": record["message"],
+        "module": record["name"],
+        "function": record["function"],
+        "line": record["line"],
+    }
+    for key in _CONTEXT_KEYS:
+        if key in extra and extra[key] is not None:
+            out[key] = extra[key]
+    record["_json"] = json.dumps(out, default=str)
+    return "{_json}\n"
 
 
 class InterceptHandler(logging.Handler):
@@ -47,11 +73,11 @@ def configure_logging(log_file: str, *, force: bool = False) -> None:
     # Truncate log file on fresh start for clean debugging
     open(log_file, "w", encoding="utf-8").close()
 
-    # Add file sink: JSON lines, DEBUG level, full traceability
+    # Add file sink: JSON lines, DEBUG level, context vars at top level
     logger.add(
         log_file,
         level="DEBUG",
-        serialize=True,
+        format=_serialize_with_context,
         encoding="utf-8",
         mode="a",
     )

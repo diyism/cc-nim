@@ -26,6 +26,7 @@ from .telegram_markdown import (
     format_status,
     render_markdown_to_mdv2,
 )
+from loguru import logger as loguru_logger
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,24 @@ class ClaudeMessageHandler:
         Determines if this is a new conversation or reply,
         creates/extends the message tree, and queues for processing.
         """
+        text_preview = (incoming.text or "")[:80]
+        if len(incoming.text or "") > 80:
+            text_preview += "..."
+        logger.info(
+            "HANDLER_ENTRY: chat_id=%s message_id=%s reply_to=%s text_preview=%r",
+            incoming.chat_id,
+            incoming.message_id,
+            incoming.reply_to_message_id,
+            text_preview,
+        )
+
+        with loguru_logger.contextualize(
+            chat_id=incoming.chat_id, node_id=incoming.message_id
+        ):
+            await self._handle_message_impl(incoming)
+
+    async def _handle_message_impl(self, incoming: IncomingMessage) -> None:
+        """Implementation of handle_message with context bound."""
         # Check for commands
         parts = (incoming.text or "").strip().split()
         cmd = parts[0] if parts else ""
@@ -368,6 +387,19 @@ class ClaudeMessageHandler:
         incoming = node.incoming
         status_msg_id = node.status_message_id
         chat_id = incoming.chat_id
+
+        with loguru_logger.contextualize(node_id=node_id, chat_id=chat_id):
+            await self._process_node_impl(node_id, node, chat_id, status_msg_id)
+
+    async def _process_node_impl(
+        self,
+        node_id: str,
+        node: MessageNode,
+        chat_id: str,
+        status_msg_id: str,
+    ) -> None:
+        """Internal implementation of _process_node with context bound."""
+        incoming = node.incoming
 
         tree = self.tree_queue.get_tree_for_node(node_id)
         if tree:

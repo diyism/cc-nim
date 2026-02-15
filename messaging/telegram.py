@@ -444,6 +444,23 @@ class TelegramPlatform(MessagingPlatform):
                 logger.warning(f"Unauthorized access attempt from {user_id}")
                 return
 
+        message_id = str(update.message.message_id)
+        reply_to = (
+            str(update.message.reply_to_message.message_id)
+            if update.message.reply_to_message
+            else None
+        )
+        text_preview = (update.message.text or "")[:80]
+        if len(update.message.text or "") > 80:
+            text_preview += "..."
+        logger.info(
+            "TELEGRAM_MSG: chat_id=%s message_id=%s reply_to=%s text_preview=%r",
+            chat_id,
+            message_id,
+            reply_to,
+            text_preview,
+        )
+
         if not self._message_handler:
             return
 
@@ -451,11 +468,9 @@ class TelegramPlatform(MessagingPlatform):
             text=update.message.text,
             chat_id=chat_id,
             user_id=user_id,
-            message_id=str(update.message.message_id),
+            message_id=message_id,
             platform="telegram",
-            reply_to_message_id=str(update.message.reply_to_message.message_id)
-            if update.message.reply_to_message
-            else None,
+            reply_to_message_id=reply_to,
             raw_event=update,
         )
 

@@ -1,10 +1,11 @@
 """NVIDIA NIM provider implementation."""
 
-import logging
 import json
+import logging
 import uuid
 from typing import Any, AsyncIterator
 
+from loguru import logger as loguru_logger
 from openai import AsyncOpenAI
 
 from providers.base import BaseProvider, ProviderConfig
@@ -48,15 +49,37 @@ class NvidiaNimProvider(BaseProvider):
         return build_request_body(request, self._nim_settings)
 
     async def stream_response(
-        self, request: Any, input_tokens: int = 0
+        self,
+        request: Any,
+        input_tokens: int = 0,
+        *,
+        request_id: str | None = None,
     ) -> AsyncIterator[str]:
         """Stream response in Anthropic SSE format."""
+        with loguru_logger.contextualize(request_id=request_id):
+            async for event in self._stream_response_impl(
+                request, input_tokens, request_id
+            ):
+                yield event
+
+    async def _stream_response_impl(
+        self,
+        request: Any,
+        input_tokens: int,
+        request_id: str | None,
+    ) -> AsyncIterator[str]:
+        """Internal streaming implementation with context bound."""
         message_id = f"msg_{uuid.uuid4()}"
         sse = SSEBuilder(message_id, request.model, input_tokens)
 
         body = self._build_request_body(request)
+        req_tag = f" request_id={request_id}" if request_id else ""
         logger.info(
-            f"NIM_STREAM: model={body.get('model')} msgs={len(body.get('messages', []))} tools={len(body.get('tools', []))}"
+            "NIM_STREAM:%s model=%s msgs=%d tools=%d",
+            req_tag,
+            body.get("model"),
+            len(body.get("messages", [])),
+            len(body.get("tools", [])),
         )
 
         yield sse.message_start()
@@ -154,11 +177,16 @@ class NvidiaNimProvider(BaseProvider):
                             yield event
 
         except Exception as e:
-            logger.error(f"NIM_ERROR: {type(e).__name__}: {e}")
+            req_tag = f" request_id={request_id}" if request_id else ""
+            logger.error("NIM_ERROR:%s %s: %s", req_tag, type(e).__name__, e)
             mapped_e = map_error(e)
             error_occurred = True
             error_message = str(mapped_e)
-            logger.info(f"NIM_STREAM: Emitting SSE error event for {type(e).__name__}")
+            logger.info(
+                "NIM_STREAM: Emitting SSE error event for %s%s",
+                type(e).__name__,
+                req_tag,
+            )
             # Ensure open blocks are closed before emitting error to follow Anthropic protocol
             for event in sse.close_content_blocks():
                 yield event

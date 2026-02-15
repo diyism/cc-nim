@@ -1,9 +1,11 @@
 """FastAPI route handlers."""
 
+import json
 import logging
 import uuid
 
 from fastapi import APIRouter, Request, Depends, HTTPException
+from loguru import logger as loguru_logger
 from fastapi.responses import StreamingResponse
 
 from .models.anthropic import MessagesRequest, TokenCountRequest
@@ -14,7 +16,7 @@ from .optimization_handlers import try_optimizations
 from config.settings import Settings
 from providers.base import BaseProvider
 from providers.exceptions import ProviderError
-from providers.logging_utils import log_request_compact
+from providers.logging_utils import build_request_summary, log_request_compact
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,11 @@ async def create_message(
             request_data.messages, request_data.system, request_data.tools
         )
         return StreamingResponse(
-            provider.stream_response(request_data, input_tokens=input_tokens),
+            provider.stream_response(
+                request_data,
+                input_tokens=input_tokens,
+                request_id=request_id,
+            ),
             media_type="text/event-stream",
             headers={
                 "X-Accel-Buffering": "no",
@@ -68,14 +74,27 @@ async def create_message(
 @router.post("/v1/messages/count_tokens")
 async def count_tokens(request_data: TokenCountRequest):
     """Count tokens for a request."""
-    try:
-        return TokenCountResponse(
-            input_tokens=get_token_count(
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+    with loguru_logger.contextualize(request_id=request_id):
+        try:
+            tokens = get_token_count(
                 request_data.messages, request_data.system, request_data.tools
             )
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            summary = build_request_summary(request_data)
+            summary["request_id"] = request_id
+            summary["input_tokens"] = tokens
+            logger.info("COUNT_TOKENS: %s", json.dumps(summary))
+            return TokenCountResponse(input_tokens=tokens)
+        except Exception as e:
+            import traceback
+
+            logger.error(
+                "COUNT_TOKENS_ERROR: request_id=%s error=%s\n%s",
+                request_id,
+                str(e),
+                traceback.format_exc(),
+            )
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/")
@@ -103,8 +122,10 @@ async def stop_cli(request: Request):
         cli_manager = getattr(request.app.state, "cli_manager", None)
         if cli_manager:
             await cli_manager.stop_all()
+            logger.info("STOP_CLI: source=cli_manager cancelled_count=N/A")
             return {"status": "stopped", "source": "cli_manager"}
         raise HTTPException(status_code=503, detail="Messaging system not initialized")
 
     count = await handler.stop_all_tasks()
+    logger.info("STOP_CLI: source=handler cancelled_count=%d", count)
     return {"status": "stopped", "cancelled_count": count}

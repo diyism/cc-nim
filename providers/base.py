@@ -30,7 +30,11 @@ class BaseProvider(ABC):
 
     @abstractmethod
     async def stream_response(
-        self, request: Any, input_tokens: int = 0
+        self,
+        request: Any,
+        input_tokens: int = 0,
+        *,
+        request_id: str | None = None,
     ) -> AsyncIterator[str]:
         """Stream response in Anthropic SSE format."""
         if False:

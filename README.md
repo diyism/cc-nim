@@ -10,6 +10,7 @@
 [![Tested with Pytest](https://img.shields.io/badge/Tested%20with-Pytest-00c0ff.svg?style=for-the-badge)](https://github.com/Alishahryar1/free-claude-code/actions/workflows/tests.yml)
 [![Type checking: Ty](https://img.shields.io/badge/checked%20with-ty-ffcc00.svg?style=for-the-badge)](https://pypi.org/project/ty/)
 [![Code style: Ruff](https://img.shields.io/badge/code%20style-ruff-f5a623.svg?style=for-the-badge)](https://github.com/astral-sh/ruff)
+[![Logging: Loguru](https://img.shields.io/badge/logging-loguru-4ecdc4.svg?style=for-the-badge)](https://github.com/Delgan/loguru)
 
 A lightweight proxy that converts Claude Code's Anthropic API requests to NVIDIA NIM format.  
 **40 reqs/min free** · **Telegram bot** · **VSCode & CLI**

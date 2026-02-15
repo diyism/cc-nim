@@ -1,9 +1,12 @@
 """Request builder for NVIDIA NIM provider."""
 
+import logging
 from typing import Any, Dict
 
 from config.nim import NimSettings
 from .utils.message_converter import AnthropicToOpenAIConverter
+
+logger = logging.getLogger(__name__)
 
 
 def _set_if_not_none(body: Dict[str, Any], key: str, value: Any) -> None:
@@ -25,6 +28,11 @@ def _set_extra(
 
 def build_request_body(request_data: Any, nim: NimSettings) -> dict:
     """Build OpenAI-format request body from Anthropic request."""
+    logger.debug(
+        "NIM_REQUEST: conversion start model=%s msgs=%d",
+        getattr(request_data, "model", "?"),
+        len(getattr(request_data, "messages", [])),
+    )
     messages = AnthropicToOpenAIConverter.convert_messages(request_data.messages)
 
     # Add system prompt
@@ -110,4 +118,10 @@ def build_request_body(request_data: Any, nim: NimSettings) -> dict:
     if extra_body:
         body["extra_body"] = extra_body
 
+    logger.debug(
+        "NIM_REQUEST: conversion done model=%s msgs=%d tools=%d",
+        body.get("model"),
+        len(body.get("messages", [])),
+        len(body.get("tools", [])),
+    )
     return body
