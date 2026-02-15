@@ -163,31 +163,23 @@ uv run uvicorn server:app --host 0.0.0.0 --port 8082
 
 ## Available Models
 
-**NVIDIA NIM** (`PROVIDER_TYPE=nvidia_nim`): See [`nvidia_nim_models.json`](nvidia_nim_models.json) for the full list. Popular choices:
+### NVIDIA NIM
 
-- `z-ai/glm5`
-- `stepfun-ai/step-3.5-flash`
-- `moonshotai/kimi-k2.5`
-- `minimaxai/minimax-m2.1`
-- `mistralai/devstral-2-123b-instruct-2512`
+Full list in [`nvidia_nim_models.json`](nvidia_nim_models.json). Popular models: `z-ai/glm5`, `stepfun-ai/step-3.5-flash`, `moonshotai/kimi-k2.5`, `minimaxai/minimax-m2.1`, `mistralai/devstral-2-123b-instruct-2512`.
 
-Browse at [build.nvidia.com](https://build.nvidia.com/explore/discover).
+Browse: [build.nvidia.com](https://build.nvidia.com/explore/discover)
 
-### Updating the NIM Model List
-
-To update `nvidia_nim_models.json` with the latest models from NVIDIA NIM:
+Update model list:
 
 ```bash
 curl "https://integrate.api.nvidia.com/v1/models" > nvidia_nim_models.json
 ```
 
-**OpenRouter** (`PROVIDER_TYPE=open_router`): Hundreds of models from stepfun, OpenAI, Anthropic, Google, etc. Examples:
+### OpenRouter
 
-- `stepfun/step-3.5-flash:free`
-- `openai/gpt-4o-mini`
-- `anthropic/claude-3.5-sonnet`
+Hundreds of models from stepfun, OpenAI, Anthropic, Google, and more. Examples: `stepfun/step-3.5-flash:free`, `openai/gpt-4o-mini`, `anthropic/claude-3.5-sonnet`.
 
-Browse at [openrouter.ai/models](https://openrouter.ai/models).
+Browse: [openrouter.ai/models](https://openrouter.ai/models)
 
 ## Configuration
 
