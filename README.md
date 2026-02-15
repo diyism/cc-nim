@@ -215,6 +215,18 @@ To run the test suite, use the following command:
 uv run pytest
 ```
 
+To run type checking:
+
+```bash
+uv run ty check
+```
+
+To run formatting:
+
+```bash
+uv run ruff format
+```
+
 ### Adding Your Own Provider
 
 Extend `BaseProvider` in `providers/` to add support for other APIs:
