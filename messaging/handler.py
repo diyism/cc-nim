@@ -10,7 +10,7 @@ import time
 import asyncio
 import logging
 import os
-from typing import Optional
+from typing import Optional, Tuple
 
 from .base import MessagingPlatform, SessionManagerInterface
 from .models import IncomingMessage
@@ -230,6 +230,126 @@ class ClaudeMessageHandler:
             )
         )
 
+    def _create_transcript_and_render_ctx(
+        self,
+    ) -> Tuple[TranscriptBuffer, RenderCtx]:
+        """Create transcript buffer and render context for node processing."""
+        transcript = TranscriptBuffer(show_tool_results=False)
+        render_ctx = RenderCtx(
+            bold=mdv2_bold,
+            code_inline=mdv2_code_inline,
+            escape_code=escape_md_v2_code,
+            escape_text=escape_md_v2,
+            render_markdown=render_markdown_to_mdv2,
+        )
+        return transcript, render_ctx
+
+    async def _handle_session_info_event(
+        self,
+        event_data: dict,
+        tree: Optional[MessageTree],
+        node_id: str,
+        captured_session_id: Optional[str],
+        temp_session_id: Optional[str],
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Handle session_info event; return updated (captured_session_id, temp_session_id)."""
+        if event_data.get("type") != "session_info":
+            return captured_session_id, temp_session_id
+
+        real_session_id = event_data.get("session_id")
+        if not real_session_id or not temp_session_id:
+            return captured_session_id, temp_session_id
+
+        await self.cli_manager.register_real_session_id(
+            temp_session_id, real_session_id
+        )
+        if tree and real_session_id:
+            await tree.update_state(
+                node_id,
+                MessageState.IN_PROGRESS,
+                session_id=real_session_id,
+            )
+            self.session_store.save_tree(tree.root_id, tree.to_dict())
+
+        return real_session_id, None
+
+    async def _process_parsed_event(
+        self,
+        parsed: dict,
+        transcript: TranscriptBuffer,
+        update_ui,
+        last_status: Optional[str],
+        had_transcript_events: bool,
+        tree: Optional[MessageTree],
+        node_id: str,
+        captured_session_id: Optional[str],
+    ) -> Tuple[Optional[str], bool]:
+        """Process a single parsed CLI event. Returns (last_status, had_transcript_events)."""
+        ptype = parsed.get("type")
+        transcript_types = (
+            "thinking_start",
+            "thinking_delta",
+            "thinking_chunk",
+            "thinking_stop",
+            "text_start",
+            "text_delta",
+            "text_chunk",
+            "text_stop",
+            "tool_use_start",
+            "tool_use_delta",
+            "tool_use_stop",
+            "tool_use",
+            "tool_result",
+            "block_stop",
+            "error",
+        )
+
+        if ptype in transcript_types:
+            transcript.apply(parsed)
+            had_transcript_events = True
+
+        if ptype in ("thinking_start", "thinking_delta", "thinking_chunk"):
+            await update_ui(format_status("🧠", "Claude is thinking..."))
+            last_status = format_status("🧠", "Claude is thinking...")
+        elif ptype in ("text_start", "text_delta", "text_chunk"):
+            await update_ui(format_status("🧠", "Claude is working..."))
+            last_status = format_status("🧠", "Claude is working...")
+        elif ptype in ("tool_use_start", "tool_use_delta", "tool_use"):
+            if parsed.get("name") == "Task":
+                await update_ui(format_status("🤖", "Subagent working..."))
+                last_status = format_status("🤖", "Subagent working...")
+            else:
+                await update_ui(format_status("⏳", "Executing tools..."))
+                last_status = format_status("⏳", "Executing tools...")
+        elif ptype == "tool_result":
+            await update_ui(format_status("⏳", "Executing tools..."))
+            last_status = format_status("⏳", "Executing tools...")
+        elif ptype == "block_stop":
+            await update_ui(last_status, force=True)
+        elif ptype == "complete":
+            if not had_transcript_events:
+                transcript.apply({"type": "text_chunk", "text": "Done."})
+            logger.info("HANDLER: Task complete, updating UI")
+            await update_ui(format_status("✅", "Complete"), force=True)
+            if tree and captured_session_id:
+                await tree.update_state(
+                    node_id,
+                    MessageState.COMPLETED,
+                    session_id=captured_session_id,
+                )
+                self.session_store.save_tree(tree.root_id, tree.to_dict())
+        elif ptype == "error":
+            error_msg = parsed.get("message", "Unknown error")
+            logger.error(f"HANDLER: Error event received: {error_msg[:200]}")
+            logger.info("HANDLER: Updating UI with error status")
+            await update_ui(format_status("❌", "Error"), force=True)
+            if tree:
+                await self._propagate_error_to_children(
+                    node_id, error_msg, "Parent task failed"
+                )
+
+        return last_status, had_transcript_events
+
     async def _process_node(
         self,
         node_id: str,
@@ -240,19 +360,11 @@ class ClaudeMessageHandler:
         status_msg_id = node.status_message_id
         chat_id = incoming.chat_id
 
-        # Update node state to IN_PROGRESS
         tree = self.tree_queue.get_tree_for_node(node_id)
         if tree:
             await tree.update_state(node_id, MessageState.IN_PROGRESS)
 
-        transcript = TranscriptBuffer(show_tool_results=False)
-        render_ctx = RenderCtx(
-            bold=mdv2_bold,
-            code_inline=mdv2_code_inline,
-            escape_code=escape_md_v2_code,
-            escape_text=escape_md_v2,
-            render_markdown=render_markdown_to_mdv2,
-        )
+        transcript, render_ctx = self._create_transcript_and_render_ctx()
 
         last_ui_update = 0.0
         last_displayed_text = None
@@ -261,7 +373,6 @@ class ClaudeMessageHandler:
         temp_session_id = None
         last_status: Optional[str] = None
 
-        # Get parent session ID for forking (if child node)
         parent_session_id = None
         if tree and node.parent_id:
             parent_session_id = tree.get_parent_session_id(node_id)
@@ -271,9 +382,6 @@ class ClaudeMessageHandler:
         async def update_ui(status: Optional[str] = None, force: bool = False) -> None:
             nonlocal last_ui_update, last_displayed_text, last_status
             now = time.time()
-
-            # Small 1s debounce for UI sanity - we still want to avoid
-            # spamming the queue with too many intermediate states
             if not force and now - last_ui_update < 1.0:
                 return
 
@@ -282,8 +390,6 @@ class ClaudeMessageHandler:
                 last_status = status
             display = transcript.render(render_ctx, limit_chars=3900, status=status)
             if display and display != last_displayed_text:
-                # Debug logging: capture what we are sending to Telegram.
-                # Full text logging can be noisy and may include sensitive content, so gate it.
                 logger.debug(
                     "TELEGRAM_EDIT: node_id=%s chat_id=%s msg_id=%s force=%s status=%r chars=%d",
                     node_id,
@@ -307,15 +413,12 @@ class ClaudeMessageHandler:
                 )
 
         try:
-            # Get or create CLI session
             try:
                 (
                     cli_session,
                     session_or_temp_id,
                     is_new,
-                ) = await self.cli_manager.get_or_create_session(
-                    session_id=None  # Always create a fresh session per node
-                )
+                ) = await self.cli_manager.get_or_create_session(session_id=None)
                 if is_new:
                     temp_session_id = session_or_temp_id
                 else:
@@ -331,7 +434,6 @@ class ClaudeMessageHandler:
                     )
                 return
 
-            # Process CLI events
             logger.info(f"HANDLER: Starting CLI task processing for node {node_id}")
             event_count = 0
             async for event_data in cli_session.start_task(
@@ -348,94 +450,30 @@ class ClaudeMessageHandler:
                 if event_count % 10 == 0:
                     logger.debug(f"HANDLER: Processed {event_count} events so far")
 
-                # Handle session_info event
+                captured_session_id, temp_session_id = (
+                    await self._handle_session_info_event(
+                        event_data, tree, node_id, captured_session_id, temp_session_id
+                    )
+                )
                 if event_data.get("type") == "session_info":
-                    real_session_id = event_data.get("session_id")
-                    if real_session_id and temp_session_id:
-                        await self.cli_manager.register_real_session_id(
-                            temp_session_id, real_session_id
-                        )
-                        captured_session_id = real_session_id
-                        temp_session_id = None
-                        # Persist session_id early so replies can fork even if a task
-                        # is stopped before completion.
-                        if tree and captured_session_id:
-                            await tree.update_state(
-                                node_id,
-                                MessageState.IN_PROGRESS,
-                                session_id=captured_session_id,
-                            )
-                            self.session_store.save_tree(tree.root_id, tree.to_dict())
                     continue
 
                 parsed_list = parse_cli_event(event_data)
                 logger.debug(f"HANDLER: Parsed {len(parsed_list)} events from CLI")
 
                 for parsed in parsed_list:
-                    ptype = parsed.get("type")
-                    if ptype in (
-                        "thinking_start",
-                        "thinking_delta",
-                        "thinking_chunk",
-                        "thinking_stop",
-                        "text_start",
-                        "text_delta",
-                        "text_chunk",
-                        "text_stop",
-                        "tool_use_start",
-                        "tool_use_delta",
-                        "tool_use_stop",
-                        "tool_use",
-                        "tool_result",
-                        "block_stop",
-                        "error",
-                    ):
-                        transcript.apply(parsed)
-                        had_transcript_events = True
-
-                    if ptype in ("thinking_start", "thinking_delta", "thinking_chunk"):
-                        await update_ui(format_status("🧠", "Claude is thinking..."))
-                    elif ptype in ("text_start", "text_delta", "text_chunk"):
-                        await update_ui(format_status("🧠", "Claude is working..."))
-                    elif ptype in ("tool_use_start", "tool_use_delta", "tool_use"):
-                        if parsed.get("name") == "Task":
-                            await update_ui(format_status("🤖", "Subagent working..."))
-                        else:
-                            await update_ui(format_status("⏳", "Executing tools..."))
-                    elif ptype == "tool_result":
-                        await update_ui(format_status("⏳", "Executing tools..."))
-                    elif ptype == "block_stop":
-                        # Force-flush at block boundaries so we don't get stuck showing
-                        # the last partial line if deltas landed inside the debounce window.
-                        await update_ui(last_status, force=True)
-
-                    elif parsed["type"] == "complete":
-                        # If nothing happened (rare), still show a completion marker.
-                        if not had_transcript_events:
-                            transcript.apply({"type": "text_chunk", "text": "Done."})
-                        logger.info("HANDLER: Task complete, updating UI")
-                        await update_ui(format_status("✅", "Complete"), force=True)
-
-                        # Update node state and session
-                        if tree and captured_session_id:
-                            await tree.update_state(
-                                node_id,
-                                MessageState.COMPLETED,
-                                session_id=captured_session_id,
-                            )
-                            self.session_store.save_tree(tree.root_id, tree.to_dict())
-
-                    elif parsed["type"] == "error":
-                        error_msg = parsed.get("message", "Unknown error")
-                        logger.error(
-                            f"HANDLER: Error event received: {error_msg[:200]}"
+                    last_status, had_transcript_events = (
+                        await self._process_parsed_event(
+                            parsed,
+                            transcript,
+                            update_ui,
+                            last_status,
+                            had_transcript_events,
+                            tree,
+                            node_id,
+                            captured_session_id,
                         )
-                        logger.info("HANDLER: Updating UI with error status")
-                        await update_ui(format_status("❌", "Error"), force=True)
-                        if tree:
-                            await self._propagate_error_to_children(
-                                node_id, error_msg, "Parent task failed"
-                            )
+                    )
 
         except asyncio.CancelledError:
             logger.warning(f"HANDLER: Task cancelled for node {node_id}")
