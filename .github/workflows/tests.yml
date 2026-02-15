@@ -9,6 +9,8 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -29,5 +31,12 @@ jobs:
       - name: Type check
         run: uv run ty check
 
-      - name: Check formatting
-        run: uv run ruff format --check
+      - name: Format
+        run: uv run ruff format
+
+      - name: Commit and push formatting changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --staged --quiet || (git commit -m "style: apply ruff format" && git push)
