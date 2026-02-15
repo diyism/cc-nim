@@ -422,9 +422,7 @@ class ClaudeMessageHandler:
                         chat_id, status_msg_id, display, parse_mode="MarkdownV2"
                     )
                 except Exception as e:
-                    logger.warning(
-                        f"Failed to update Telegram for node {node_id}: {e}"
-                    )
+                    logger.warning(f"Failed to update Telegram for node {node_id}: {e}")
 
         try:
             try:

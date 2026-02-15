@@ -145,12 +145,11 @@ def test_transcript_render_segment_exception_skipped():
     t.apply({"type": "text_chunk", "text": "after"})
 
     bad_segment = t._segments[1]
-    original_render = bad_segment.render
 
-    def _raising_render(ctx):
+    def _raising_render(self, ctx):
         raise ValueError("render failed")
 
-    bad_segment.render = _raising_render
+    bad_segment.render = _raising_render  # type: ignore[method-assign]
 
     out = t.render(_ctx(), limit_chars=3900, status=None)
     assert "before" in out

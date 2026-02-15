@@ -509,7 +509,7 @@ class TestStreamChunkEdgeCases:
         tc2 = {
             "index": 0,
             "id": "call_malformed",
-            "function": {"name": None, "arguments": ' never valid }'},
+            "function": {"name": None, "arguments": " never valid }"},
         }
 
         events1 = list(provider._process_tool_call(tc1, sse))

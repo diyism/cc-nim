@@ -252,12 +252,8 @@ class TestMessagingRateLimiter:
         async def fail_task():
             raise RuntimeError("last task failed")
 
-        future1 = asyncio.create_task(
-            limiter.enqueue(ok_task, dedup_key="fail_key")
-        )
-        future2 = asyncio.create_task(
-            limiter.enqueue(fail_task, dedup_key="fail_key")
-        )
+        future1 = asyncio.create_task(limiter.enqueue(ok_task, dedup_key="fail_key"))
+        future2 = asyncio.create_task(limiter.enqueue(fail_task, dedup_key="fail_key"))
 
         with pytest.raises(RuntimeError, match="last task failed"):
             await future1

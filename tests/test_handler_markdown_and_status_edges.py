@@ -259,7 +259,11 @@ async def test_update_ui_handles_transcript_render_exception():
     session_store = MagicMock()
 
     async def _mock_start_task(*args, **kwargs):
-        yield {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "hi"}}
+        yield {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "text_delta", "text": "hi"},
+        }
         yield {"type": "complete", "status": "success"}
 
     mock_session = MagicMock()
@@ -283,9 +287,7 @@ async def test_update_ui_handles_transcript_render_exception():
     )
     node = MessageNode(node_id="n1", incoming=incoming, status_message_id="s1")
 
-    with patch.object(
-        handler, "_create_transcript_and_render_ctx"
-    ) as mock_create:
+    with patch.object(handler, "_create_transcript_and_render_ctx") as mock_create:
         transcript = MagicMock()
         transcript.render = MagicMock(side_effect=ValueError("render failed"))
         render_ctx = MagicMock()
@@ -361,14 +363,24 @@ async def test_process_parsed_event_malformed_content_continues():
 async def test_handler_update_ui_edit_failure_does_not_crash():
     """When queue_edit_message raises during streaming, _process_node continues and completes."""
     platform = MagicMock()
-    platform.queue_edit_message = AsyncMock(side_effect=RuntimeError("Telegram API error"))
+    platform.queue_edit_message = AsyncMock(
+        side_effect=RuntimeError("Telegram API error")
+    )
     platform.fire_and_forget = MagicMock(
         side_effect=lambda c: getattr(c, "close", lambda: None)()
     )
 
     async def _mock_start_task(*args, **kwargs):
-        yield {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "Hello"}}
-        yield {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": " world"}}
+        yield {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "text_delta", "text": "Hello"},
+        }
+        yield {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "text_delta", "text": " world"},
+        }
         yield {"type": "complete", "status": "success"}
 
     mock_session = MagicMock()
