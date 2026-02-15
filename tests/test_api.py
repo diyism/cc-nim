@@ -3,6 +3,7 @@ from api.app import app
 from api.dependencies import get_provider
 from unittest.mock import AsyncMock, MagicMock
 from providers.nvidia_nim import NvidiaNimProvider
+from providers.exceptions import APIError
 
 # Mock provider
 mock_provider = MagicMock(spec=NvidiaNimProvider)
@@ -121,8 +122,7 @@ def test_generic_exception_returns_500():
 
 def test_generic_exception_with_status_code():
     """Exception with status_code attribute uses that status."""
-    exc = RuntimeError("bad gateway")
-    exc.status_code = 502
+    exc = APIError("bad gateway", status_code=502)
     mock_provider.complete.side_effect = exc
     response = client.post(
         "/v1/messages",
