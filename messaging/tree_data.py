@@ -263,16 +263,9 @@ class MessageTree:
             List of node IDs in FIFO order.
         """
         async with self._lock:
-            # Drain queue, copy items, then put them back to preserve order.
-            items: List[str] = []
-            while True:
-                try:
-                    items.append(self._queue.get_nowait())
-                except asyncio.QueueEmpty:
-                    break
-            for item in items:
-                self._queue.put_nowait(item)
-            return items
+            # Read internal deque directly to avoid mutating queue state.
+            # Drain/put approach would inflate _unfinished_tasks without task_done().
+            return list(self._queue._queue)  # type: ignore[attr-defined]
 
     def get_queue_size(self) -> int:
         """Get number of messages waiting in queue."""
