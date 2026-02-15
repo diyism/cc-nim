@@ -1,4 +1,4 @@
-name: Tests
+name: CI
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [main, master, cursor/readme-badges-best-practices-2d69]
 
 jobs:
-  test:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,3 +25,9 @@ jobs:
 
       - name: Run tests
         run: uv run pytest -v --tb=short
+
+      - name: Type check
+        run: uv run ty check
+
+      - name: Check formatting
+        run: uv run ruff format --check
