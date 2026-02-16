@@ -47,14 +47,26 @@ def get_provider() -> BaseProvider:
             )
             _provider = OpenRouterProvider(config)
             logger.info("Provider initialized: %s", settings.provider_type)
+        elif settings.provider_type == "lmstudio":
+            from providers.lmstudio import LMStudioProvider
+
+            config = ProviderConfig(
+                api_key="lm-studio",
+                base_url=settings.lm_studio_base_url,
+                rate_limit=settings.provider_rate_limit,
+                rate_window=settings.provider_rate_window,
+                nim_settings=settings.nim,
+            )
+            _provider = LMStudioProvider(config)
+            logger.info("Provider initialized: %s", settings.provider_type)
         else:
             logger.error(
-                "Unknown provider_type: '%s'. Supported: 'nvidia_nim', 'open_router'",
+                "Unknown provider_type: '%s'. Supported: 'nvidia_nim', 'open_router', 'lmstudio'",
                 settings.provider_type,
             )
             raise ValueError(
                 f"Unknown provider_type: '{settings.provider_type}'. "
-                f"Supported: 'nvidia_nim', 'open_router'"
+                f"Supported: 'nvidia_nim', 'open_router', 'lmstudio'"
             )
     return _provider
 

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # ==================== Provider Selection ====================
-    # Valid: "nvidia_nim" | "open_router"
+    # Valid: "nvidia_nim" | "open_router" | "lmstudio"
     provider_type: str = "nvidia_nim"
 
     # ==================== OpenRouter Config ====================
@@ -30,6 +30,12 @@ class Settings(BaseSettings):
 
     # ==================== NVIDIA NIM Config ====================
     nvidia_nim_api_key: str = ""
+
+    # ==================== LM Studio Config ====================
+    lm_studio_base_url: str = Field(
+        default="http://localhost:1234/v1",
+        validation_alias="LM_STUDIO_BASE_URL",
+    )
 
     # ==================== Model ====================
     # All Claude model requests are mapped to this single model

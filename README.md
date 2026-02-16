@@ -2,7 +2,7 @@
 
 # 🚀 Free Claude Code
 
-### Use Claude Code for free with NVIDIA NIM or OpenRouter
+### Use Claude Code for free with NVIDIA NIM, OpenRouter, or LM Studio
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Python 3.14](https://img.shields.io/badge/python-3.14-3776ab.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
@@ -12,7 +12,7 @@
 [![Code style: Ruff](https://img.shields.io/badge/code%20formatting-ruff-f5a623.svg?style=for-the-badge)](https://github.com/astral-sh/ruff)
 [![Logging: Loguru](https://img.shields.io/badge/logging-loguru-4ecdc4.svg?style=for-the-badge)](https://github.com/Delgan/loguru)
 
-A lightweight proxy that converts Claude Code's Anthropic API requests to NVIDIA NIM or OpenRouter format.  
+A lightweight proxy that converts Claude Code's Anthropic API requests to NVIDIA NIM, OpenRouter, or LM Studio format.  
 **40 reqs/min free** · **Provider switching** · **Telegram bot** · **VSCode & CLI**
 
 [Quick Start](#quick-start) · [Provider Switching](#provider-switching) · [Telegram Bot](#telegram-bot-integration) · [Models](#available-models) · [Configuration](#configuration)
@@ -27,9 +27,10 @@ A lightweight proxy that converts Claude Code's Anthropic API requests to NVIDIA
 
 ### 1. Prerequisites
 
-1. Get an API key:
+1. Get an API key (or use LM Studio locally):
    - **NVIDIA NIM**: [build.nvidia.com/settings/api-keys](https://build.nvidia.com/settings/api-keys)
    - **OpenRouter**: [openrouter.ai/keys](https://openrouter.ai/keys)
+   - **LM Studio**: No API key needed — run locally with [LM Studio](https://lmstudio.ai)
 2. Install [claude-code](https://github.com/anthropics/claude-code)
 3. Install [uv](https://github.com/astral-sh/uv)
 
@@ -56,6 +57,13 @@ Or for **OpenRouter**:
 PROVIDER_TYPE=open_router
 OPENROUTER_API_KEY=sk-or-your-key-here
 MODEL=stepfun/step-3.5-flash:free
+```
+
+Or for **LM Studio** (local, no API key):
+
+```dotenv
+PROVIDER_TYPE=lmstudio
+MODEL=lmstudio-community/qwen2.5-7b-instruct
 ```
 
 ---
@@ -107,14 +115,17 @@ That's it! The Claude Code VSCode extension now uses your configured provider fo
 
 ### Provider Switching
 
-Switch between **NVIDIA NIM** and **OpenRouter** via `PROVIDER_TYPE`:
+Switch between **NVIDIA NIM**, **OpenRouter**, and **LM Studio** via `PROVIDER_TYPE`:
 
 | Provider      | PROVIDER_TYPE    | API Key Variable       | Base URL                          |
 | ------------- | ---------------- | ---------------------- | --------------------------------- |
 | NVIDIA NIM    | `nvidia_nim`     | `NVIDIA_NIM_API_KEY`   | `integrate.api.nvidia.com/v1`     |
 | OpenRouter    | `open_router`    | `OPENROUTER_API_KEY`   | `openrouter.ai/api/v1`            |
+| LM Studio     | `lmstudio`       | (none)                 | `localhost:1234/v1`               |
 
 OpenRouter gives access to hundreds of models (stepfun, OpenAI, Anthropic, etc.) through a single API. Set `MODEL` to any OpenRouter model ID, e.g. `stepfun/step-3.5-flash:free`.
+
+LM Studio runs locally — start the server in LM Studio's Developer tab or via `lms server start`, load a model, and set `MODEL` to the model identifier (e.g. `lmstudio-community/qwen2.5-7b-instruct`).
 
 ---
 
@@ -193,13 +204,25 @@ Examples:
 
 Browse: [openrouter.ai/models](https://openrouter.ai/models)
 
+### LM Studio
+
+Run models locally with [LM Studio](https://lmstudio.ai). Load a model in the Chat or Developer tab, then set `MODEL` to its identifier.
+
+Examples (native tool-use support):
+- `lmstudio-community/qwen2.5-7b-instruct`
+- `lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF`
+- `bartowski/Ministral-8B-Instruct-2410-GGUF`
+
+Browse: [model.lmstudio.ai](https://model.lmstudio.ai)
+
 ## Configuration
 
 | Variable                          | Description                     | Default                       |
 | --------------------------------- | ------------------------------- | ----------------------------- |
-| `PROVIDER_TYPE`                   | Provider: `nvidia_nim` or `open_router` | `nvidia_nim`           |
+| `PROVIDER_TYPE`                   | Provider: `nvidia_nim`, `open_router`, or `lmstudio` | `nvidia_nim`           |
 | `NVIDIA_NIM_API_KEY`              | Your NVIDIA API key (NIM provider) | required                   |
 | `OPENROUTER_API_KEY`              | Your OpenRouter API key (OpenRouter provider) | required        |
+| `LM_STUDIO_BASE_URL`              | LM Studio server URL (lmstudio provider) | `http://localhost:1234/v1` |
 | `MODEL`                           | Model to use for all requests   | `stepfun-ai/step-3.5-flash` |
 | `CLAUDE_WORKSPACE`                | Directory for agent workspace   | `./agent_workspace`           |
 | `ALLOWED_DIR`                     | Allowed directories for agent   | `""`                          |
@@ -218,6 +241,7 @@ Browse: [openrouter.ai/models](https://openrouter.ai/models)
 
 - **NVIDIA NIM** base URL: `https://integrate.api.nvidia.com/v1`
 - **OpenRouter** base URL: `https://openrouter.ai/api/v1`
+- **LM Studio** base URL: `http://localhost:1234/v1` (configurable via `LM_STUDIO_BASE_URL`)
 
 See [`.env.example`](.env.example) for all supported parameters.
 

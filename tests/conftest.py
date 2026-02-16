@@ -45,6 +45,20 @@ def open_router_provider(provider_config):
 
 
 @pytest.fixture
+def lmstudio_provider(provider_config):
+    from providers.lmstudio import LMStudioProvider
+
+    lmstudio_config = ProviderConfig(
+        api_key="lm-studio",
+        base_url="http://localhost:1234/v1",
+        rate_limit=provider_config.rate_limit,
+        rate_window=provider_config.rate_window,
+        nim_settings=provider_config.nim_settings,
+    )
+    return LMStudioProvider(lmstudio_config)
+
+
+@pytest.fixture
 def mock_cli_session():
     session = MagicMock(spec=CLISession)
     session.start_task = MagicMock()  # This will return an async generator
