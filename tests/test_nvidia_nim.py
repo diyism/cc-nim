@@ -76,6 +76,12 @@ async def test_build_request_body(nim_provider):
     assert "thinking" in body["extra_body"]
     assert body["extra_body"]["thinking"]["type"] == "enabled"
 
+    # Verify chat_template_kwargs includes both thinking keys for model compatibility
+    ctk = body["extra_body"]["chat_template_kwargs"]
+    assert ctk["thinking"] is True
+    assert ctk["enable_thinking"] is True
+    assert ctk["clear_thinking"] is False
+
 
 @pytest.mark.asyncio
 async def test_stream_response_text(nim_provider):

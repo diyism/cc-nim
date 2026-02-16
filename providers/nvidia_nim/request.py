@@ -94,7 +94,12 @@ def build_request_body(request_data: Any, nim: NimSettings) -> dict:
     extra_body.setdefault("reasoning_split", True)
     extra_body.setdefault(
         "chat_template_kwargs",
-        {"thinking": True, "reasoning_split": True, "clear_thinking": False},
+        {
+            "thinking": True,
+            "enable_thinking": True,
+            "reasoning_split": True,
+            "clear_thinking": False,
+        },
     )
 
     req_top_k = getattr(request_data, "top_k", None)
