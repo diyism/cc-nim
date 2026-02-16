@@ -140,11 +140,11 @@ To switch back to Anthropic models, comment out the added block and reload exten
 
 ```
 ┌─────────────────┐        ┌──────────────────────┐        ┌──────────────────┐
-│  Claude Code     │───────>│  Free Claude Code     │───────>│  LLM Provider    │
-│  CLI / VSCode    │<───────│  Proxy (:8082)        │<───────│  NIM / OR / LMS  │
+│  Claude Code    │───────>│  Free Claude Code    │───────>│  LLM Provider    │
+│  CLI / VSCode   │<───────│  Proxy (:8082)       │<───────│  NIM / OR / LMS  │
 └─────────────────┘        └──────────────────────┘        └──────────────────┘
-   Anthropic API                     │                        OpenAI-compatible
-   format (SSE)              ┌───────┴───────┐                format (SSE)
+   Anthropic API                     │                       OpenAI-compatible
+   format (SSE)              ┌───────┴────────┐                format (SSE)
                              │ Optimizations  │
                              ├────────────────┤
                              │ Quota probes   │
