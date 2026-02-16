@@ -242,3 +242,31 @@ class TestSettingsOptionalStr:
         monkeypatch.setenv("ALLOWED_TELEGRAM_USER_ID", "")
         s = Settings()
         assert s.allowed_telegram_user_id is None
+
+    def test_discord_bot_token_from_env(self, monkeypatch):
+        from config.settings import Settings
+
+        monkeypatch.setenv("DISCORD_BOT_TOKEN", "discord_token_123")
+        s = Settings()
+        assert s.discord_bot_token == "discord_token_123"
+
+    def test_empty_discord_bot_token_to_none(self, monkeypatch):
+        from config.settings import Settings
+
+        monkeypatch.setenv("DISCORD_BOT_TOKEN", "")
+        s = Settings()
+        assert s.discord_bot_token is None
+
+    def test_allowed_discord_channels_from_env(self, monkeypatch):
+        from config.settings import Settings
+
+        monkeypatch.setenv("ALLOWED_DISCORD_CHANNELS", "111,222,333")
+        s = Settings()
+        assert s.allowed_discord_channels == "111,222,333"
+
+    def test_messaging_platform_from_env(self, monkeypatch):
+        from config.settings import Settings
+
+        monkeypatch.setenv("MESSAGING_PLATFORM", "discord")
+        s = Settings()
+        assert s.messaging_platform == "discord"

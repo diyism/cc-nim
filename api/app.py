@@ -56,6 +56,8 @@ async def lifespan(app: FastAPI):
             platform_type=settings.messaging_platform,
             bot_token=settings.telegram_bot_token,
             allowed_user_id=settings.allowed_telegram_user_id,
+            discord_bot_token=settings.discord_bot_token,
+            allowed_discord_channels=settings.allowed_discord_channels,
         )
 
         if messaging_platform:

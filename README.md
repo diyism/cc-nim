@@ -18,7 +18,7 @@
 A lightweight proxy server that translates Claude Code's Anthropic API calls into **NVIDIA NIM**, **OpenRouter**, or **LM Studio** format.
 Get **40 free requests/min** on NVIDIA NIM, access **hundreds of models** on OpenRouter, or run **fully local** with LM Studio.
 
-[Features](#features) · [Quick Start](#quick-start) · [How It Works](#how-it-works) · [Telegram Bot](#telegram-bot) · [Configuration](#configuration)
+[Features](#features) · [Quick Start](#quick-start) · [How It Works](#how-it-works) · [Discord Bot](#discord-bot) · [Configuration](#configuration)
 
 ---
 
@@ -39,7 +39,7 @@ Get **40 free requests/min** on NVIDIA NIM, access **hundreds of models** on Ope
 | **Thinking Token Support** | Parses `<think>` tags and `reasoning_content` into native Claude thinking blocks |
 | **Heuristic Tool Parser** | Models outputting tool calls as text are auto-parsed into structured tool use |
 | **Request Optimization** | 5 categories of trivial API calls intercepted locally — saves quota and latency |
-| **Telegram Bot** | Remote autonomous coding with tree-based threading, session persistence, and live progress |
+| **Discord Bot** | Remote autonomous coding with tree-based threading, session persistence, and live progress (Telegram also supported) |
 | **Smart Rate Limiting** | Proactive rolling-window throttle + reactive 429 exponential backoff across all providers |
 | **Subagent Control** | Task tool interception forces `run_in_background=False` — no runaway subagents |
 | **Extensible** | Clean `BaseProvider` and `MessagingPlatform` ABCs — add new providers or platforms easily |
@@ -184,9 +184,9 @@ LM Studio runs locally — start the server in LM Studio's Developer tab or via 
 
 ---
 
-## Telegram Bot
+## Discord Bot
 
-Control Claude Code remotely from your phone. Send tasks, watch live progress, and manage multiple concurrent sessions.
+Control Claude Code remotely from Discord. Send tasks, watch live progress, and manage multiple concurrent sessions. Discord is the default messaging platform; Telegram is also supported.
 
 **Capabilities:**
 - Tree-based message threading — reply to messages to fork conversations
@@ -197,16 +197,17 @@ Control Claude Code remotely from your phone. Send tasks, watch live progress, a
 
 ### Setup
 
-1. **Get a Bot Token** — Message [@BotFather](https://t.me/BotFather) on Telegram, send `/newbot`, and copy the HTTP API Token.
+1. **Create a Discord Bot** — Go to [Discord Developer Portal](https://discord.com/developers/applications), create an application, add a bot, and copy the token. Enable **Message Content Intent** under Bot settings.
 
 2. **Edit `.env`:**
 
 ```dotenv
-TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
-ALLOWED_TELEGRAM_USER_ID=your_telegram_user_id
+MESSAGING_PLATFORM=discord
+DISCORD_BOT_TOKEN=your_discord_bot_token
+ALLOWED_DISCORD_CHANNELS=123456789,987654321
 ```
 
-> To find your Telegram user ID, message [@userinfobot](https://t.me/userinfobot).
+> Enable Developer Mode in Discord (Settings → Advanced), then right-click a channel and "Copy ID" to get channel IDs. Comma-separate multiple channels. If empty, no channels are allowed.
 
 3. **Configure the workspace** (where Claude will operate):
 
@@ -221,7 +222,18 @@ ALLOWED_DIR=C:/Users/yourname/projects
 uv run uvicorn server:app --host 0.0.0.0 --port 8082
 ```
 
-5. **Send a message** to the bot with a task. Claude responds with thinking tokens, tool calls as they execute, and the final result. Reply `/stop` to a running task to cancel it.
+5. **Invite the bot** to your server (OAuth2 → URL Generator, scopes: `bot`, permissions: Read Messages, Send Messages, Manage Messages, Read Message History). Send a message in an allowed channel with a task. Claude responds with thinking tokens, tool calls as they execute, and the final result. Reply `/stop` to a running task to cancel it.
+
+### Telegram (Alternative)
+
+To use Telegram instead, set `MESSAGING_PLATFORM=telegram` and configure:
+
+```dotenv
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+ALLOWED_TELEGRAM_USER_ID=your_telegram_user_id
+```
+
+Get a token from [@BotFather](https://t.me/BotFather); find your user ID via [@userinfobot](https://t.me/userinfobot).
 
 ---
 
@@ -295,9 +307,12 @@ Browse: [model.lmstudio.ai](https://model.lmstudio.ai)
 | `ENABLE_TITLE_GENERATION_SKIP` | Skip title generation | `true` |
 | `ENABLE_SUGGESTION_MODE_SKIP` | Skip suggestion mode | `true` |
 | `ENABLE_FILEPATH_EXTRACTION_MOCK` | Enable filepath extraction mock | `true` |
+| `MESSAGING_PLATFORM` | Messaging platform: `discord` or `telegram` | `discord` |
+| `DISCORD_BOT_TOKEN` | Discord Bot Token | `""` |
+| `ALLOWED_DISCORD_CHANNELS` | Comma-separated channel IDs (empty = none allowed) | `""` |
 | `TELEGRAM_BOT_TOKEN` | Telegram Bot Token | `""` |
 | `ALLOWED_TELEGRAM_USER_ID` | Allowed Telegram User ID | `""` |
-| `MESSAGING_RATE_LIMIT` | Telegram messages per window | `1` |
+| `MESSAGING_RATE_LIMIT` | Messaging messages per window | `1` |
 | `MESSAGING_RATE_WINDOW` | Messaging window (seconds) | `1` |
 | `CLAUDE_WORKSPACE` | Directory for agent workspace | `./agent_workspace` |
 | `ALLOWED_DIR` | Allowed directories for agent | `""` |
@@ -316,7 +331,7 @@ free-claude-code/
 ├── server.py              # Entry point
 ├── api/                   # FastAPI routes, request detection, optimization handlers
 ├── providers/             # BaseProvider ABC + NVIDIA NIM, OpenRouter, LM Studio
-├── messaging/             # MessagingPlatform ABC + Telegram bot, session management
+├── messaging/             # MessagingPlatform ABC + Discord/Telegram bots, session management
 ├── config/                # Settings, NIM config, logging
 ├── cli/                   # CLI session and process management
 ├── utils/                 # Text utilities
@@ -351,7 +366,7 @@ class MyProvider(BaseProvider):
 
 ### Adding a Messaging Platform
 
-Extend `MessagingPlatform` in `messaging/` to add Discord, Slack, or other platforms:
+Extend `MessagingPlatform` in `messaging/` to add Slack or other platforms:
 
 ```python
 from messaging.base import MessagingPlatform
@@ -386,7 +401,7 @@ Contributions are welcome! Here are some ways to help:
 
 - Report bugs or suggest features via [Issues](https://github.com/Alishahryar1/free-claude-code/issues)
 - Add new LLM providers (Groq, Together AI, etc.)
-- Add new messaging platforms (Discord, Slack, etc.)
+- Add new messaging platforms (Slack, etc.)
 - Improve test coverage
 
 ```bash
@@ -403,4 +418,4 @@ uv run pytest && uv run ty check && uv run ruff check && uv run ruff format --ch
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
-Built with [FastAPI](https://fastapi.tiangolo.com/), [OpenAI Python SDK](https://github.com/openai/openai-python), and [python-telegram-bot](https://python-telegram-bot.org/).
+Built with [FastAPI](https://fastapi.tiangolo.com/), [OpenAI Python SDK](https://github.com/openai/openai-python), [discord.py](https://github.com/Rapptz/discord.py), and [python-telegram-bot](https://python-telegram-bot.org/).

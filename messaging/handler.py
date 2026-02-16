@@ -22,8 +22,16 @@ from .telegram_markdown import (
     escape_md_v2_code,
     mdv2_bold,
     mdv2_code_inline,
-    format_status,
+    format_status as format_status_telegram,
     render_markdown_to_mdv2,
+)
+from .discord_markdown import (
+    escape_discord,
+    escape_discord_code,
+    discord_bold,
+    discord_code_inline,
+    format_status as format_status_discord,  # (emoji, label, suffix)
+    render_markdown_to_discord,
 )
 from loguru import logger
 
@@ -64,16 +72,16 @@ _EVENT_STATUS_MAP = {
 }
 
 
-def _get_status_for_event(ptype: str, parsed: dict) -> Optional[str]:
+def _get_status_for_event(ptype: str, parsed: dict, format_status_fn) -> Optional[str]:
     """Return status string for event type, or None if no status update needed."""
     entry = _EVENT_STATUS_MAP.get(ptype)
     if entry is not None:
         emoji, label = entry
-        return format_status(emoji, label)
+        return format_status_fn(emoji, label)
     if ptype in ("tool_use_start", "tool_use_delta", "tool_use"):
         if parsed.get("name") == "Task":
-            return format_status("🤖", "Subagent working...")
-        return format_status("⏳", "Executing tools...")
+            return format_status_fn("🤖", "Subagent working...")
+        return format_status_fn("⏳", "Executing tools...")
     return None
 
 
@@ -101,6 +109,44 @@ class ClaudeMessageHandler:
             queue_update_callback=self._update_queue_positions,
             node_started_callback=self._mark_node_processing,
         )
+
+    def _format_status(
+        self, emoji: str, label: str, suffix: Optional[str] = None
+    ) -> str:
+        """Platform-specific status formatting."""
+        if self.platform.name == "discord":
+            return format_status_discord(emoji, label, suffix)
+        return format_status_telegram(emoji, label, suffix)
+
+    def _parse_mode(self) -> Optional[str]:
+        """Platform-specific parse mode (MarkdownV2 for Telegram, None for Discord)."""
+        if self.platform.name == "discord":
+            return None
+        return "MarkdownV2"
+
+    def _get_render_ctx(self) -> RenderCtx:
+        """Platform-specific render context for transcript."""
+        if self.platform.name == "discord":
+            return RenderCtx(
+                bold=discord_bold,
+                code_inline=discord_code_inline,
+                escape_code=escape_discord_code,
+                escape_text=escape_discord,
+                render_markdown=render_markdown_to_discord,
+            )
+        return RenderCtx(
+            bold=mdv2_bold,
+            code_inline=mdv2_code_inline,
+            escape_code=escape_md_v2_code,
+            escape_text=escape_md_v2,
+            render_markdown=render_markdown_to_mdv2,
+        )
+
+    def _get_limit_chars(self) -> int:
+        """Platform-specific message length limit (Discord 2000, Telegram 4096)."""
+        if self.platform.name == "discord":
+            return 1900
+        return 3900
 
     async def handle_message(self, incoming: IncomingMessage) -> None:
         """
@@ -239,8 +285,10 @@ class ClaudeMessageHandler:
             await self.platform.queue_edit_message(
                 incoming.chat_id,
                 status_msg_id,
-                format_status("📋", "Queued", f"(position {queue_size}) - waiting..."),
-                parse_mode="MarkdownV2",
+                self._format_status(
+                    "📋", "Queued", f"(position {queue_size}) - waiting..."
+                ),
+                parse_mode=self._parse_mode(),
             )
 
     async def _update_queue_positions(self, tree: MessageTree) -> None:
@@ -264,10 +312,10 @@ class ClaudeMessageHandler:
                 self.platform.queue_edit_message(
                     node.incoming.chat_id,
                     node.status_message_id,
-                    format_status(
+                    self._format_status(
                         "📋", "Queued", f"(position {position}) - waiting..."
                     ),
-                    parse_mode="MarkdownV2",
+                    parse_mode=self._parse_mode(),
                 )
             )
 
@@ -280,8 +328,8 @@ class ClaudeMessageHandler:
             self.platform.queue_edit_message(
                 node.incoming.chat_id,
                 node.status_message_id,
-                format_status("🔄", "Processing..."),
-                parse_mode="MarkdownV2",
+                self._format_status("🔄", "Processing..."),
+                parse_mode=self._parse_mode(),
             )
         )
 
@@ -290,14 +338,7 @@ class ClaudeMessageHandler:
     ) -> Tuple[TranscriptBuffer, RenderCtx]:
         """Create transcript buffer and render context for node processing."""
         transcript = TranscriptBuffer(show_tool_results=False)
-        render_ctx = RenderCtx(
-            bold=mdv2_bold,
-            code_inline=mdv2_code_inline,
-            escape_code=escape_md_v2_code,
-            escape_text=escape_md_v2,
-            render_markdown=render_markdown_to_mdv2,
-        )
-        return transcript, render_ctx
+        return transcript, self._get_render_ctx()
 
     async def _handle_session_info_event(
         self,
@@ -346,7 +387,7 @@ class ClaudeMessageHandler:
             transcript.apply(parsed)
             had_transcript_events = True
 
-        status = _get_status_for_event(ptype, parsed)
+        status = _get_status_for_event(ptype, parsed, self._format_status)
         if status is not None:
             await update_ui(status)
             last_status = status
@@ -356,7 +397,7 @@ class ClaudeMessageHandler:
             if not had_transcript_events:
                 transcript.apply({"type": "text_chunk", "text": "Done."})
             logger.info("HANDLER: Task complete, updating UI")
-            await update_ui(format_status("✅", "Complete"), force=True)
+            await update_ui(self._format_status("✅", "Complete"), force=True)
             if tree and captured_session_id:
                 await tree.update_state(
                     node_id,
@@ -368,7 +409,7 @@ class ClaudeMessageHandler:
             error_msg = parsed.get("message", "Unknown error")
             logger.error(f"HANDLER: Error event received: {error_msg}")
             logger.info("HANDLER: Updating UI with error status")
-            await update_ui(format_status("❌", "Error"), force=True)
+            await update_ui(self._format_status("❌", "Error"), force=True)
             if tree:
                 await self._propagate_error_to_children(
                     node_id, error_msg, "Parent task failed"
@@ -428,7 +469,11 @@ class ClaudeMessageHandler:
             if status is not None:
                 last_status = status
             try:
-                display = transcript.render(render_ctx, limit_chars=3900, status=status)
+                display = transcript.render(
+                    render_ctx,
+                    limit_chars=self._get_limit_chars(),
+                    status=status,
+                )
             except Exception as e:
                 logger.warning(f"Transcript render failed for node {node_id}: {e}")
                 return
@@ -453,7 +498,10 @@ class ClaudeMessageHandler:
                 last_displayed_text = display
                 try:
                     await self.platform.queue_edit_message(
-                        chat_id, status_msg_id, display, parse_mode="MarkdownV2"
+                        chat_id,
+                        status_msg_id,
+                        display,
+                        parse_mode=self._parse_mode(),
                     )
                 except Exception as e:
                     logger.warning(f"Failed to update Telegram for node {node_id}: {e}")
@@ -472,7 +520,8 @@ class ClaudeMessageHandler:
             except RuntimeError as e:
                 transcript.apply({"type": "error", "message": str(e)})
                 await update_ui(
-                    format_status("⏳", "Session limit reached"), force=True
+                    self._format_status("⏳", "Session limit reached"),
+                    force=True,
                 )
                 if tree:
                     await tree.update_state(
@@ -530,10 +579,10 @@ class ClaudeMessageHandler:
                 cancel_reason = node.context.get("cancel_reason")
 
             if cancel_reason == "stop":
-                await update_ui(format_status("⏹", "Stopped."), force=True)
+                await update_ui(self._format_status("⏹", "Stopped."), force=True)
             else:
                 transcript.apply({"type": "error", "message": "Task was cancelled"})
-                await update_ui(format_status("❌", "Cancelled"), force=True)
+                await update_ui(self._format_status("❌", "Cancelled"), force=True)
 
             # Do not propagate cancellation to children; a reply-scoped "/stop"
             # should only stop the targeted task.
@@ -547,7 +596,7 @@ class ClaudeMessageHandler:
             )
             error_msg = str(e)[:200]
             transcript.apply({"type": "error", "message": error_msg})
-            await update_ui(format_status("💥", "Task Failed"), force=True)
+            await update_ui(self._format_status("💥", "Task Failed"), force=True)
             if tree:
                 await self._propagate_error_to_children(
                     node_id, error_msg, "Parent task failed"
@@ -581,8 +630,8 @@ class ClaudeMessageHandler:
                 self.platform.queue_edit_message(
                     child.incoming.chat_id,
                     child.status_message_id,
-                    format_status("❌", "Cancelled:", child_status_text),
-                    parse_mode="MarkdownV2",
+                    self._format_status("❌", "Cancelled:", child_status_text),
+                    parse_mode=self._parse_mode(),
                 )
             )
 
@@ -596,20 +645,20 @@ class ClaudeMessageHandler:
             # Reply to existing tree
             if self.tree_queue.is_node_tree_busy(parent_node_id):
                 queue_size = self.tree_queue.get_queue_size(parent_node_id) + 1
-                return format_status(
+                return self._format_status(
                     "📋", "Queued", f"(position {queue_size}) - waiting..."
                 )
-            return format_status("🔄", "Continuing conversation...")
+            return self._format_status("🔄", "Continuing conversation...")
 
         # New conversation
         stats = self.cli_manager.get_stats()
         if stats["active_sessions"] >= stats["max_sessions"]:
-            return format_status(
+            return self._format_status(
                 "⏳",
                 "Waiting for slot...",
                 f"({stats['active_sessions']}/{stats['max_sessions']})",
             )
-        return format_status("⏳", "Launching new Claude CLI instance...")
+        return self._format_status("⏳", "Launching new Claude CLI instance...")
 
     async def stop_all_tasks(self) -> int:
         """
@@ -676,8 +725,8 @@ class ClaudeMessageHandler:
                 self.platform.queue_edit_message(
                     node.incoming.chat_id,
                     node.status_message_id,
-                    format_status("⏹", "Stopped."),
-                    parse_mode="MarkdownV2",
+                    self._format_status("⏹", "Stopped."),
+                    parse_mode=self._parse_mode(),
                 )
             )
             tree = self.tree_queue.get_tree_for_node(node.node_id)
@@ -697,7 +746,9 @@ class ClaudeMessageHandler:
             if not node_id:
                 msg_id = await self.platform.queue_send_message(
                     incoming.chat_id,
-                    format_status("⏹", "Stopped.", "Nothing to stop for that message."),
+                    self._format_status(
+                        "⏹", "Stopped.", "Nothing to stop for that message."
+                    ),
                     fire_and_forget=False,
                 )
                 self._record_outgoing_message(
@@ -709,7 +760,7 @@ class ClaudeMessageHandler:
             noun = "request" if count == 1 else "requests"
             msg_id = await self.platform.queue_send_message(
                 incoming.chat_id,
-                format_status("⏹", "Stopped.", f"Cancelled {count} {noun}."),
+                self._format_status("⏹", "Stopped.", f"Cancelled {count} {noun}."),
                 fire_and_forget=False,
             )
             self._record_outgoing_message(
@@ -721,7 +772,7 @@ class ClaudeMessageHandler:
         count = await self.stop_all_tasks()
         msg_id = await self.platform.queue_send_message(
             incoming.chat_id,
-            format_status(
+            self._format_status(
                 "⏹", "Stopped.", f"Cancelled {count} pending or active requests."
             ),
             fire_and_forget=False,
@@ -734,16 +785,17 @@ class ClaudeMessageHandler:
         """Handle /stats command."""
         stats = self.cli_manager.get_stats()
         tree_count = self.tree_queue.get_tree_count()
+        ctx = self._get_render_ctx()
         msg_id = await self.platform.queue_send_message(
             incoming.chat_id,
             "📊 "
-            + mdv2_bold("Stats")
+            + ctx.bold("Stats")
             + "\n"
-            + escape_md_v2(f"• Active CLI: {stats['active_sessions']}")
+            + ctx.escape_text(f"• Active CLI: {stats['active_sessions']}")
             + "\n"
-            + escape_md_v2(f"• Max CLI: {stats['max_sessions']}")
+            + ctx.escape_text(f"• Max CLI: {stats['max_sessions']}")
             + "\n"
-            + escape_md_v2(f"• Message Trees: {tree_count}"),
+            + ctx.escape_text(f"• Message Trees: {tree_count}"),
             fire_and_forget=False,
         )
         self._record_outgoing_message(

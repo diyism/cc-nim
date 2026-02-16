@@ -26,7 +26,10 @@ class Settings(BaseSettings):
     open_router_api_key: str = Field(default="", validation_alias="OPENROUTER_API_KEY")
 
     # ==================== Messaging Platform Selection ====================
-    messaging_platform: str = "telegram"
+    # Valid: "telegram" | "discord"
+    messaging_platform: str = Field(
+        default="discord", validation_alias="MESSAGING_PLATFORM"
+    )
 
     # ==================== NVIDIA NIM Config ====================
     nvidia_nim_api_key: str = ""
@@ -62,6 +65,12 @@ class Settings(BaseSettings):
     # ==================== Bot Wrapper Config ====================
     telegram_bot_token: Optional[str] = None
     allowed_telegram_user_id: Optional[str] = None
+    discord_bot_token: Optional[str] = Field(
+        default=None, validation_alias="DISCORD_BOT_TOKEN"
+    )
+    allowed_discord_channels: Optional[str] = Field(
+        default=None, validation_alias="ALLOWED_DISCORD_CHANNELS"
+    )
     claude_workspace: str = "./agent_workspace"
     allowed_dir: str = ""
     max_cli_sessions: int = 10
@@ -75,6 +84,8 @@ class Settings(BaseSettings):
     @field_validator(
         "telegram_bot_token",
         "allowed_telegram_user_id",
+        "discord_bot_token",
+        "allowed_discord_channels",
         mode="before",
     )
     @classmethod

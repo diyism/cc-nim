@@ -33,9 +33,34 @@ class TestCreateMessagingPlatform:
         result = create_messaging_platform("telegram", bot_token="")
         assert result is None
 
+    def test_discord_with_token(self):
+        """Create Discord platform when discord_bot_token is provided."""
+        mock_platform = MagicMock()
+        with patch("messaging.discord.DISCORD_AVAILABLE", True):
+            with patch("messaging.discord.DiscordPlatform", return_value=mock_platform):
+                result = create_messaging_platform(
+                    "discord",
+                    discord_bot_token="test_token",
+                    allowed_discord_channels="123,456",
+                )
+
+        assert result is mock_platform
+
+    def test_discord_without_token(self):
+        """Return None when no discord_bot_token for Discord."""
+        result = create_messaging_platform("discord")
+        assert result is None
+
+    def test_discord_empty_token(self):
+        """Return None when discord_bot_token is empty string."""
+        result = create_messaging_platform(
+            "discord", discord_bot_token="", allowed_discord_channels="123"
+        )
+        assert result is None
+
     def test_unknown_platform(self):
         """Return None for unknown platform types."""
-        result = create_messaging_platform("discord")
+        result = create_messaging_platform("slack")
         assert result is None
 
     def test_unknown_platform_with_kwargs(self):
