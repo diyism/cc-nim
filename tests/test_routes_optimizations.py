@@ -97,6 +97,20 @@ def test_count_tokens_endpoint(client):
     assert response.json()["input_tokens"] == 5
 
 
+def test_count_tokens_error_returns_500(client):
+    """When get_token_count raises, count_tokens returns 500."""
+    payload = {
+        "model": "claude-3-sonnet",
+        "messages": [{"role": "user", "content": "hello"}],
+    }
+
+    with patch("api.routes.get_token_count", side_effect=RuntimeError("token error")):
+        response = client.post("/v1/messages/count_tokens", json=payload)
+
+    assert response.status_code == 500
+    assert "token error" in response.json()["detail"]
+
+
 def test_stop_cli_with_handler(client):
     mock_handler = MagicMock()
     # Mock the async method to return a completed future or just mock it since TestClient

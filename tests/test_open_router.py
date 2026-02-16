@@ -204,3 +204,152 @@ async def test_stream_response_reasoning_content(open_router_provider):
                 if "Thinking..." in e:
                     found_thinking = True
         assert found_thinking
+
+
+@pytest.mark.asyncio
+async def test_stream_response_empty_choices_skipped(open_router_provider):
+    """Chunks with empty choices are skipped."""
+    req = MockRequest()
+
+    async def mock_stream():
+        yield MagicMock(choices=[], usage=None)
+        yield MagicMock(
+            choices=[
+                MagicMock(
+                    delta=MagicMock(content="ok", reasoning_content=None),
+                    finish_reason="stop",
+                )
+            ],
+            usage=MagicMock(completion_tokens=2),
+        )
+
+    with patch.object(
+        open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+        events = []
+        async for event in open_router_provider.stream_response(req):
+            events.append(event)
+        assert any("content_block_delta" in e and "ok" in e for e in events)
+
+
+@pytest.mark.asyncio
+async def test_stream_response_delta_none_skipped(open_router_provider):
+    """Chunks with delta=None are skipped."""
+    req = MockRequest()
+
+    async def mock_stream():
+        yield MagicMock(
+            choices=[MagicMock(delta=None, finish_reason=None)],
+            usage=None,
+        )
+        yield MagicMock(
+            choices=[
+                MagicMock(
+                    delta=MagicMock(content="x", reasoning_content=None),
+                    finish_reason="stop",
+                )
+            ],
+            usage=MagicMock(completion_tokens=1),
+        )
+
+    with patch.object(
+        open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+        events = []
+        async for event in open_router_provider.stream_response(req):
+            events.append(event)
+        assert any("x" in e for e in events)
+
+
+@pytest.mark.asyncio
+async def test_stream_response_reasoning_details(open_router_provider):
+    """Streaming with reasoning_details (stepfun format)."""
+    req = MockRequest()
+
+    mock_chunk = MagicMock()
+    mock_chunk.choices = [
+        MagicMock(
+            delta=MagicMock(
+                content=None,
+                reasoning_content=None,
+                reasoning_details=[{"text": "Step 1"}],
+            ),
+            finish_reason=None,
+        )
+    ]
+    mock_chunk.usage = None
+
+    async def mock_stream():
+        yield mock_chunk
+        yield MagicMock(
+            choices=[
+                MagicMock(
+                    delta=MagicMock(
+                        content=None,
+                        reasoning_content=None,
+                        reasoning_details=None,
+                    ),
+                    finish_reason="stop",
+                )
+            ],
+            usage=MagicMock(completion_tokens=5),
+        )
+
+    with patch.object(
+        open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+        events = []
+        async for event in open_router_provider.stream_response(req):
+            events.append(event)
+        assert any("Step 1" in e for e in events)
+
+
+@pytest.mark.asyncio
+async def test_stream_response_error_path(open_router_provider):
+    """Stream raises exception -> error event emitted."""
+    req = MockRequest()
+
+    async def mock_stream():
+        raise RuntimeError("API failed")
+        yield  # unreachable, makes it a generator
+
+    with patch.object(
+        open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+        events = []
+        async for event in open_router_provider.stream_response(req):
+            events.append(event)
+        # Error is emitted; message_stop/done indicates stream completed
+        assert any("API failed" in e for e in events)
+        assert any("message_stop" in e for e in events)
+
+
+@pytest.mark.asyncio
+async def test_stream_response_finish_reason_only(open_router_provider):
+    """Chunk with finish_reason but no content still completes."""
+    req = MockRequest()
+
+    async def mock_stream():
+        yield MagicMock(
+            choices=[
+                MagicMock(
+                    delta=MagicMock(content=None, reasoning_content=None),
+                    finish_reason="stop",
+                )
+            ],
+            usage=MagicMock(completion_tokens=0),
+        )
+
+    with patch.object(
+        open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+        events = []
+        async for event in open_router_provider.stream_response(req):
+            events.append(event)
+        assert any("message_delta" in e for e in events)
+        assert any("message_stop" in e for e in events)

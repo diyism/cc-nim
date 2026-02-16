@@ -183,3 +183,72 @@ class TestProviderRateLimiter:
                 f"Rolling window violated at i={i}: "
                 f"dt={acquired[i + rate_limit] - acquired[i]:.3f}s"
             )
+
+    @pytest.mark.asyncio
+    async def test_init_rate_limit_zero_raises(self):
+        """rate_limit <= 0 raises ValueError."""
+        GlobalRateLimiter.reset_instance()
+        with pytest.raises(ValueError, match="rate_limit must be > 0"):
+            GlobalRateLimiter(rate_limit=0, rate_window=60)
+
+    @pytest.mark.asyncio
+    async def test_init_rate_window_zero_raises(self):
+        """rate_window <= 0 raises ValueError."""
+        GlobalRateLimiter.reset_instance()
+        with pytest.raises(ValueError, match="rate_window must be > 0"):
+            GlobalRateLimiter(rate_limit=10, rate_window=0)
+
+    @pytest.mark.asyncio
+    async def test_execute_with_retry_exhaust_retries_raises(self):
+        """When all 429 retries exhausted, last exception is raised."""
+        import openai
+        from httpx import Response, Request
+
+        GlobalRateLimiter.reset_instance()
+        limiter = GlobalRateLimiter.get_instance(rate_limit=100, rate_window=60)
+
+        def make_429():
+            return openai.RateLimitError(
+                "rate limited",
+                response=Response(429, request=Request("POST", "http://x")),
+                body={},
+            )
+
+        async def fail():
+            raise make_429()
+
+        with pytest.raises(openai.RateLimitError):
+            await limiter.execute_with_retry(
+                fail, max_retries=2, base_delay=0.01, max_delay=0.1, jitter=0
+            )
+
+    @pytest.mark.asyncio
+    async def test_execute_with_retry_succeeds_on_retry(self):
+        """429 then success returns result."""
+        import openai
+        from httpx import Response, Request
+
+        GlobalRateLimiter.reset_instance()
+        limiter = GlobalRateLimiter.get_instance(rate_limit=100, rate_window=60)
+
+        def make_429():
+            return openai.RateLimitError(
+                "rate limited",
+                response=Response(429, request=Request("POST", "http://x")),
+                body={},
+            )
+
+        call_count = 0
+
+        async def fail_then_ok():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise make_429()
+            return "ok"
+
+        result = await limiter.execute_with_retry(
+            fail_then_ok, max_retries=2, base_delay=0.01, max_delay=0.1, jitter=0
+        )
+        assert result == "ok"
+        assert call_count == 2

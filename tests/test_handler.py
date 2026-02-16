@@ -11,6 +11,47 @@ def handler(mock_platform, mock_cli_manager, mock_session_store):
     return ClaudeMessageHandler(mock_platform, mock_cli_manager, mock_session_store)
 
 
+def test_get_initial_status_new_conversation_with_slot(handler):
+    """New conversation when slots available returns launching message."""
+    handler.cli_manager.get_stats.return_value = {
+        "active_sessions": 0,
+        "max_sessions": 5,
+    }
+    result = handler._get_initial_status(None, None)
+    assert "Launching" in result
+
+
+def test_get_initial_status_new_conversation_at_capacity(handler):
+    """New conversation at capacity returns waiting message."""
+    handler.cli_manager.get_stats.return_value = {
+        "active_sessions": 5,
+        "max_sessions": 5,
+    }
+    result = handler._get_initial_status(None, None)
+    assert "Waiting" in result
+    assert "5/5" in result
+
+
+def test_get_initial_status_reply_tree_busy_queued(handler):
+    """Reply to tree when busy returns queued message."""
+    mock_queue = MagicMock()
+    mock_queue.is_node_tree_busy.return_value = True
+    mock_queue.get_queue_size.return_value = 2
+    handler.tree_queue = mock_queue
+    result = handler._get_initial_status(MagicMock(), "parent_1")
+    assert "Queued" in result
+    assert "position 3" in result
+
+
+def test_get_initial_status_reply_tree_not_busy_continuing(handler):
+    """Reply to tree when not busy returns continuing message."""
+    mock_queue = MagicMock()
+    mock_queue.is_node_tree_busy.return_value = False
+    handler.tree_queue = mock_queue
+    result = handler._get_initial_status(MagicMock(), "parent_1")
+    assert "Continuing" in result
+
+
 @pytest.mark.asyncio
 async def test_handle_message_stop_command(
     handler, mock_platform, incoming_message_factory
