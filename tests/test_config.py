@@ -57,6 +57,30 @@ class TestSettings:
 
         assert NVIDIA_NIM_BASE_URL == "https://integrate.api.nvidia.com/v1"
 
+    def test_lm_studio_base_url_from_env(self, monkeypatch):
+        """LM_STUDIO_BASE_URL env var is loaded into settings."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("LM_STUDIO_BASE_URL", "http://custom:5678/v1")
+        settings = Settings()
+        assert settings.lm_studio_base_url == "http://custom:5678/v1"
+
+    def test_provider_rate_limit_from_env(self, monkeypatch):
+        """PROVIDER_RATE_LIMIT env var is loaded into settings."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("PROVIDER_RATE_LIMIT", "20")
+        settings = Settings()
+        assert settings.provider_rate_limit == 20
+
+    def test_provider_rate_window_from_env(self, monkeypatch):
+        """PROVIDER_RATE_WINDOW env var is loaded into settings."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("PROVIDER_RATE_WINDOW", "30")
+        settings = Settings()
+        assert settings.provider_rate_window == 30
+
 
 # --- NimSettings Validation Tests ---
 

@@ -4,6 +4,7 @@ import pytest
 import json
 from unittest.mock import MagicMock, AsyncMock, patch
 from providers.open_router import OpenRouterProvider
+from providers.open_router.request import OPENROUTER_DEFAULT_MAX_TOKENS
 from providers.base import ProviderConfig
 from config.nim import NimSettings
 
@@ -92,6 +93,14 @@ def test_build_request_body_base_url_and_model(open_router_provider):
     req = MockRequest(model="stepfun/step-3.5-flash:free")
     body = open_router_provider._build_request_body(req)
     assert body["model"] == "stepfun/step-3.5-flash:free"
+
+
+def test_build_request_body_default_max_tokens(open_router_provider):
+    """max_tokens=None uses OPENROUTER_DEFAULT_MAX_TOKENS (81920)."""
+    req = MockRequest(max_tokens=None)
+    body = open_router_provider._build_request_body(req)
+    assert body["max_tokens"] == OPENROUTER_DEFAULT_MAX_TOKENS
+    assert body["max_tokens"] == 81920
 
 
 @pytest.mark.asyncio

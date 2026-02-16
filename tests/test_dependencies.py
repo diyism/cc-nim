@@ -105,6 +105,21 @@ async def test_get_provider_lmstudio():
 
 
 @pytest.mark.asyncio
+async def test_get_provider_lmstudio_uses_lm_studio_base_url():
+    """LM Studio provider uses lm_studio_base_url from settings."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings(
+            provider_type="lmstudio",
+            lm_studio_base_url="http://custom:9999/v1",
+        )
+
+        provider = get_provider()
+
+        assert isinstance(provider, LMStudioProvider)
+        assert provider._base_url == "http://custom:9999/v1"
+
+
+@pytest.mark.asyncio
 async def test_get_provider_unknown_type():
     """Test that unknown provider_type raises ValueError."""
     with patch("api.dependencies.get_settings") as mock_settings:
