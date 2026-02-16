@@ -328,6 +328,7 @@ free-claude-code/
 ```bash
 uv run pytest          # Run tests
 uv run ty check        # Type checking
+uv run ruff check      # Code style checking
 uv run ruff format     # Code formatting
 ```
 
