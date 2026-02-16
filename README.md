@@ -272,6 +272,7 @@ Examples:
 - `anthropic/claude-3.5-sonnet`
 
 Browse: [openrouter.ai/models](https://openrouter.ai/models)
+
 Browse free models: [https://openrouter.ai/collections/free-models](https://openrouter.ai/collections/free-models)
 
 </details>
