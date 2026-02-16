@@ -1,3 +1,19 @@
+    git clone https://github.com/diyism/cc-nim
+    cd cc-nim
+    cp .env.exmpale .env
+    #设置 nvidia key
+    nano .env
+    ./cc-nim.sh &
+   
+    #测试流式请求, 快速持续返回很多行就说明成功启动了:
+    curl -N -X POST http://localhost:3001/v1/messages     -H "Content-Type: application/json"     -H "x-api-key: test"     -d '{
+         "model": "z-ai/glm4.7",
+         "max_tokens": 256,
+         "messages": [{"role": "user", "content": "Say hello in one sentence"}],
+         "stream": true
+       }'
+
+
 # cc-nim
 
 Use **Claude Code CLI for free** with NVIDIA NIM's free unlimited 40 reqs/min API. This lightweight proxy converts Claude Code's Anthropic API requests to NVIDIA NIM format. **Includes Telegram bot integration** for remote control from your phone!
