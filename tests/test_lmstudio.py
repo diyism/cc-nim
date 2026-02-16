@@ -143,7 +143,7 @@ def test_init_with_empty_api_key():
         rate_window=60,
         nim_settings=NimSettings(),
     )
-    with patch("providers.lmstudio.client.AsyncOpenAI") as mock_openai:
+    with patch("providers.lmstudio.client.AsyncOpenAI"):
         provider = LMStudioProvider(config)
         assert provider._api_key == "lm-studio"
 
@@ -639,6 +639,6 @@ def test_init_base_url_strips_trailing_slash():
         rate_window=60,
         nim_settings=NimSettings(),
     )
-    with patch("providers.lmstudio.client.AsyncOpenAI") as mock_openai:
+    with patch("providers.lmstudio.client.AsyncOpenAI"):
         provider = LMStudioProvider(config)
         assert provider._base_url == "http://localhost:1234/v1"

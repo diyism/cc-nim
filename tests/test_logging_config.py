@@ -23,7 +23,7 @@ def test_configure_logging_writes_json_to_file(tmp_path):
     loguru_logger.complete()
 
     content = Path(log_file).read_text(encoding="utf-8")
-    lines = [l for l in content.strip().split("\n") if l]
+    lines = [line for line in content.strip().split("\n") if line]
     assert len(lines) >= 1
 
     # Each line should be valid JSON

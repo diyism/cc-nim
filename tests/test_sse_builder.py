@@ -209,7 +209,7 @@ class TestSSEBuilderHighLevelHelpers:
         assert builder.blocks.text_started is True
         assert builder.blocks.text_index == 0
 
-        stop_sse = builder.stop_text_block()
+        builder.stop_text_block()
         assert builder.blocks.text_started is False
 
     def test_emit_text_delta_accumulates(self):

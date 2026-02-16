@@ -342,7 +342,7 @@ class TestTreeQueueManagerConcurrency:
     async def test_enqueue_and_process(self):
         """Enqueue should process immediately if tree is free."""
         mgr = TreeQueueManager()
-        tree = await mgr.create_tree("root", _make_incoming(msg_id="root"), "s_root")
+        await mgr.create_tree("root", _make_incoming(msg_id="root"), "s_root")
 
         processed = []
 
@@ -361,7 +361,7 @@ class TestTreeQueueManagerConcurrency:
     async def test_enqueue_queues_when_busy(self):
         """Enqueue should queue when tree is already processing."""
         mgr = TreeQueueManager()
-        tree = await mgr.create_tree("root", _make_incoming(msg_id="root"), "s_root")
+        await mgr.create_tree("root", _make_incoming(msg_id="root"), "s_root")
         _, _ = await mgr.add_to_tree("root", "c1", _make_incoming(msg_id="c1"), "s1")
 
         processing_started = asyncio.Event()
@@ -583,7 +583,7 @@ class TestTreeQueueManagerConcurrency:
             queue_update_callback=on_queue_update,
             node_started_callback=on_node_started,
         )
-        tree = await mgr.create_tree("root", _make_incoming(msg_id="root"), "s_root")
+        await mgr.create_tree("root", _make_incoming(msg_id="root"), "s_root")
         _, _ = await mgr.add_to_tree("root", "c1", _make_incoming(msg_id="c1"), "s1")
 
         blocker = asyncio.Event()

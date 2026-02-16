@@ -2,26 +2,24 @@
 
 import asyncio
 import os
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from loguru import logger
+
+from config.settings import get_settings
+from config.logging_config import configure_logging
+from .routes import router
+from .dependencies import cleanup_provider
+from providers.exceptions import ProviderError
 
 # Opt-in to future behavior for python-telegram-bot
 os.environ["PTB_TIMEDELTA"] = "1"
 
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-
-from config.settings import get_settings
-from config.logging_config import configure_logging
-
 # Configure logging first (before any module logs)
 _settings = get_settings()
 configure_logging(_settings.log_file)
-
-from loguru import logger
-
-from .routes import router
-from .dependencies import cleanup_provider
-from providers.exceptions import ProviderError
 
 
 _SHUTDOWN_TIMEOUT_S = 5.0

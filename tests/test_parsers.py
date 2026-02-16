@@ -333,7 +333,7 @@ def test_orphan_close_with_valid_think_pair():
     chunks = list(parser.feed("a</think>b<think>thinking</think>c"))
 
     types = [c.type for c in chunks]
-    contents = [c.content for c in chunks]
+    # contents = [c.content for c in chunks] # Unused
 
     assert ContentType.TEXT in types
     assert ContentType.THINKING in types
@@ -418,7 +418,7 @@ def test_think_tag_parser_empty_think_tags():
     parser = ThinkTagParser()
     chunks = list(parser.feed("<think></think>remaining"))
     # Empty think yields nothing for thinking, just the remaining text
-    types = [c.type for c in chunks]
+    # types = [c.type for c in chunks] # Unused
     text = "".join(c.content for c in chunks if c.type == ContentType.TEXT)
     assert text == "remaining"
 

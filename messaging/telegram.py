@@ -22,7 +22,7 @@ from .telegram_markdown import escape_md_v2
 
 # Optional import - python-telegram-bot may not be installed
 try:
-    from telegram import Update, Bot
+    from telegram import Update
     from telegram.ext import (
         Application,
         CommandHandler,
@@ -161,14 +161,12 @@ class TelegramPlatform(MessagingPlatform):
     ) -> Any:
         """Helper to execute a function with exponential backoff on network errors."""
         max_retries = 3
-        last_error = None
         for attempt in range(max_retries):
             try:
                 return await func(*args, **kwargs)
             except (NetworkError, asyncio.TimeoutError) as e:
                 if "Message is not modified" in str(e):
                     return None
-                last_error = e
                 if attempt < max_retries - 1:
                     wait_time = 2**attempt  # 1s, 2s, 4s
                     logger.warning(

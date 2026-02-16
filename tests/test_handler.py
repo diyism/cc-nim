@@ -149,9 +149,7 @@ async def test_handle_message_queued(handler, mock_platform, incoming_message_fa
 
     with (
         patch.object(handler.tree_queue, "create_tree", AsyncMock()) as mock_create,
-        patch.object(
-            handler.tree_queue, "enqueue", AsyncMock(return_value=True)
-        ) as mock_enqueue,
+        patch.object(handler.tree_queue, "enqueue", AsyncMock(return_value=True)),
         patch.object(handler.tree_queue, "get_queue_size", MagicMock(return_value=3)),
     ):
         mock_tree = MagicMock()

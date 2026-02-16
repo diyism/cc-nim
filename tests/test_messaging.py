@@ -223,7 +223,7 @@ class TestTreeQueueManager:
             text="test", chat_id="1", user_id="1", message_id="1", platform="test"
         )
 
-        tree = await mgr.create_tree("1", incoming, "status_1")
+        await mgr.create_tree("1", incoming, "status_1")
         was_queued = await mgr.enqueue("1", processor)
 
         # First message should process immediately, not queue
