@@ -16,17 +16,23 @@ from providers.exceptions import ProviderError
 from config.settings import get_settings
 
 # Configure logging
+log_level = os.getenv("LOG_LEVEL", "info").upper()
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.DEBUG if log_level == "DEBUG" else logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 
-# Suppress noisy uvicorn logs
-logging.getLogger("uvicorn").setLevel(logging.WARNING)
-logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+# Suppress noisy uvicorn logs (but allow access logs in debug mode)
+if log_level == "DEBUG":
+    logging.getLogger("uvicorn").setLevel(logging.INFO)
+    logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+    logging.getLogger("uvicorn.error").setLevel(logging.INFO)
+else:
+    logging.getLogger("uvicorn").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 
 
 @asynccontextmanager

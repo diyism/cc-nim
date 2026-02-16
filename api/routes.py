@@ -141,6 +141,46 @@ async def health():
     return {"status": "healthy"}
 
 
+@router.get("/v1/models")
+async def list_models(settings: Settings = Depends(get_settings)):
+    """List available models (OpenAI-compatible endpoint)."""
+    import time
+
+    # Get the configured model
+    configured_model = settings.model
+
+    # Common Claude model names that map to the configured model
+    claude_models = [
+        "z-ai/glm4.7",
+    ]
+
+    current_time = int(time.time())
+
+    models_data = []
+
+    # Add the configured model
+    models_data.append({
+        "id": configured_model,
+        "object": "model",
+        "created": current_time,
+        "owned_by": "nvidia",
+    })
+
+    # Add Claude model aliases
+    for model_name in claude_models:
+        models_data.append({
+            "id": model_name,
+            "object": "model",
+            "created": current_time,
+            "owned_by": "anthropic",
+        })
+
+    return {
+        "object": "list",
+        "data": models_data,
+    }
+
+
 @router.post("/stop")
 async def stop_cli(request: Request):
     """Stop all CLI sessions and pending tasks."""
