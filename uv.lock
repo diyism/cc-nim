@@ -278,7 +278,6 @@ dependencies = [
     { name = "python-telegram-bot" },
     { name = "tiktoken" },
     { name = "uvicorn" },
-    { name = "websockets" },
 ]
 
 [package.dev-dependencies]
@@ -303,7 +302,6 @@ requires-dist = [
     { name = "python-telegram-bot", specifier = ">=21.0" },
     { name = "tiktoken", specifier = ">=0.7.0" },
     { name = "uvicorn", specifier = ">=0.34.0" },
-    { name = "websockets", specifier = ">=13.0" },
 ]
 
 [package.metadata.requires-dev]
