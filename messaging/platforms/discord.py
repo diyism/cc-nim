@@ -137,6 +137,13 @@ class DiscordPlatform(MessagingPlatform):
         if not self._message_handler:
             return False
 
+        await self.queue_send_message(
+            channel_id,
+            format_status_discord("Processing voice note..."),
+            reply_to=str(message.id),
+            fire_and_forget=False,
+        )
+
         user_id = str(message.author.id)
         message_id = str(message.id)
         reply_to = (

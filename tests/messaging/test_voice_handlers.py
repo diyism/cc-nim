@@ -87,6 +87,7 @@ async def test_telegram_voice_success_invokes_handler(telegram_platform):
             whisper_model="base",
         )
 
+        mock_queue_send = AsyncMock()
         with (
             patch(
                 "config.settings.get_settings",
@@ -96,8 +97,19 @@ async def test_telegram_voice_success_invokes_handler(telegram_platform):
                 "messaging.transcription.transcribe_audio",
                 return_value="Hello from voice",
             ),
+            patch.object(
+                telegram_platform,
+                "queue_send_message",
+                mock_queue_send,
+            ),
         ):
             await telegram_platform._on_telegram_voice(mock_update, mock_context)
+
+        mock_queue_send.assert_called_once()
+        call_args, call_kw = mock_queue_send.call_args
+        assert "Processing voice note" in call_args[1]
+        assert call_kw["reply_to"] == "42"
+        assert call_kw["fire_and_forget"] is False
 
         handler.assert_called_once()
         incoming = handler.call_args[0][0]

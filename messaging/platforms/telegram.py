@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 from .base import MessagingPlatform
 from ..models import IncomingMessage
-from ..rendering.telegram_markdown import escape_md_v2
+from ..rendering.telegram_markdown import escape_md_v2, format_status
 
 
 # Optional import - python-telegram-bot may not be installed
@@ -524,6 +524,14 @@ class TelegramPlatform(MessagingPlatform):
 
         if not self._message_handler:
             return
+
+        await self.queue_send_message(
+            chat_id,
+            format_status("⏳", "Processing voice note..."),
+            reply_to=str(update.message.message_id),
+            parse_mode="MarkdownV2",
+            fire_and_forget=False,
+        )
 
         message_id = str(update.message.message_id)
         reply_to = (
