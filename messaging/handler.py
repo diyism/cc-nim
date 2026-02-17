@@ -504,9 +504,7 @@ class ClaudeMessageHandler:
                         parse_mode=self._parse_mode(),
                     )
                 except Exception as e:
-                    logger.warning(
-                        f"Failed to update platform for node {node_id}: {e}"
-                    )
+                    logger.warning(f"Failed to update platform for node {node_id}: {e}")
 
         try:
             try:

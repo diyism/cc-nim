@@ -35,9 +35,7 @@ class SessionStore:
         self._save_debounce_secs = 0.5
         cap_raw = os.getenv("MAX_MESSAGE_LOG_ENTRIES_PER_CHAT", "").strip()
         try:
-            self._message_log_cap: Optional[int] = (
-                int(cap_raw) if cap_raw else None
-            )
+            self._message_log_cap: Optional[int] = int(cap_raw) if cap_raw else None
         except ValueError:
             self._message_log_cap = None
         self._load()
@@ -179,8 +177,7 @@ class SessionStore:
                 if len(items) > self._message_log_cap:
                     self._message_log[chat_key] = items[-self._message_log_cap :]
                     self._message_log_ids[chat_key] = {
-                        str(x.get("message_id"))
-                        for x in self._message_log[chat_key]
+                        str(x.get("message_id")) for x in self._message_log[chat_key]
                     }
 
             self._schedule_save()
