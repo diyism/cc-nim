@@ -46,7 +46,13 @@ def _get_local_model(whisper_model: str, device: str) -> _WhisperModelLike:
                 try:
                     _model_cache[cache_key] = WhisperModel(whisper_model, device="cuda")
                 except RuntimeError:
-                    _model_cache[cache_key] = WhisperModel(whisper_model, device="cpu")
+                    _model_cache[cache_key] = WhisperModel(
+                        whisper_model, device="cpu", compute_type="float32"
+                    )
+            elif resolved == "cpu":
+                _model_cache[cache_key] = WhisperModel(
+                    whisper_model, device="cpu", compute_type="float32"
+                )
             else:
                 _model_cache[cache_key] = WhisperModel(whisper_model, device=resolved)
         except ImportError as e:
