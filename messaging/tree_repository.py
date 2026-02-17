@@ -129,6 +129,26 @@ class TreeRepository:
         """Get all tree root IDs."""
         return list(self._trees.keys())
 
+    def unregister_nodes(self, node_ids: List[str]) -> None:
+        """Remove node IDs from the node-to-tree mapping."""
+        for nid in node_ids:
+            self._node_to_tree.pop(nid, None)
+
+    def remove_tree(self, root_id: str) -> Optional[MessageTree]:
+        """
+        Remove a tree and all its node mappings from the repository.
+
+        Returns:
+            The removed tree, or None if not found.
+        """
+        tree = self._trees.pop(root_id, None)
+        if not tree:
+            return None
+        for node in tree.all_nodes():
+            self._node_to_tree.pop(node.node_id, None)
+        logger.debug("TREE_REPO: remove_tree root_id=%s", root_id)
+        return tree
+
     def to_dict(self) -> dict:
         """Serialize all trees."""
         return {

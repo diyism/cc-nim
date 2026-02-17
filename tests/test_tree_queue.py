@@ -282,6 +282,83 @@ class TestMessageTree:
         assert node is not None
         assert node.session_id == "sess_1"
 
+    @pytest.mark.asyncio
+    async def test_get_descendants(self):
+        """Test get_descendants returns node and all descendants."""
+        root_incoming = IncomingMessage(
+            text="Root", chat_id="1", user_id="1", message_id="root", platform="test"
+        )
+        root = MessageNode(
+            node_id="root", incoming=root_incoming, status_message_id="s1"
+        )
+        tree = MessageTree(root)
+
+        child_incoming = IncomingMessage(
+            text="Child",
+            chat_id="1",
+            user_id="1",
+            message_id="child",
+            platform="test",
+            reply_to_message_id="root",
+        )
+        await tree.add_node("child", child_incoming, "s2", "root")
+
+        grandchild_incoming = IncomingMessage(
+            text="Grand",
+            chat_id="1",
+            user_id="1",
+            message_id="grand",
+            platform="test",
+            reply_to_message_id="child",
+        )
+        await tree.add_node("grand", grandchild_incoming, "s3", "child")
+
+        assert tree.get_descendants("root") == ["root", "child", "grand"]
+        assert tree.get_descendants("child") == ["child", "grand"]
+        assert tree.get_descendants("grand") == ["grand"]
+        assert tree.get_descendants("nonexistent") == []
+
+    @pytest.mark.asyncio
+    async def test_remove_branch(self):
+        """Test remove_branch removes subtree and updates parent."""
+        root_incoming = IncomingMessage(
+            text="Root", chat_id="1", user_id="1", message_id="root", platform="test"
+        )
+        root = MessageNode(
+            node_id="root", incoming=root_incoming, status_message_id="s1"
+        )
+        tree = MessageTree(root)
+
+        child_incoming = IncomingMessage(
+            text="Child",
+            chat_id="1",
+            user_id="1",
+            message_id="child",
+            platform="test",
+            reply_to_message_id="root",
+        )
+        await tree.add_node("child", child_incoming, "s2", "root")
+
+        grandchild_incoming = IncomingMessage(
+            text="Grand",
+            chat_id="1",
+            user_id="1",
+            message_id="grand",
+            platform="test",
+            reply_to_message_id="child",
+        )
+        await tree.add_node("grand", grandchild_incoming, "s3", "child")
+
+        async with tree.with_lock():
+            removed = tree.remove_branch("child")
+
+        assert len(removed) == 2
+        assert {n.node_id for n in removed} == {"child", "grand"}
+        assert tree.get_node("child") is None
+        assert tree.get_node("grand") is None
+        assert tree.get_node("root") is not None
+        assert "child" not in tree.get_root().children_ids
+
 
 class TestTreeQueueManager:
     """Test TreeQueueManager class."""
@@ -440,6 +517,97 @@ class TestTreeQueueManager:
         assert len(cancelled) == 1
 
         processing_complete.set()
+
+    @pytest.mark.asyncio
+    async def test_cancel_branch(self):
+        """Test cancel_branch cancels only nodes in subtree."""
+        manager = TreeQueueManager()
+
+        root_incoming = IncomingMessage(
+            text="Root", chat_id="1", user_id="1", message_id="root", platform="test"
+        )
+        await manager.create_tree("root", root_incoming, "s1")
+
+        child_incoming = IncomingMessage(
+            text="Child",
+            chat_id="1",
+            user_id="1",
+            message_id="child",
+            platform="test",
+            reply_to_message_id="root",
+        )
+        tree, _ = await manager.add_to_tree("root", "child", child_incoming, "s2")
+
+        sibling_incoming = IncomingMessage(
+            text="Sibling",
+            chat_id="1",
+            user_id="1",
+            message_id="sibling",
+            platform="test",
+            reply_to_message_id="root",
+        )
+        await manager.add_to_tree("root", "sibling", sibling_incoming, "s3")
+
+        cancelled = await manager.cancel_branch("child")
+        assert len(cancelled) == 1
+        assert cancelled[0].node_id == "child"
+
+        child_node = tree.get_node("child")
+        assert child_node is not None
+        assert child_node.state == MessageState.ERROR
+
+        sibling_node = tree.get_node("sibling")
+        assert sibling_node is not None
+        assert sibling_node.state == MessageState.PENDING
+
+    @pytest.mark.asyncio
+    async def test_remove_branch_non_root(self):
+        """Test remove_branch removes only the subtree when branch is not root."""
+        manager = TreeQueueManager()
+
+        root_incoming = IncomingMessage(
+            text="Root", chat_id="1", user_id="1", message_id="root", platform="test"
+        )
+        await manager.create_tree("root", root_incoming, "s1")
+
+        child_incoming = IncomingMessage(
+            text="Child",
+            chat_id="1",
+            user_id="1",
+            message_id="child",
+            platform="test",
+            reply_to_message_id="root",
+        )
+        tree, _ = await manager.add_to_tree("root", "child", child_incoming, "s2")
+
+        removed, root_id, removed_entire = await manager.remove_branch("child")
+
+        assert len(removed) == 1
+        assert removed[0].node_id == "child"
+        assert root_id == "root"
+        assert removed_entire is False
+        assert manager.get_tree_for_node("child") is None
+        assert manager.get_tree("root") is not None
+        assert tree.get_node("child") is None
+        assert "child" not in tree.get_root().children_ids
+
+    @pytest.mark.asyncio
+    async def test_remove_branch_root_removes_tree(self):
+        """Test remove_branch when branch is root removes entire tree."""
+        manager = TreeQueueManager()
+
+        root_incoming = IncomingMessage(
+            text="Root", chat_id="1", user_id="1", message_id="root", platform="test"
+        )
+        await manager.create_tree("root", root_incoming, "s1")
+
+        removed, root_id, removed_entire = await manager.remove_branch("root")
+
+        assert len(removed) == 1
+        assert root_id == "root"
+        assert removed_entire is True
+        assert manager.get_tree("root") is None
+        assert manager.get_tree_for_node("root") is None
 
 
 class TestSessionStoreTrees:

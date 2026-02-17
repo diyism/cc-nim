@@ -288,6 +288,22 @@ class SessionStore:
             self._node_to_tree[node_id] = root_id
             self._schedule_save()
 
+    def remove_node_mappings(self, node_ids: List[str]) -> None:
+        """Remove node IDs from the node-to-tree mapping."""
+        with self._lock:
+            for nid in node_ids:
+                self._node_to_tree.pop(nid, None)
+            self._schedule_save()
+
+    def remove_tree(self, root_id: str) -> None:
+        """Remove a tree and all its node mappings from the store."""
+        with self._lock:
+            tree_data = self._trees.pop(root_id, None)
+            if tree_data:
+                for node_id in tree_data.get("nodes", {}).keys():
+                    self._node_to_tree.pop(node_id, None)
+                self._schedule_save()
+
     def get_all_trees(self) -> Dict[str, dict]:
         """Get all stored trees (public accessor)."""
         with self._lock:

@@ -802,15 +802,126 @@ class ClaudeMessageHandler:
             incoming.platform, incoming.chat_id, msg_id, "command"
         )
 
+    async def _handle_clear_branch(
+        self, incoming: IncomingMessage, branch_root_id: str
+    ) -> None:
+        """
+        Clear a branch (replied-to node + all descendants).
+
+        Order: cancel tasks, delete messages, remove branch, update session store.
+        """
+        tree = self.tree_queue.get_tree_for_node(branch_root_id)
+        if not tree:
+            return
+
+        # 1) Cancel branch tasks (no stop_all)
+        cancelled = await self.tree_queue.cancel_branch(branch_root_id)
+        self._update_cancelled_nodes_ui(cancelled)
+
+        # 2) Collect message IDs from branch nodes only
+        msg_ids: set[str] = set()
+        branch_ids = tree.get_descendants(branch_root_id)
+        for nid in branch_ids:
+            node = tree.get_node(nid)
+            if node:
+                if node.incoming.message_id:
+                    msg_ids.add(str(node.incoming.message_id))
+                if node.status_message_id:
+                    msg_ids.add(str(node.status_message_id))
+        if incoming.message_id:
+            msg_ids.add(str(incoming.message_id))
+
+        # 3) Delete messages (best-effort)
+        await self._delete_message_ids(incoming.chat_id, msg_ids)
+
+        # 4) Remove branch from tree
+        removed, root_id, removed_entire_tree = await self.tree_queue.remove_branch(
+            branch_root_id
+        )
+
+        # 5) Update session store
+        try:
+            self.session_store.remove_node_mappings([n.node_id for n in removed])
+            if removed_entire_tree:
+                self.session_store.remove_tree(root_id)
+            else:
+                updated_tree = self.tree_queue.get_tree(root_id)
+                if updated_tree:
+                    self.session_store.save_tree(root_id, updated_tree.to_dict())
+        except Exception as e:
+            logger.warning(f"Failed to update session store after branch clear: {e}")
+
+    async def _delete_message_ids(self, chat_id: str, msg_ids: set[str]) -> None:
+        """Best-effort delete messages by ID. Sorts numeric IDs descending."""
+        if not msg_ids:
+            return
+
+        def _as_int(s: str) -> int | None:
+            try:
+                return int(str(s))
+            except Exception:
+                return None
+
+        numeric: list[tuple[int, str]] = []
+        non_numeric: list[str] = []
+        for mid in msg_ids:
+            n = _as_int(mid)
+            if n is None:
+                non_numeric.append(mid)
+            else:
+                numeric.append((n, mid))
+        numeric.sort(reverse=True)
+        ordered = [mid for _, mid in numeric] + non_numeric
+
+        batch_fn = getattr(self.platform, "queue_delete_messages", None)
+        if callable(batch_fn):
+            try:
+                CHUNK = 100
+                for i in range(0, len(ordered), CHUNK):
+                    chunk = ordered[i : i + CHUNK]
+                    await batch_fn(chat_id, chunk, fire_and_forget=False)
+            except Exception as e:
+                logger.debug(f"Batch delete failed: {type(e).__name__}: {e}")
+        else:
+            for mid in ordered:
+                try:
+                    await self.platform.queue_delete_message(
+                        chat_id, mid, fire_and_forget=False
+                    )
+                except Exception as e:
+                    logger.debug(
+                        f"Delete failed for msg {mid}: {type(e).__name__}: {e}"
+                    )
+
     async def _handle_clear_command(self, incoming: IncomingMessage) -> None:
         """
-        Handle /clear global command.
+        Handle /clear command.
 
-        Order:
-        1. Stop all pending/in-progress tasks.
-        2. Best-effort delete tracked chat messages for this chat.
-        3. Clear sessions.json (entire store) and reset in-memory queue state.
+        Reply-scoped: reply to a message to clear that branch (node + descendants).
+        Standalone: global clear (stop all, delete all chat messages, reset store).
         """
+        if incoming.is_reply() and incoming.reply_to_message_id:
+            reply_id = incoming.reply_to_message_id
+            tree = self.tree_queue.get_tree_for_node(reply_id)
+            branch_root_id = (
+                self.tree_queue.resolve_parent_node_id(reply_id) if tree else None
+            )
+            if not branch_root_id:
+                msg_id = await self.platform.queue_send_message(
+                    incoming.chat_id,
+                    self._format_status(
+                        "🗑", "Cleared.", "Nothing to clear for that message."
+                    ),
+                    fire_and_forget=False,
+                )
+                self._record_outgoing_message(
+                    incoming.platform, incoming.chat_id, msg_id, "command"
+                )
+                return
+            await self._handle_clear_branch(incoming, branch_root_id)
+            return
+
+        # Global clear
         # 1) Stop tasks first (ensures no more work is running).
         await self.stop_all_tasks()
 
@@ -853,48 +964,7 @@ class ClaudeMessageHandler:
         if incoming.message_id is not None:
             msg_ids.add(str(incoming.message_id))
 
-        def _as_int(s: str) -> int | None:
-            try:
-                return int(str(s))
-            except Exception:
-                return None
-
-        numeric: list[tuple[int, str]] = []
-        non_numeric: list[str] = []
-        for mid in msg_ids:
-            n = _as_int(mid)
-            if n is None:
-                non_numeric.append(mid)
-            else:
-                numeric.append((n, mid))
-
-        numeric.sort(reverse=True)
-        ordered = [mid for _, mid in numeric] + non_numeric
-
-        # If platform supports batch deletes, prefer it.
-        batch_fn = getattr(self.platform, "queue_delete_messages", None)
-        if callable(batch_fn):
-            try:
-                # Telegram supports up to 100 per request.
-                CHUNK = 100
-                for i in range(0, len(ordered), CHUNK):
-                    chunk = ordered[i : i + CHUNK]
-                    await batch_fn(incoming.chat_id, chunk, fire_and_forget=False)
-            except Exception as e:
-                logger.debug(f"/clear batch delete failed: {type(e).__name__}: {e}")
-        else:
-            for mid in ordered:
-                try:
-                    await self.platform.queue_delete_message(
-                        incoming.chat_id,
-                        mid,
-                        fire_and_forget=False,
-                    )
-                except Exception as e:
-                    # Deleting is best-effort; platform adapters also treat common cases as no-op.
-                    logger.debug(
-                        f"/clear delete failed for msg {mid}: {type(e).__name__}: {e}"
-                    )
+        await self._delete_message_ids(incoming.chat_id, msg_ids)
 
         # 3) Clear persistent state and reset in-memory queue/tree state.
         try:

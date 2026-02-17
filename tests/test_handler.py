@@ -517,3 +517,103 @@ async def test_handle_message_clear_command_deletes_message_log_ids(
 
     deleted = {c.args[1] for c in mock_platform.queue_delete_message.call_args_list}
     assert deleted == {"42", "43", "150"}
+
+
+@pytest.mark.asyncio
+async def test_handle_message_clear_command_reply_clears_branch(
+    handler, mock_platform, mock_session_store, incoming_message_factory
+):
+    """Reply /clear to a message clears only that branch."""
+    root_incoming = incoming_message_factory(
+        text="root", chat_id="chat_1", message_id="100", reply_to_message_id=None
+    )
+    tree = await handler.tree_queue.create_tree(
+        node_id="100", incoming=root_incoming, status_message_id="101"
+    )
+    handler.tree_queue.register_node("101", tree.root_id)
+
+    child_incoming = incoming_message_factory(
+        text="child",
+        chat_id="chat_1",
+        message_id="102",
+        reply_to_message_id="100",
+    )
+    await handler.tree_queue.add_to_tree(
+        parent_node_id="100",
+        node_id="102",
+        incoming=child_incoming,
+        status_message_id="103",
+    )
+
+    deleted_ids = []
+
+    async def _capture_delete(chat_id, message_id, fire_and_forget=True):
+        deleted_ids.append(message_id)
+
+    mock_platform.queue_delete_message = AsyncMock(side_effect=_capture_delete)
+
+    incoming = incoming_message_factory(
+        text="/clear",
+        chat_id="chat_1",
+        message_id="150",
+        reply_to_message_id="102",
+    )
+    await handler.handle_message(incoming)
+
+    assert set(deleted_ids) == {"102", "103", "150"}
+    assert "100" not in deleted_ids
+    assert "101" not in deleted_ids
+    mock_session_store.remove_node_mappings.assert_called()
+    assert handler.tree_queue.get_tree_for_node("102") is None
+    assert handler.tree_queue.get_tree_for_node("100") is not None
+
+
+@pytest.mark.asyncio
+async def test_handle_message_clear_command_reply_unknown_sends_nothing(
+    handler, mock_platform, mock_session_store, incoming_message_factory
+):
+    """Reply /clear to unknown message sends 'Nothing to clear'."""
+    incoming = incoming_message_factory(
+        text="/clear",
+        chat_id="chat_1",
+        message_id="150",
+        reply_to_message_id="999",
+    )
+    await handler.handle_message(incoming)
+
+    mock_platform.queue_send_message.assert_called_once()
+    call_args = mock_platform.queue_send_message.call_args[0]
+    assert "Nothing to clear" in call_args[1]
+    mock_session_store.clear_all.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_clear_command_reply_to_root_clears_tree(
+    handler, mock_platform, mock_session_store, incoming_message_factory
+):
+    """Reply /clear to root message clears entire tree."""
+    root_incoming = incoming_message_factory(
+        text="root", chat_id="chat_1", message_id="100", reply_to_message_id=None
+    )
+    await handler.tree_queue.create_tree(
+        node_id="100", incoming=root_incoming, status_message_id="101"
+    )
+
+    deleted_ids = []
+
+    async def _capture_delete(chat_id, message_id, fire_and_forget=True):
+        deleted_ids.append(message_id)
+
+    mock_platform.queue_delete_message = AsyncMock(side_effect=_capture_delete)
+
+    incoming = incoming_message_factory(
+        text="/clear",
+        chat_id="chat_1",
+        message_id="150",
+        reply_to_message_id="100",
+    )
+    await handler.handle_message(incoming)
+
+    assert set(deleted_ids) == {"100", "101", "150"}
+    mock_session_store.remove_tree.assert_called_once_with("100")
+    assert handler.tree_queue.get_tree_count() == 0

@@ -386,3 +386,48 @@ class MessageTree:
         """Find the node that has this status message ID (O(1) lookup)."""
         node_id = self._status_to_node.get(status_msg_id)
         return self._nodes.get(node_id) if node_id else None
+
+    def get_descendants(self, node_id: str) -> List[str]:
+        """
+        Get node_id and all descendant IDs (subtree).
+
+        Returns:
+            List of node IDs including the given node.
+        """
+        if node_id not in self._nodes:
+            return []
+        result = [node_id]
+        node = self._nodes[node_id]
+        for child_id in node.children_ids:
+            result.extend(self.get_descendants(child_id))
+        return result
+
+    def remove_branch(self, branch_root_id: str) -> List[MessageNode]:
+        """
+        Remove a subtree (branch_root and all descendants) from the tree.
+
+        Updates parent's children_ids. Caller must hold lock for consistency.
+        Does not acquire lock internally.
+
+        Returns:
+            List of removed nodes.
+        """
+        if branch_root_id not in self._nodes:
+            return []
+
+        parent = self.get_parent(branch_root_id)
+        removed = []
+        for nid in self.get_descendants(branch_root_id):
+            node = self._nodes.get(nid)
+            if node:
+                removed.append(node)
+                del self._nodes[nid]
+                del self._status_to_node[node.status_message_id]
+
+        if parent and branch_root_id in parent.children_ids:
+            parent.children_ids = [
+                c for c in parent.children_ids if c != branch_root_id
+            ]
+
+        logger.debug(f"Removed branch {branch_root_id} ({len(removed)} nodes)")
+        return removed

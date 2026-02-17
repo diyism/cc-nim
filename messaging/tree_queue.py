@@ -368,6 +368,75 @@ class TreeQueueManager:
         """Register a node ID to a tree (for external mapping)."""
         self._repository.register_node(node_id, root_id)
 
+    async def cancel_branch(self, branch_root_id: str) -> List[MessageNode]:
+        """
+        Cancel all PENDING/IN_PROGRESS nodes in the subtree (branch_root + descendants).
+
+        Does not call cli_manager.stop_all(). Returns list of cancelled nodes.
+        """
+        tree = self._repository.get_tree_for_node(branch_root_id)
+        if not tree:
+            return []
+
+        branch_ids = set(tree.get_descendants(branch_root_id))
+        cancelled: List[MessageNode] = []
+
+        async with tree.with_lock():
+            for nid in branch_ids:
+                node = tree.get_node(nid)
+                if not node or node.state in (
+                    MessageState.COMPLETED,
+                    MessageState.ERROR,
+                ):
+                    continue
+
+                if tree.is_current_node(nid):
+                    self._processor.cancel_current(tree)
+                    node.state = MessageState.ERROR
+                    node.error_message = "Cancelled by user"
+                    node.completed_at = datetime.now(timezone.utc)
+                    cancelled.append(node)
+                else:
+                    tree.remove_from_queue(nid)
+                    node.state = MessageState.ERROR
+                    node.error_message = "Cancelled by user"
+                    node.completed_at = datetime.now(timezone.utc)
+                    cancelled.append(node)
+
+        if cancelled:
+            logger.info(f"Cancelled {len(cancelled)} nodes in branch {branch_root_id}")
+        return cancelled
+
+    async def remove_branch(
+        self, branch_root_id: str
+    ) -> tuple[List[MessageNode], str, bool]:
+        """
+        Remove a branch (subtree) from the tree.
+
+        If branch_root is the tree root, removes the entire tree.
+
+        Returns:
+            (removed_nodes, root_id, removed_entire_tree)
+        """
+        tree = self._repository.get_tree_for_node(branch_root_id)
+        if not tree:
+            return ([], "", False)
+
+        root_id = tree.root_id
+
+        if branch_root_id == root_id:
+            cancelled = self.cancel_tree(root_id)
+            removed_tree = self._repository.remove_tree(root_id)
+            if removed_tree:
+                return (removed_tree.all_nodes(), root_id, True)
+            return (cancelled, root_id, True)
+
+        async with tree.with_lock():
+            removed = tree.remove_branch(branch_root_id)
+
+        self._repository.unregister_nodes([n.node_id for n in removed])
+        return (removed, root_id, False)
+
     def to_dict(self) -> dict:
         """Serialize all trees."""
         return self._repository.to_dict()

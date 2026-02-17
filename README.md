@@ -190,7 +190,7 @@ Control Claude Code remotely from Discord. Send tasks, watch live progress, and 
 - Session persistence across server restarts
 - Live streaming of thinking tokens, tool calls, and results
 - Up to 10 concurrent Claude CLI sessions
-- Commands: `/stop` (cancel tasks), `/clear` (reset all sessions), `/stats`
+- Commands: `/stop` (cancel tasks; reply to a message to stop only that task), `/clear` (standalone: reset all sessions; reply to a message to clear that branch downwards), `/stats`
 
 ### Setup
 
@@ -219,7 +219,7 @@ ALLOWED_DIR=C:/Users/yourname/projects
 uv run uvicorn server:app --host 0.0.0.0 --port 8082
 ```
 
-5. **Invite the bot** to your server (OAuth2 → URL Generator, scopes: `bot`, permissions: Read Messages, Send Messages, Manage Messages, Read Message History). Send a message in an allowed channel with a task. Claude responds with thinking tokens, tool calls as they execute, and the final result. Reply `/stop` to a running task to cancel it.
+5. **Invite the bot** to your server (OAuth2 → URL Generator, scopes: `bot`, permissions: Read Messages, Send Messages, Manage Messages, Read Message History). Send a message in an allowed channel with a task. Claude responds with thinking tokens, tool calls as they execute, and the final result. Reply to messages to cancel tasks or clear branches (see Commands above).
 
 ### Telegram (Alternative)
 
