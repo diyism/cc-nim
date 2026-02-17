@@ -73,6 +73,17 @@ class Settings(BaseSettings):
     # ==================== NIM Settings ====================
     nim: NimSettings = Field(default_factory=NimSettings)
 
+    # ==================== Voice Note Transcription ====================
+    voice_note_enabled: bool = Field(
+        default=True, validation_alias="VOICE_NOTE_ENABLED"
+    )
+    # Hugging Face token for faster model downloads (optional)
+    hf_token: str = Field(default="", validation_alias="HF_TOKEN")
+    # Model size: "tiny" | "base" | "small" | "medium" | "large-v2"
+    whisper_model: str = Field(default="base", validation_alias="WHISPER_MODEL")
+    # Device: "cpu" | "cuda" | "auto" (auto = try cuda, fall back to cpu)
+    whisper_device: str = Field(default="cpu", validation_alias="WHISPER_DEVICE")
+
     # ==================== Bot Wrapper Config ====================
     telegram_bot_token: Optional[str] = None
     allowed_telegram_user_id: Optional[str] = None

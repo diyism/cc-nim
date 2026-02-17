@@ -19,6 +19,9 @@ dependencies = [
     "loguru>=0.7.0",
 ]
 
+[project.optional-dependencies]
+voice = ["faster-whisper>=1.0.0"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",

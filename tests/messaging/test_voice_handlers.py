@@ -1,0 +1,174 @@
+"""Tests for voice note handling in Telegram and Discord platforms."""
+
+import tempfile
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from messaging.platforms.telegram import TelegramPlatform
+from messaging.platforms.discord import DiscordPlatform, DISCORD_AVAILABLE
+
+
+@pytest.fixture
+def telegram_platform():
+    with patch("messaging.platforms.telegram.TELEGRAM_AVAILABLE", True):
+        return TelegramPlatform(bot_token="test_token", allowed_user_id="12345")
+
+
+@pytest.mark.asyncio
+async def test_telegram_voice_disabled_sends_reply(telegram_platform):
+    """When voice_note_enabled is False, reply with disabled message."""
+    mock_update = MagicMock()
+    mock_update.message.voice = MagicMock(file_id="f1", mime_type="audio/ogg")
+    mock_update.effective_user.id = 12345
+    mock_update.effective_chat.id = 6789
+    mock_update.message.reply_text = AsyncMock()
+
+    with patch(
+        "config.settings.get_settings",
+        return_value=MagicMock(voice_note_enabled=False),
+    ):
+        await telegram_platform._on_telegram_voice(mock_update, MagicMock())
+
+    mock_update.message.reply_text.assert_called_once_with("Voice notes are disabled.")
+
+
+@pytest.mark.asyncio
+async def test_telegram_voice_unauthorized_ignored(telegram_platform):
+    """Voice from unauthorized user is ignored (no reply)."""
+    mock_update = MagicMock()
+    mock_update.message.voice = MagicMock(file_id="f1", mime_type="audio/ogg")
+    mock_update.effective_user.id = 99999  # Not 12345
+    mock_update.message.reply_text = AsyncMock()
+
+    with patch(
+        "config.settings.get_settings",
+        return_value=MagicMock(voice_note_enabled=True),
+    ):
+        await telegram_platform._on_telegram_voice(mock_update, MagicMock())
+
+    mock_update.message.reply_text.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_telegram_voice_success_invokes_handler(telegram_platform):
+    """Successful transcription invokes message handler with transcribed text."""
+    handler = AsyncMock()
+    telegram_platform.on_message(handler)
+
+    mock_update = MagicMock()
+    mock_voice = MagicMock(file_id="f1", mime_type="audio/ogg")
+    mock_update.message.voice = mock_voice
+    mock_update.message.message_id = 42
+    mock_update.message.reply_to_message = None
+    mock_update.effective_user.id = 12345
+    mock_update.effective_chat.id = 6789
+    mock_update.message.reply_text = AsyncMock()
+
+    mock_file = AsyncMock()
+    mock_context = MagicMock()
+    mock_context.bot.get_file = AsyncMock(return_value=mock_file)
+
+    with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as f:
+        f.write(b"fake")
+        tmp_path = Path(f.name)
+
+    try:
+
+        async def fake_download(custom_path=None):
+            if custom_path:
+                Path(custom_path).write_bytes(b"fake ogg")
+
+        mock_file.download_to_drive = fake_download
+
+        mock_settings = MagicMock(
+            voice_note_enabled=True,
+            whisper_model="base",
+        )
+
+        with (
+            patch(
+                "config.settings.get_settings",
+                return_value=mock_settings,
+            ),
+            patch(
+                "messaging.transcription.transcribe_audio",
+                return_value="Hello from voice",
+            ),
+        ):
+            await telegram_platform._on_telegram_voice(mock_update, mock_context)
+
+        handler.assert_called_once()
+        incoming = handler.call_args[0][0]
+        assert incoming.text == "Hello from voice"
+        assert incoming.chat_id == "6789"
+        assert incoming.user_id == "12345"
+        assert incoming.platform == "telegram"
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+@pytest.mark.skipif(not DISCORD_AVAILABLE, reason="discord.py not installed")
+class TestDiscordGetAudioAttachment:
+    """Tests for _get_audio_attachment helper."""
+
+    def test_returns_none_when_no_attachments(self):
+        platform = DiscordPlatform(bot_token="token")
+        msg = MagicMock()
+        msg.attachments = []
+        assert platform._get_audio_attachment(msg) is None
+
+    def test_returns_none_when_no_audio_attachments(self):
+        platform = DiscordPlatform(bot_token="token")
+        msg = MagicMock()
+        att = MagicMock()
+        att.content_type = "image/png"
+        att.filename = "pic.png"
+        msg.attachments = [att]
+        assert platform._get_audio_attachment(msg) is None
+
+    def test_returns_attachment_by_content_type(self):
+        platform = DiscordPlatform(bot_token="token")
+        msg = MagicMock()
+        att = MagicMock()
+        att.content_type = "audio/ogg"
+        att.filename = "voice.ogg"
+        msg.attachments = [att]
+        assert platform._get_audio_attachment(msg) is att
+
+    def test_returns_attachment_by_extension(self):
+        platform = DiscordPlatform(bot_token="token")
+        msg = MagicMock()
+        att = MagicMock()
+        att.content_type = "application/octet-stream"
+        att.filename = "voice.ogg"
+        msg.attachments = [att]
+        assert platform._get_audio_attachment(msg) is att
+
+
+@pytest.mark.skipif(not DISCORD_AVAILABLE, reason="discord.py not installed")
+@pytest.mark.asyncio
+async def test_discord_voice_disabled_sends_reply():
+    """When voice_note_enabled is False, reply with disabled message."""
+    platform = DiscordPlatform(bot_token="token", allowed_channel_ids="123")
+    platform._message_handler = None
+
+    mock_message = MagicMock()
+    mock_message.author.bot = False
+    mock_message.content = None
+    mock_message.channel.id = 123
+    mock_message.reply = AsyncMock()
+
+    mock_att = MagicMock()
+    mock_att.content_type = "audio/ogg"
+    mock_att.filename = "voice.ogg"
+    mock_message.attachments = [mock_att]
+
+    with patch(
+        "config.settings.get_settings",
+        return_value=MagicMock(voice_note_enabled=False),
+    ):
+        await platform._on_discord_message(mock_message)
+
+    mock_message.reply.assert_called_once_with("Voice notes are disabled.")

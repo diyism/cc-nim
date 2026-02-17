@@ -190,6 +190,7 @@ Control Claude Code remotely from Discord. Send tasks, watch live progress, and 
 - Session persistence across server restarts
 - Live streaming of thinking tokens, tool calls, and results
 - Up to 10 concurrent Claude CLI sessions
+- **Voice notes** — send voice messages; they are transcribed to text and processed like regular prompts (see [Voice Notes](#voice-notes))
 - Commands: `/stop` (cancel tasks; reply to a message to stop only that task), `/clear` (standalone: reset all sessions; reply to a message to clear that branch downwards), `/stats`
 
 ### Setup
@@ -231,6 +232,27 @@ ALLOWED_TELEGRAM_USER_ID=your_telegram_user_id
 ```
 
 Get a token from [@BotFather](https://t.me/BotFather); find your user ID via [@userinfobot](https://t.me/userinfobot).
+
+---
+
+## Voice Notes
+
+Send voice messages on Telegram or Discord; they are transcribed to text and processed as regular prompts. Uses [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — free, no API key, works offline.
+
+Install the optional voice extra:
+
+```bash
+uv sync --extra voice
+```
+
+**Configuration:**
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VOICE_NOTE_ENABLED` | Enable voice note handling | `true` |
+| `WHISPER_MODEL` | Model size: `tiny`, `base`, `small`, `medium`, `large-v2` | `base` |
+| `WHISPER_DEVICE` | `cpu` \| `cuda` \| `auto` (auto = try GPU, fall back to CPU) | `cpu` |
+| `HF_TOKEN` | Hugging Face token for faster model downloads (optional; [create one](https://huggingface.co/settings/tokens)) | — |
 
 ---
 
@@ -313,6 +335,9 @@ Browse: [model.lmstudio.ai](https://model.lmstudio.ai)
 | `ALLOWED_DISCORD_CHANNELS` | Comma-separated channel IDs (empty = none allowed) | `""` |
 | `TELEGRAM_BOT_TOKEN` | Telegram Bot Token | `""` |
 | `ALLOWED_TELEGRAM_USER_ID` | Allowed Telegram User ID | `""` |
+| `VOICE_NOTE_ENABLED` | Enable voice note handling | `true` |
+| `WHISPER_MODEL` | Local Whisper model size | `base` |
+| `WHISPER_DEVICE` | `cpu` \| `cuda` \| `auto` | `cpu` |
 | `MESSAGING_RATE_LIMIT` | Messaging messages per window | `1` |
 | `MESSAGING_RATE_WINDOW` | Messaging window (seconds) | `1` |
 | `CLAUDE_WORKSPACE` | Directory for agent workspace | `./agent_workspace` |

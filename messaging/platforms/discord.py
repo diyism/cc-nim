@@ -6,6 +6,8 @@ Implements MessagingPlatform for Discord using discord.py.
 
 import asyncio
 import os
+import tempfile
+from pathlib import Path
 from typing import Callable, Awaitable, Optional, Any, Set, cast
 
 from loguru import logger
@@ -13,6 +15,8 @@ from loguru import logger
 from .base import MessagingPlatform
 from ..models import IncomingMessage
 from ..rendering.discord_markdown import format_status_discord
+
+AUDIO_EXTENSIONS = (".ogg", ".mp4", ".mp3", ".wav", ".m4a")
 
 _discord_module: Any = None
 try:
@@ -108,16 +112,144 @@ class DiscordPlatform(MessagingPlatform):
         self._limiter: Optional[Any] = None
         self._start_task: Optional[asyncio.Task] = None
 
+    def _get_audio_attachment(self, message: Any) -> Any | None:
+        """Return first audio attachment, or None."""
+        for att in message.attachments:
+            ct = (att.content_type or "").lower()
+            fn = (att.filename or "").lower()
+            if ct.startswith("audio/") or any(
+                fn.endswith(ext) for ext in AUDIO_EXTENSIONS
+            ):
+                return att
+        return None
+
+    async def _handle_voice_note(
+        self, message: Any, attachment: Any, channel_id: str
+    ) -> bool:
+        """Handle voice/audio attachment. Returns True if handled."""
+        from config.settings import get_settings
+
+        settings = get_settings()
+        if not settings.voice_note_enabled:
+            await message.reply("Voice notes are disabled.")
+            return True
+
+        if not self._message_handler:
+            return False
+
+        user_id = str(message.author.id)
+        message_id = str(message.id)
+        reply_to = (
+            str(message.reference.message_id)
+            if message.reference and message.reference.message_id
+            else None
+        )
+
+        ext = ".ogg"
+        fn = (attachment.filename or "").lower()
+        for e in AUDIO_EXTENSIONS:
+            if fn.endswith(e):
+                ext = e
+                break
+        ct = attachment.content_type or "audio/ogg"
+        if "mp4" in ct or "m4a" in fn:
+            ext = ".m4a" if "m4a" in fn else ".mp4"
+        elif "mp3" in ct or fn.endswith(".mp3"):
+            ext = ".mp3"
+
+        tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
+        tmp_path = Path(tmp.name)
+        tmp.close()
+
+        try:
+            await attachment.save(str(tmp_path))
+
+            from ..transcription import transcribe_audio
+
+            transcribed = await asyncio.to_thread(
+                transcribe_audio,
+                tmp_path,
+                ct,
+                whisper_model=settings.whisper_model,
+                whisper_device=settings.whisper_device,
+            )
+
+            incoming = IncomingMessage(
+                text=transcribed,
+                chat_id=channel_id,
+                user_id=user_id,
+                message_id=message_id,
+                platform="discord",
+                reply_to_message_id=reply_to,
+                username=message.author.display_name,
+                raw_event=message,
+            )
+
+            logger.info(
+                "DISCORD_VOICE: chat_id=%s message_id=%s transcribed=%r",
+                channel_id,
+                message_id,
+                (transcribed[:80] + "..." if len(transcribed) > 80 else transcribed),
+            )
+
+            await self._message_handler(incoming)
+            return True
+        except ValueError as e:
+            await message.reply(str(e)[:200])
+            return True
+        except ImportError as e:
+            await message.reply(str(e)[:200])
+            return True
+        except Exception as e:
+            # #region agent log
+            try:
+                import traceback
+
+                with open(
+                    "c:\\Users\\alish\\Desktop\\projects\\free-claude-code\\.cursor\\debug.log",
+                    "a",
+                ) as _dbg:
+                    _dbg.write(
+                        '{"location":"discord._handle_voice_note:exception","message":"Voice transcription exception","data":{"type":'
+                        + repr(type(e).__name__)
+                        + ',"msg":'
+                        + repr(str(e))
+                        + ',"traceback":'
+                        + repr(traceback.format_exc()[:2000])
+                        + '},"timestamp":'
+                        + str(__import__("time").time_ns() // 1_000_000)
+                        + '}\n'
+                    )
+            except Exception:
+                pass
+            # #endregion
+            logger.error(f"Voice transcription failed: {e}")
+            await message.reply(
+                "Could not transcribe voice note. Please try again or send text."
+            )
+            return True
+        finally:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
     async def _on_discord_message(self, message: Any) -> None:
         """Handle incoming Discord messages."""
         if message.author.bot:
-            return
-        if not message.content:
             return
 
         channel_id = str(message.channel.id)
 
         if not self.allowed_channel_ids or channel_id not in self.allowed_channel_ids:
+            return
+
+        # Handle voice/audio attachments when message has no text content
+        if not message.content:
+            audio_att = self._get_audio_attachment(message)
+            if audio_att:
+                await self._handle_voice_note(message, audio_att, channel_id)
+                return
             return
 
         user_id = str(message.author.id)

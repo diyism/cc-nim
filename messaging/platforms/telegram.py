@@ -6,6 +6,8 @@ Implements MessagingPlatform for Telegram using python-telegram-bot.
 
 import asyncio
 import os
+import tempfile
+from pathlib import Path
 
 # Opt-in to future behavior for python-telegram-bot (retry_after as timedelta)
 # This must be set BEFORE importing telegram.error
@@ -100,6 +102,10 @@ class TelegramPlatform(MessagingPlatform):
         # Catch-all for other commands if needed, or let them fall through
         self._application.add_handler(
             MessageHandler(filters.COMMAND, self._on_telegram_message)
+        )
+        # Voice note handler
+        self._application.add_handler(
+            MessageHandler(filters.VOICE, self._on_telegram_voice)
         )
 
         # Initialize internal components with retry logic
@@ -488,4 +494,98 @@ class TelegramPlatform(MessagingPlatform):
                     parse_mode="MarkdownV2",
                 )
             except Exception:
+                pass
+
+    async def _on_telegram_voice(
+        self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"
+    ) -> None:
+        """Handle incoming voice messages."""
+        if (
+            not update.message
+            or not update.message.voice
+            or not update.effective_user
+            or not update.effective_chat
+        ):
+            return
+
+        from config.settings import get_settings
+
+        settings = get_settings()
+        if not settings.voice_note_enabled:
+            await update.message.reply_text("Voice notes are disabled.")
+            return
+
+        user_id = str(update.effective_user.id)
+        chat_id = str(update.effective_chat.id)
+
+        if self.allowed_user_id and user_id != str(self.allowed_user_id).strip():
+            logger.warning(f"Unauthorized voice access attempt from {user_id}")
+            return
+
+        if not self._message_handler:
+            return
+
+        message_id = str(update.message.message_id)
+        reply_to = (
+            str(update.message.reply_to_message.message_id)
+            if update.message.reply_to_message
+            else None
+        )
+
+        voice = update.message.voice
+        suffix = ".ogg"
+        if voice.mime_type and "mpeg" in voice.mime_type:
+            suffix = ".mp3"
+        elif voice.mime_type and "mp4" in voice.mime_type:
+            suffix = ".mp4"
+
+        tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+        tmp_path = Path(tmp.name)
+        tmp.close()
+
+        try:
+            tg_file = await context.bot.get_file(voice.file_id)
+            await tg_file.download_to_drive(custom_path=str(tmp_path))
+
+            from ..transcription import transcribe_audio
+
+            transcribed = await asyncio.to_thread(
+                transcribe_audio,
+                tmp_path,
+                voice.mime_type or "audio/ogg",
+                whisper_model=settings.whisper_model,
+                whisper_device=settings.whisper_device,
+            )
+
+            incoming = IncomingMessage(
+                text=transcribed,
+                chat_id=chat_id,
+                user_id=user_id,
+                message_id=message_id,
+                platform="telegram",
+                reply_to_message_id=reply_to,
+                raw_event=update,
+            )
+
+            logger.info(
+                "TELEGRAM_VOICE: chat_id=%s message_id=%s transcribed=%r",
+                chat_id,
+                message_id,
+                (transcribed[:80] + "..." if len(transcribed) > 80 else transcribed),
+            )
+
+            await self._message_handler(incoming)
+        except ValueError as e:
+            await update.message.reply_text(str(e)[:200])
+        except ImportError as e:
+            await update.message.reply_text(str(e)[:200])
+        except Exception as e:
+            logger.error(f"Voice transcription failed: {e}")
+            await update.message.reply_text(
+                "Could not transcribe voice note. Please try again or send text."
+            )
+        finally:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
                 pass
