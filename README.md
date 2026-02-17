@@ -331,7 +331,8 @@ See [`.env.example`](.env.example) for all supported parameters.
 free-claude-code/
 ├── server.py              # Entry point
 ├── api/                   # FastAPI routes, request detection, optimization handlers
-├── providers/             # BaseProvider ABC + NVIDIA NIM, OpenRouter, LM Studio
+├── providers/             # BaseProvider, OpenAICompatibleProvider, NIM, OpenRouter, LM Studio
+│   └── common/            # Shared utils (SSE builder, message converter, parsers, error mapping)
 ├── messaging/             # MessagingPlatform ABC + Discord/Telegram bots, session management
 ├── config/                # Settings, NIM config, logging
 ├── cli/                   # CLI session and process management
@@ -342,10 +343,10 @@ free-claude-code/
 ### Commands
 
 ```bash
-uv run pytest          # Run tests
-uv run ty check        # Type checking
+uv run ruff format     # Format code
 uv run ruff check      # Code style checking
-uv run ruff format     # Code formatting
+uv run ty check        # Type checking
+uv run pytest          # Run tests
 ```
 
 ---
@@ -354,7 +355,22 @@ uv run ruff format     # Code formatting
 
 ### Adding a Provider
 
-Extend `BaseProvider` in `providers/` to add support for other APIs:
+For **OpenAI-compatible APIs** (Groq, Together AI, etc.), extend `OpenAICompatibleProvider`:
+
+```python
+from providers.openai_compat import OpenAICompatibleProvider
+from providers.base import ProviderConfig
+
+class MyProvider(OpenAICompatibleProvider):
+    def __init__(self, config: ProviderConfig):
+        super().__init__(config, provider_name="MYPROVIDER",
+                         base_url="https://api.example.com/v1", api_key=config.api_key)
+
+    def _build_request_body(self, request):
+        return build_request_body(request)  # Your request builder
+```
+
+For **fully custom APIs**, extend `BaseProvider` directly:
 
 ```python
 from providers.base import BaseProvider, ProviderConfig
@@ -409,7 +425,7 @@ Contributions are welcome! Here are some ways to help:
 # Fork the repo, then:
 git checkout -b my-feature
 # Make your changes
-uv run pytest && uv run ty check && uv run ruff check && uv run ruff format --check
+uv run ruff format && uv run ruff check && uv run ty check && uv run pytest
 # Open a pull request
 ```
 
