@@ -1,4 +1,5 @@
 import pytest
+from fastapi import HTTPException
 from unittest.mock import AsyncMock, MagicMock, patch
 from api.dependencies import get_provider, get_settings, cleanup_provider
 from providers.lmstudio import LMStudioProvider
@@ -141,6 +142,50 @@ async def test_get_provider_passes_http_timeouts_from_settings():
         assert timeout.read == 600.0
         assert timeout.write == 20.0
         assert timeout.connect == 5.0
+
+
+@pytest.mark.asyncio
+async def test_get_provider_nvidia_nim_missing_api_key():
+    """NVIDIA NIM with empty API key raises HTTPException 503."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings(nvidia_nim_api_key="")
+
+        with pytest.raises(HTTPException) as exc_info:
+            get_provider()
+
+        assert exc_info.value.status_code == 503
+        assert "NVIDIA_NIM_API_KEY" in exc_info.value.detail
+        assert "build.nvidia.com" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_get_provider_nvidia_nim_whitespace_only_api_key():
+    """NVIDIA NIM with whitespace-only API key raises HTTPException 503."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings(nvidia_nim_api_key="   ")
+
+        with pytest.raises(HTTPException) as exc_info:
+            get_provider()
+
+        assert exc_info.value.status_code == 503
+        assert "NVIDIA_NIM_API_KEY" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_get_provider_open_router_missing_api_key():
+    """OpenRouter with empty API key raises HTTPException 503."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings(
+            provider_type="open_router",
+            open_router_api_key="",
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            get_provider()
+
+        assert exc_info.value.status_code == 503
+        assert "OPENROUTER_API_KEY" in exc_info.value.detail
+        assert "openrouter.ai" in exc_info.value.detail
 
 
 @pytest.mark.asyncio
