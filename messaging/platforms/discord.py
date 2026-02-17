@@ -218,7 +218,7 @@ class DiscordPlatform(MessagingPlatform):
                         + repr(traceback.format_exc()[:2000])
                         + '},"timestamp":'
                         + str(__import__("time").time_ns() // 1_000_000)
-                        + '}\n'
+                        + "}\n"
                     )
             except Exception:
                 pass
