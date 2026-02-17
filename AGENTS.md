@@ -3,7 +3,6 @@
 > This file is identical to CLAUDE.md. Keep them in sync.
 
 ## CODING ENVIRONMENT
-- Shell commands run on PowerShell v7.5.4; use correct syntax.
 - Always use `uv run` to run files instead of the global `python` command.
 - Read `.env.example` for environment variables.
 - All CI checks must pass; failing checks block merge.
