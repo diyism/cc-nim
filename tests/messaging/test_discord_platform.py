@@ -16,7 +16,7 @@ class TestGetDiscord:
     """Tests for _get_discord helper."""
 
     def test_raises_when_discord_not_available(self):
-        import messaging.discord as discord_mod
+        import messaging.platforms.discord as discord_mod
 
         with patch.object(discord_mod, "DISCORD_AVAILABLE", False):
             with patch.object(discord_mod, "_discord_module", None):
@@ -246,7 +246,7 @@ class TestDiscordPlatform:
         with patch.object(
             platform._client, "get_channel", MagicMock(return_value=mock_channel)
         ):
-            with patch("messaging.discord._get_discord") as mock_get:
+            with patch("messaging.platforms.discord._get_discord") as mock_get:
                 mock_discord = MagicMock()
                 mock_get.return_value = mock_discord
                 msg_id = await platform.send_message("123", "Hello", reply_to="456")
@@ -283,7 +283,7 @@ class TestDiscordPlatform:
         with patch.object(
             platform._client, "get_channel", MagicMock(return_value=mock_channel)
         ):
-            with patch("messaging.discord._get_discord") as mock_get:
+            with patch("messaging.platforms.discord._get_discord") as mock_get:
                 mock_get.return_value = MagicMock()
                 await platform.delete_message("123", "456")
         mock_msg.delete.assert_awaited_once()
