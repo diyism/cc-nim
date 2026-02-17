@@ -115,9 +115,7 @@ class TreeQueueProcessor:
             node = tree.get_node(next_node_id)
             if node:
                 tree.set_current_task(
-                    asyncio.create_task(
-                        self.process_node(tree, node, processor)
-                    )
+                    asyncio.create_task(self.process_node(tree, node, processor))
                 )
 
         # Notify that this node has started processing and refresh queue positions.
@@ -155,9 +153,7 @@ class TreeQueueProcessor:
                 node = tree.get_node(node_id)
                 if node:
                     tree.set_current_task(
-                        asyncio.create_task(
-                            self.process_node(tree, node, processor)
-                        )
+                        asyncio.create_task(self.process_node(tree, node, processor))
                     )
                 return False
 

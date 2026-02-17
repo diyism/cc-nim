@@ -56,9 +56,7 @@ async def test_init(provider_config):
     with patch("providers.openai_compat.AsyncOpenAI") as mock_openai:
         from config.nim import NimSettings
 
-        provider = NvidiaNimProvider(
-            provider_config, nim_settings=NimSettings()
-        )
+        provider = NvidiaNimProvider(provider_config, nim_settings=NimSettings())
         assert provider._api_key == "test_key"
         assert provider._base_url == "https://test.api.nvidia.com/v1"
         mock_openai.assert_called_once()

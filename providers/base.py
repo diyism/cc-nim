@@ -38,4 +38,4 @@ class BaseProvider(ABC):
     ) -> AsyncIterator[str]:
         """Stream response in Anthropic SSE format."""
         if False:
-            yield ""
+            yield ""  # Required for ty/mypy to accept abstract async generator
