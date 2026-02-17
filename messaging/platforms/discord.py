@@ -201,28 +201,6 @@ class DiscordPlatform(MessagingPlatform):
             await message.reply(str(e)[:200])
             return True
         except Exception as e:
-            # #region agent log
-            try:
-                import traceback
-
-                with open(
-                    "c:\\Users\\alish\\Desktop\\projects\\free-claude-code\\.cursor\\debug.log",
-                    "a",
-                ) as _dbg:
-                    _dbg.write(
-                        '{"location":"discord._handle_voice_note:exception","message":"Voice transcription exception","data":{"type":'
-                        + repr(type(e).__name__)
-                        + ',"msg":'
-                        + repr(str(e))
-                        + ',"traceback":'
-                        + repr(traceback.format_exc()[:2000])
-                        + '},"timestamp":'
-                        + str(__import__("time").time_ns() // 1_000_000)
-                        + "}\n"
-                    )
-            except Exception:
-                pass
-            # #endregion
             logger.error(f"Voice transcription failed: {e}")
             await message.reply(
                 "Could not transcribe voice note. Please try again or send text."

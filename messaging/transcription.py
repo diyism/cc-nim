@@ -14,6 +14,8 @@ MAX_AUDIO_SIZE_BYTES = 25 * 1024 * 1024
 
 # Lazy-loaded models: (model_name, device) -> model
 _model_cache: dict[tuple[str, str], Any] = {}
+# Models for which CUDA failed at inference; skip cuda on subsequent requests
+_cuda_failed_models: set[str] = set()
 
 
 class _WhisperModelLike(Protocol):
@@ -24,8 +26,10 @@ class _WhisperModelLike(Protocol):
 
 def _get_local_model(whisper_model: str, device: str) -> _WhisperModelLike:
     """Lazy-load faster-whisper model. Raises ImportError if not installed."""
-    global _model_cache
+    global _model_cache, _cuda_failed_models
     resolved = device if device in ("cpu", "cuda") else "auto"
+    if resolved in ("cuda", "auto") and whisper_model in _cuda_failed_models:
+        resolved = "cpu"
     cache_key = (whisper_model, resolved)
     if cache_key not in _model_cache:
         try:
@@ -38,13 +42,13 @@ def _get_local_model(whisper_model: str, device: str) -> _WhisperModelLike:
 
             faster_whisper = importlib.import_module("faster_whisper")
             WhisperModel = faster_whisper.WhisperModel
-            if device == "auto":
+            if resolved == "auto":
                 try:
                     _model_cache[cache_key] = WhisperModel(whisper_model, device="cuda")
                 except RuntimeError:
                     _model_cache[cache_key] = WhisperModel(whisper_model, device="cpu")
             else:
-                _model_cache[cache_key] = WhisperModel(whisper_model, device=device)
+                _model_cache[cache_key] = WhisperModel(whisper_model, device=resolved)
         except ImportError as e:
             raise ImportError(
                 "Voice notes require the voice extra. Install with: uv sync --extra voice"
@@ -96,8 +100,9 @@ def _transcribe_local(file_path: Path, whisper_model: str, whisper_device: str) 
     except RuntimeError as e:
         err_lower = str(e).lower()
         if "cublas" in err_lower or "cuda" in err_lower:
-            # CUDA deferred load failed at inference; fall back to CPU
-            global _model_cache
+            # CUDA deferred load failed at inference; remember and fall back to CPU
+            global _model_cache, _cuda_failed_models
+            _cuda_failed_models.add(whisper_model)
             for key in list(_model_cache):
                 if key[0] == whisper_model:
                     del _model_cache[key]
