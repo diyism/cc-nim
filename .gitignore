@@ -1,5 +1,6 @@
 __pycache__
 .claude
+.cursor
 .pytest_cache
 .ruff_cache
 .serena
