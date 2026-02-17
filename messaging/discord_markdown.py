@@ -8,6 +8,8 @@ from .rendering.discord_markdown import (
     format_status,
     format_status_discord,
     render_markdown_to_discord,
+    _is_gfm_table_header_line,
+    _normalize_gfm_tables,
 )
 
 __all__ = [
@@ -18,4 +20,6 @@ __all__ = [
     "format_status",
     "format_status_discord",
     "render_markdown_to_discord",
+    "_is_gfm_table_header_line",
+    "_normalize_gfm_tables",
 ]
