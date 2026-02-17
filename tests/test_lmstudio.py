@@ -109,7 +109,7 @@ def lmstudio_config():
 @pytest.fixture(autouse=True)
 def mock_rate_limiter():
     """Mock the global rate limiter to prevent waiting."""
-    with patch("providers.lmstudio.client.GlobalRateLimiter") as mock:
+    with patch("providers.openai_compat.GlobalRateLimiter") as mock:
         instance = mock.get_instance.return_value
         instance.wait_if_blocked = AsyncMock(return_value=False)
 
@@ -127,7 +127,7 @@ def lmstudio_provider(lmstudio_config):
 
 def test_init(lmstudio_config):
     """Test provider initialization."""
-    with patch("providers.lmstudio.client.AsyncOpenAI") as mock_openai:
+    with patch("providers.openai_compat.AsyncOpenAI") as mock_openai:
         provider = LMStudioProvider(lmstudio_config)
         assert provider._api_key == "lm-studio"
         assert provider._base_url == "http://localhost:1234/v1"
@@ -143,7 +143,7 @@ def test_init_with_empty_api_key():
         rate_window=60,
         nim_settings=NimSettings(),
     )
-    with patch("providers.lmstudio.client.AsyncOpenAI"):
+    with patch("providers.openai_compat.AsyncOpenAI"):
         provider = LMStudioProvider(config)
         assert provider._api_key == "lm-studio"
 
@@ -157,7 +157,7 @@ def test_init_uses_configurable_timeouts():
         http_write_timeout=15.0,
         http_connect_timeout=5.0,
     )
-    with patch("providers.lmstudio.client.AsyncOpenAI") as mock_openai:
+    with patch("providers.openai_compat.AsyncOpenAI") as mock_openai:
         LMStudioProvider(config)
         call_kwargs = mock_openai.call_args[1]
         timeout = call_kwargs["timeout"]
@@ -657,6 +657,6 @@ def test_init_base_url_strips_trailing_slash():
         rate_window=60,
         nim_settings=NimSettings(),
     )
-    with patch("providers.lmstudio.client.AsyncOpenAI"):
+    with patch("providers.openai_compat.AsyncOpenAI"):
         provider = LMStudioProvider(config)
         assert provider._base_url == "http://localhost:1234/v1"

@@ -46,7 +46,7 @@ def open_router_config():
 @pytest.fixture(autouse=True)
 def mock_rate_limiter():
     """Mock the global rate limiter to prevent waiting."""
-    with patch("providers.open_router.client.GlobalRateLimiter") as mock:
+    with patch("providers.openai_compat.GlobalRateLimiter") as mock:
         instance = mock.get_instance.return_value
         instance.wait_if_blocked = AsyncMock(return_value=False)
 
@@ -64,7 +64,7 @@ def open_router_provider(open_router_config):
 
 def test_init(open_router_config):
     """Test provider initialization."""
-    with patch("providers.open_router.client.AsyncOpenAI") as mock_openai:
+    with patch("providers.openai_compat.AsyncOpenAI") as mock_openai:
         provider = OpenRouterProvider(open_router_config)
         assert provider._api_key == "test_openrouter_key"
         assert provider._base_url == "https://openrouter.ai/api/v1"
@@ -80,7 +80,7 @@ def test_init_uses_configurable_timeouts():
         http_write_timeout=15.0,
         http_connect_timeout=5.0,
     )
-    with patch("providers.open_router.client.AsyncOpenAI") as mock_openai:
+    with patch("providers.openai_compat.AsyncOpenAI") as mock_openai:
         OpenRouterProvider(config)
         call_kwargs = mock_openai.call_args[1]
         timeout = call_kwargs["timeout"]
