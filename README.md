@@ -164,7 +164,7 @@ To switch back to Anthropic models, comment out the added block and reload exten
 | Provider | Cost | Rate Limit | Models | Best For |
 |----------|------|------------|--------|----------|
 | **NVIDIA NIM** | Free | 40 req/min | Kimi K2, GLM5, Devstral, MiniMax | Daily driver — generous free tier |
-| **OpenRouter** | Free / Pay | Varies | 200+ (GPT-4o, Claude, Step, etc.) | Model variety, fallback options |
+| **OpenRouter** | Free / Paid | Varies | 200+ (GPT-4o, Claude, Step, etc.) | Model variety, fallback options |
 | **LM Studio** | Free (local) | Unlimited | Any GGUF model | Privacy, offline use, no rate limits |
 
 Switch providers by changing `PROVIDER_TYPE` in `.env`:
