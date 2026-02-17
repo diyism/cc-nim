@@ -233,9 +233,7 @@ ALLOWED_TELEGRAM_USER_ID=your_telegram_user_id
 
 Get a token from [@BotFather](https://t.me/BotFather); find your user ID via [@userinfobot](https://t.me/userinfobot).
 
----
-
-## Voice Notes
+### Voice Notes
 
 Send voice messages on Telegram or Discord; they are transcribed to text and processed as regular prompts. Uses [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — free, no API key, works offline.
 
