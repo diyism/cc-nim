@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 # claude-pick — Interactive model picker for free-claude-code
 # Usage: claude-pick [extra claude args...]
-#
-# Set MODEL_PICKER=true in .env (or export it) to enable the interactive picker.
-# With MODEL_PICKER=false (default) this script launches Claude against the local
-# proxy with the default model configured in .env.
 
 set -euo pipefail
 
@@ -37,16 +33,6 @@ read_env_value() {
     echo "$raw"
 }
 
-# ── MODEL_PICKER check ────────────────────────────────────────────────────────
-# Env var takes precedence over .env file value.
-_mp_raw="${MODEL_PICKER:-$(read_env_value MODEL_PICKER)}"
-_mp_raw="$(printf '%s' "${_mp_raw:-false}" | tr '[:upper:]' '[:lower:]')"
-
-if [[ ! "$_mp_raw" =~ ^(1|true|yes|on)$ ]]; then
-    ANTHROPIC_AUTH_TOKEN="freecc" ANTHROPIC_BASE_URL="$BASE_URL" exec claude "$@"
-fi
-
-# ── Picker enabled — fzf required ────────────────────────────────────────────
 if ! command -v fzf >/dev/null 2>&1; then
     echo "Error: fzf is required for the model picker." >&2
     echo "Install it from: https://github.com/junegunn/fzf" >&2

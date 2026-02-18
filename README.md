@@ -445,19 +445,13 @@ class MyPlatform(MessagingPlatform):
 brew install fzf        # macOS/Linux
 ```
 
-**2. Enable the picker in `.env`:**
-
-```env
-MODEL_PICKER=true
-```
-
-**3. Add the alias to `~/.zshrc` or `~/.bashrc`:**
+**2. Add the alias to `~/.zshrc` or `~/.bashrc`:**
 
 ```bash
 alias claude-pick="/path/to/free-claude-code/claude-pick"
 ```
 
-Then reload your shell (`source ~/.zshrc`) and run `claude-pick` to pick a model and launch Claude. With `MODEL_PICKER=false` (the default), `claude-pick` skips the picker and launches Claude with the model set in `MODEL`.
+Then reload your shell (`source ~/.zshrc`) and run `claude-pick` to pick a model and launch Claude.
 
 **Skip the picker with a fixed model** (no alias or picker needed):
 
