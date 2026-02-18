@@ -30,3 +30,36 @@ dev = [
     "ty>=0.0.1",
     "ruff>=0.9.0",
 ]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes (undefined names, unused imports)
+    "I",    # isort (import ordering)
+    "UP",   # pyupgrade (modernise syntax for target Python version)
+    "B",    # flake8-bugbear (common bugs and anti-patterns)
+    "C4",   # flake8-comprehensions (idiomatic comprehensions)
+    "SIM",  # flake8-simplify (simplifiable code patterns)
+    "PERF", # Perflint (performance anti-patterns)
+    "RUF",  # Ruff-specific rules
+]
+ignore = [
+    "E501", # line too long — enforced by the formatter instead
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["api", "cli", "config", "messaging", "providers", "utils"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+skip-magic-trailing-comma = false
+
+[tool.ty.environment]
+python-version = "3.14"
