@@ -249,7 +249,7 @@ uv sync --extra voice
 |----------|-------------|---------|
 | `VOICE_NOTE_ENABLED` | Enable voice note handling | `true` |
 | `WHISPER_MODEL` | Model size: `tiny`, `base`, `small`, `medium`, `large-v2`, `large-v3`, `large-v3-turbo` | `base` |
-| `WHISPER_DEVICE` | `cpu` \| `cuda` \| `auto` (auto = try CUDA, fail fast; no fallback) | `cpu` |
+| `WHISPER_DEVICE` | `cpu` \| `cuda` | `cpu` |
 | `HF_TOKEN` | Hugging Face token for faster model downloads (optional; [create one](https://huggingface.co/settings/tokens)) | — |
 
 ---
@@ -335,7 +335,7 @@ Browse: [model.lmstudio.ai](https://model.lmstudio.ai)
 | `ALLOWED_TELEGRAM_USER_ID` | Allowed Telegram User ID | `""` |
 | `VOICE_NOTE_ENABLED` | Enable voice note handling | `true` |
 | `WHISPER_MODEL` | Local Whisper model size | `base` |
-| `WHISPER_DEVICE` | `cpu` \| `cuda` \| `auto` (fail fast; no fallback) | `cpu` |
+| `WHISPER_DEVICE` | `cpu` \| `cuda` | `cpu` |
 | `MESSAGING_RATE_LIMIT` | Messaging messages per window | `1` |
 | `MESSAGING_RATE_WINDOW` | Messaging window (seconds) | `1` |
 | `CLAUDE_WORKSPACE` | Directory for agent workspace | `./agent_workspace` |

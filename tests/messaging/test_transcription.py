@@ -73,6 +73,18 @@ def test_transcribe_local_empty_segments_returns_no_speech():
         path.unlink(missing_ok=True)
 
 
+def test_transcribe_invalid_device_raises():
+    """Invalid whisper_device raises ValueError."""
+    with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as f:
+        f.write(b"fake ogg")
+        path = Path(f.name)
+    try:
+        with pytest.raises(ValueError, match="whisper_device must be 'cpu' or 'cuda'"):
+            transcribe_audio(path, "audio/ogg", whisper_device="auto")
+    finally:
+        path.unlink(missing_ok=True)
+
+
 def test_transcribe_local_import_error_raises():
     """Local backend when faster-whisper not installed raises ImportError."""
     with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as f:

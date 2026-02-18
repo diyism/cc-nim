@@ -303,3 +303,20 @@ class TestSettingsOptionalStr:
         monkeypatch.setenv("MESSAGING_PLATFORM", "discord")
         s = Settings()
         assert s.messaging_platform == "discord"
+
+    def test_whisper_device_auto_rejected(self, monkeypatch):
+        """WHISPER_DEVICE=auto raises ValidationError (auto removed)."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("WHISPER_DEVICE", "auto")
+        with pytest.raises(ValidationError, match="whisper_device"):
+            Settings()
+
+    @pytest.mark.parametrize("device", ["cpu", "cuda"])
+    def test_whisper_device_valid(self, monkeypatch, device):
+        """Valid whisper_device values are accepted."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("WHISPER_DEVICE", device)
+        s = Settings()
+        assert s.whisper_device == device

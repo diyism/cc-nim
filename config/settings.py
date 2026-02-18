@@ -80,7 +80,7 @@ class Settings(BaseSettings):
     hf_token: str = Field(default="", validation_alias="HF_TOKEN")
     # Model size: "tiny" | "base" | "small" | "medium" | "large-v2" | "large-v3" | "large-v3-turbo"
     whisper_model: str = Field(default="base", validation_alias="WHISPER_MODEL")
-    # Device: "cpu" | "cuda" | "auto" (auto = try cuda, fail fast; no fallback)
+    # Device: "cpu" | "cuda"
     whisper_device: str = Field(default="cpu", validation_alias="WHISPER_DEVICE")
 
     # ==================== Bot Wrapper Config ====================
@@ -113,6 +113,13 @@ class Settings(BaseSettings):
     def parse_optional_str(cls, v):
         if v == "":
             return None
+        return v
+
+    @field_validator("whisper_device")
+    @classmethod
+    def validate_whisper_device(cls, v: str) -> str:
+        if v not in ("cpu", "cuda"):
+            raise ValueError(f"whisper_device must be 'cpu' or 'cuda', got {v!r}")
         return v
 
     model_config = SettingsConfigDict(

@@ -26,8 +26,9 @@ class _WhisperModelLike(Protocol):
 def _get_local_model(whisper_model: str, device: str) -> _WhisperModelLike:
     """Lazy-load faster-whisper model. Raises ImportError if not installed."""
     global _model_cache
-    resolved = device if device in ("cpu", "cuda") else "auto"
-    cache_key = (whisper_model, resolved)
+    if device not in ("cpu", "cuda"):
+        raise ValueError(f"whisper_device must be 'cpu' or 'cuda', got {device!r}")
+    cache_key = (whisper_model, device)
     if cache_key not in _model_cache:
         try:
             from config.settings import get_settings
@@ -39,15 +40,12 @@ def _get_local_model(whisper_model: str, device: str) -> _WhisperModelLike:
 
             faster_whisper = importlib.import_module("faster_whisper")
             WhisperModel = faster_whisper.WhisperModel
-            if resolved == "auto":
-                # Try CUDA; fail fast if CUDA unavailable (no CPU fallback)
-                _model_cache[cache_key] = WhisperModel(whisper_model, device="cuda")
-            elif resolved == "cpu":
+            if device == "cpu":
                 _model_cache[cache_key] = WhisperModel(
                     whisper_model, device="cpu", compute_type="float32"
                 )
             else:
-                _model_cache[cache_key] = WhisperModel(whisper_model, device=resolved)
+                _model_cache[cache_key] = WhisperModel(whisper_model, device=device)
         except ImportError as e:
             raise ImportError(
                 "Voice notes require the voice extra. Install with: uv sync --extra voice"
@@ -69,7 +67,7 @@ def transcribe_audio(
         file_path: Path to audio file (OGG, MP3, MP4, WAV, M4A supported)
         mime_type: MIME type of the audio (e.g. "audio/ogg")
         whisper_model: Model size: "tiny", "base", "small", "medium", "large-v2", "large-v3", "large-v3-turbo"
-        whisper_device: "cpu" | "cuda" | "auto" (auto = try CUDA, fail fast; no fallback)
+        whisper_device: "cpu" | "cuda"
 
     Returns:
         Transcribed text
