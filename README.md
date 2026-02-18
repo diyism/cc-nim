@@ -448,7 +448,8 @@ brew install fzf        # macOS/Linux
 **2. Add the alias to `~/.zshrc` or `~/.bashrc`:**
 
 ```bash
-alias claude-pick="/path/to/free-claude-code/claude-pick"
+# Use the absolute path to your cloned repo
+alias claude-pick="/absolute/path/to/free-claude-code/claude-pick"
 ```
 
 Then reload your shell (`source ~/.zshrc`) and run `claude-pick` to pick a model and launch Claude.
