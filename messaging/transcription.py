@@ -15,8 +15,6 @@ MAX_AUDIO_SIZE_BYTES = 25 * 1024 * 1024
 
 # Lazy-loaded models: (model_name, device) -> model
 _model_cache: dict[tuple[str, str], Any] = {}
-# Models for which CUDA failed at inference; skip cuda on subsequent requests
-_cuda_failed_models: set[str] = set()
 
 
 class _WhisperModelLike(Protocol):
@@ -27,11 +25,10 @@ class _WhisperModelLike(Protocol):
 
 def _get_local_model(whisper_model: str, device: str) -> _WhisperModelLike:
     """Lazy-load faster-whisper model. Raises ImportError if not installed."""
-    global _model_cache, _cuda_failed_models
-    resolved = device if device in ("cpu", "cuda") else "auto"
-    if resolved in ("cuda", "auto") and whisper_model in _cuda_failed_models:
-        resolved = "cpu"
-    cache_key = (whisper_model, resolved)
+    global _model_cache
+    if device not in ("cpu", "cuda"):
+        raise ValueError(f"whisper_device must be 'cpu' or 'cuda', got {device!r}")
+    cache_key = (whisper_model, device)
     if cache_key not in _model_cache:
         try:
             from config.settings import get_settings
@@ -43,19 +40,12 @@ def _get_local_model(whisper_model: str, device: str) -> _WhisperModelLike:
 
             faster_whisper = importlib.import_module("faster_whisper")
             WhisperModel = faster_whisper.WhisperModel
-            if resolved == "auto":
-                try:
-                    _model_cache[cache_key] = WhisperModel(whisper_model, device="cuda")
-                except RuntimeError:
-                    _model_cache[cache_key] = WhisperModel(
-                        whisper_model, device="cpu", compute_type="float32"
-                    )
-            elif resolved == "cpu":
+            if device == "cpu":
                 _model_cache[cache_key] = WhisperModel(
                     whisper_model, device="cpu", compute_type="float32"
                 )
             else:
-                _model_cache[cache_key] = WhisperModel(whisper_model, device=resolved)
+                _model_cache[cache_key] = WhisperModel(whisper_model, device=device)
         except ImportError as e:
             raise ImportError(
                 "Voice notes require the voice extra. Install with: uv sync --extra voice"
@@ -76,8 +66,8 @@ def transcribe_audio(
     Args:
         file_path: Path to audio file (OGG, MP3, MP4, WAV, M4A supported)
         mime_type: MIME type of the audio (e.g. "audio/ogg")
-        whisper_model: Model size: "tiny", "base", "small", "medium", "large-v2"
-        whisper_device: "cpu" | "cuda" | "auto" (auto = try GPU, fall back to CPU)
+        whisper_model: Model size: "tiny", "base", "small", "medium", "large-v2", "large-v3", "large-v3-turbo"
+        whisper_device: "cpu" | "cuda"
 
     Returns:
         Transcribed text
@@ -100,23 +90,9 @@ def transcribe_audio(
 
 
 def _transcribe_local(file_path: Path, whisper_model: str, whisper_device: str) -> str:
-    """Transcribe using local faster-whisper."""
+    """Transcribe using local faster-whisper. Fails fast on device errors (no fallback)."""
     model: _WhisperModelLike = _get_local_model(whisper_model, whisper_device)
-    try:
-        segments, _info = model.transcribe(str(file_path), beam_size=5)
-    except RuntimeError as e:
-        err_lower = str(e).lower()
-        if "cublas" in err_lower or "cuda" in err_lower:
-            # CUDA deferred load failed at inference; remember and fall back to CPU
-            global _model_cache, _cuda_failed_models
-            _cuda_failed_models.add(whisper_model)
-            for key in list(_model_cache):
-                if key[0] == whisper_model:
-                    del _model_cache[key]
-            model = _get_local_model(whisper_model, "cpu")
-            segments, _info = model.transcribe(str(file_path), beam_size=5)
-        else:
-            raise
+    segments, _info = model.transcribe(str(file_path), beam_size=5)
     parts = [s.text for s in segments if s.text]
     result = " ".join(parts).strip()
     logger.debug(f"Local transcription: {len(result)} chars")
