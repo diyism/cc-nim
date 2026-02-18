@@ -11,8 +11,10 @@ from __future__ import annotations
 import json
 import os
 from collections import deque
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any
+
 from loguru import logger
 
 
@@ -27,7 +29,7 @@ def _safe_json_dumps(obj: Any) -> str:
 class Segment:
     kind: str
 
-    def render(self, ctx: "RenderCtx") -> str:
+    def render(self, ctx: RenderCtx) -> str:
         raise NotImplementedError
 
 
@@ -35,7 +37,7 @@ class Segment:
 class ThinkingSegment(Segment):
     def __init__(self) -> None:
         super().__init__(kind="thinking")
-        self._parts: List[str] = []
+        self._parts: list[str] = []
 
     def append(self, t: str) -> None:
         if t:
@@ -45,7 +47,7 @@ class ThinkingSegment(Segment):
     def text(self) -> str:
         return "".join(self._parts)
 
-    def render(self, ctx: "RenderCtx") -> str:
+    def render(self, ctx: RenderCtx) -> str:
         raw = self.text or ""
         if ctx.thinking_tail_max is not None and len(raw) > ctx.thinking_tail_max:
             raw = "..." + raw[-(ctx.thinking_tail_max - 3) :]
@@ -57,7 +59,7 @@ class ThinkingSegment(Segment):
 class TextSegment(Segment):
     def __init__(self) -> None:
         super().__init__(kind="text")
-        self._parts: List[str] = []
+        self._parts: list[str] = []
 
     def append(self, t: str) -> None:
         if t:
@@ -67,7 +69,7 @@ class TextSegment(Segment):
     def text(self) -> str:
         return "".join(self._parts)
 
-    def render(self, ctx: "RenderCtx") -> str:
+    def render(self, ctx: RenderCtx) -> str:
         raw = self.text or ""
         if ctx.text_tail_max is not None and len(raw) > ctx.text_tail_max:
             raw = "..." + raw[-(ctx.text_tail_max - 3) :]
@@ -86,7 +88,7 @@ class ToolCallSegment(Segment):
         self.tool_use_id = str(tool_use_id or "")
         self.name = str(name or "tool")
         self.indent_level = max(0, int(indent_level))
-        self._parts: List[str] = []
+        self._parts: list[str] = []
 
     def set_initial_input(self, inp: Any) -> None:
         if inp is None:
@@ -104,7 +106,7 @@ class ToolCallSegment(Segment):
     def input_text(self) -> str:
         return "".join(self._parts)
 
-    def render(self, ctx: "RenderCtx") -> str:
+    def render(self, ctx: RenderCtx) -> str:
         name = ctx.code_inline(self.name)
         # Per UX requirement: do not display tool args/results, only the tool call.
         prefix = "  " * self.indent_level
@@ -114,7 +116,7 @@ class ToolCallSegment(Segment):
 @dataclass
 class ToolResultSegment(Segment):
     tool_use_id: str
-    name: Optional[str]
+    name: str | None
     content_text: str
     is_error: bool = False
 
@@ -123,7 +125,7 @@ class ToolResultSegment(Segment):
         tool_use_id: str,
         content: Any,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         is_error: bool = False,
     ) -> None:
         super().__init__(kind="tool_result")
@@ -135,7 +137,7 @@ class ToolResultSegment(Segment):
         else:
             self.content_text = _safe_json_dumps(content)
 
-    def render(self, ctx: "RenderCtx") -> str:
+    def render(self, ctx: RenderCtx) -> str:
         raw = self.content_text or ""
         if ctx.tool_output_tail_max is not None and len(raw) > ctx.tool_output_tail_max:
             raw = "..." + raw[-(ctx.tool_output_tail_max - 3) :]
@@ -150,7 +152,7 @@ class SubagentSegment(Segment):
     description: str
     tool_calls: int = 0
     tools_used: set[str] = field(default_factory=set)
-    current_tool: Optional[ToolCallSegment] = None
+    current_tool: ToolCallSegment | None = None
 
     def __init__(self, description: str) -> None:
         super().__init__(kind="subagent")
@@ -167,10 +169,10 @@ class SubagentSegment(Segment):
         self.current_tool = ToolCallSegment(tool_use_id, name, indent_level=1)
         return self.current_tool
 
-    def render(self, ctx: "RenderCtx") -> str:
+    def render(self, ctx: RenderCtx) -> str:
         inner_prefix = "  "
 
-        lines: List[str] = [
+        lines: list[str] = [
             f"🤖 {ctx.bold('Subagent:')} {ctx.code_inline(self.description)}"
         ]
 
@@ -183,10 +185,7 @@ class SubagentSegment(Segment):
                 lines.append(rendered)
 
         tools_used = sorted(self.tools_used)
-        if tools_used:
-            tools_set_raw = "{%s}" % (", ".join(tools_used))
-        else:
-            tools_set_raw = "{}"
+        tools_set_raw = "{{{}}}".format(", ".join(tools_used)) if tools_used else "{}"
 
         # Keep braces inside a code entity so MarkdownV2 doesn't require escaping them.
         lines.append(
@@ -206,7 +205,7 @@ class ErrorSegment(Segment):
         super().__init__(kind="error")
         self.message = str(message or "Unknown error")
 
-    def render(self, ctx: "RenderCtx") -> str:
+    def render(self, ctx: RenderCtx) -> str:
         return f"⚠️ {ctx.bold('Error:')} {ctx.code_inline(self.message)}"
 
 
@@ -218,38 +217,38 @@ class RenderCtx:
     escape_text: Callable[[str], str]
     render_markdown: Callable[[str], str]
 
-    thinking_tail_max: Optional[int] = 1000
-    tool_input_tail_max: Optional[int] = 1200
-    tool_output_tail_max: Optional[int] = 1600
-    text_tail_max: Optional[int] = 2000
+    thinking_tail_max: int | None = 1000
+    tool_input_tail_max: int | None = 1200
+    tool_output_tail_max: int | None = 1600
+    text_tail_max: int | None = 2000
 
 
 class TranscriptBuffer:
     """Maintains an ordered, truncatable transcript of events."""
 
     def __init__(self, *, show_tool_results: bool = True) -> None:
-        self._segments: List[Segment] = []
-        self._open_thinking_by_index: Dict[int, ThinkingSegment] = {}
-        self._open_text_by_index: Dict[int, TextSegment] = {}
+        self._segments: list[Segment] = []
+        self._open_thinking_by_index: dict[int, ThinkingSegment] = {}
+        self._open_text_by_index: dict[int, TextSegment] = {}
 
         # content_block index -> tool call segment (for streaming tool args)
-        self._open_tools_by_index: Dict[int, ToolCallSegment] = {}
+        self._open_tools_by_index: dict[int, ToolCallSegment] = {}
 
         # tool_use_id -> tool name (for tool_result labeling)
-        self._tool_name_by_id: Dict[str, str] = {}
+        self._tool_name_by_id: dict[str, str] = {}
 
         self._show_tool_results = bool(show_tool_results)
 
         # subagent context stack. Each entry is the Task tool_use_id we are waiting to close.
-        self._subagent_stack: List[str] = []
+        self._subagent_stack: list[str] = []
         # Parallel stack of segments for rendering nested subagents.
-        self._subagent_segments: List[SubagentSegment] = []
+        self._subagent_segments: list[SubagentSegment] = []
         self._debug_subagent_stack = os.getenv("DEBUG_SUBAGENT_STACK") == "1"
 
     def _in_subagent(self) -> bool:
         return bool(self._subagent_stack)
 
-    def _subagent_current(self) -> Optional[SubagentSegment]:
+    def _subagent_current(self) -> SubagentSegment | None:
         return self._subagent_segments[-1] if self._subagent_segments else None
 
     def _task_heading_from_input(self, inp: Any) -> str:
@@ -353,7 +352,7 @@ class TranscriptBuffer:
         self._segments.append(seg)
         return seg
 
-    def apply(self, ev: Dict[str, Any]) -> None:
+    def apply(self, ev: dict[str, Any]) -> None:
         """Apply a parsed event to the transcript."""
         et = ev.get("type")
 
@@ -542,10 +541,10 @@ class TranscriptBuffer:
             self._segments.append(ErrorSegment(str(ev.get("message", ""))))
             return
 
-    def render(self, ctx: RenderCtx, *, limit_chars: int, status: Optional[str]) -> str:
+    def render(self, ctx: RenderCtx, *, limit_chars: int, status: str | None) -> str:
         """Render transcript with truncation (drop oldest segments)."""
         # Filter out empty rendered segments.
-        rendered: List[str] = []
+        rendered: list[str] = []
         for seg in self._segments:
             try:
                 out = seg.render(ctx)

@@ -1,7 +1,7 @@
 """Message and tool format converters."""
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 def get_block_attr(block: Any, attr: str, default: Any = None) -> Any:
@@ -13,7 +13,7 @@ def get_block_attr(block: Any, attr: str, default: Any = None) -> Any:
     return default
 
 
-def get_block_type(block: Any) -> Optional[str]:
+def get_block_type(block: Any) -> str | None:
     """Get block type from object or dict."""
     return get_block_attr(block, "type")
 
@@ -23,10 +23,10 @@ class AnthropicToOpenAIConverter:
 
     @staticmethod
     def convert_messages(
-        messages: List[Any],
+        messages: list[Any],
         *,
         include_reasoning_for_openrouter: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Convert a list of Anthropic messages to OpenAI format.
 
         When include_reasoning_for_openrouter is True, assistant messages with
@@ -60,14 +60,14 @@ class AnthropicToOpenAIConverter:
 
     @staticmethod
     def _convert_assistant_message(
-        content: List[Any],
+        content: list[Any],
         *,
         include_reasoning_for_openrouter: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Convert assistant message blocks, preserving interleaved thinking+text order."""
-        content_parts: List[str] = []
-        thinking_parts: List[str] = []
-        tool_calls: List[Dict[str, Any]] = []
+        content_parts: list[str] = []
+        thinking_parts: list[str] = []
+        tool_calls: list[dict[str, Any]] = []
 
         for block in content:
             block_type = get_block_type(block)
@@ -101,7 +101,7 @@ class AnthropicToOpenAIConverter:
         if not content_str and not tool_calls:
             content_str = " "
 
-        msg: Dict[str, Any] = {
+        msg: dict[str, Any] = {
             "role": "assistant",
             "content": content_str,
         }
@@ -113,10 +113,10 @@ class AnthropicToOpenAIConverter:
         return [msg]
 
     @staticmethod
-    def _convert_user_message(content: List[Any]) -> List[Dict[str, Any]]:
+    def _convert_user_message(content: list[Any]) -> list[dict[str, Any]]:
         """Convert user message blocks (including tool results), preserving order."""
-        result: List[Dict[str, Any]] = []
-        text_parts: List[str] = []
+        result: list[dict[str, Any]] = []
+        text_parts: list[str] = []
 
         def flush_text() -> None:
             if text_parts:
@@ -150,7 +150,7 @@ class AnthropicToOpenAIConverter:
         return result
 
     @staticmethod
-    def convert_tools(tools: List[Any]) -> List[Dict[str, Any]]:
+    def convert_tools(tools: list[Any]) -> list[dict[str, Any]]:
         """Convert Anthropic tools to OpenAI format."""
         return [
             {
@@ -165,15 +165,16 @@ class AnthropicToOpenAIConverter:
         ]
 
     @staticmethod
-    def convert_system_prompt(system: Any) -> Optional[Dict[str, str]]:
+    def convert_system_prompt(system: Any) -> dict[str, str] | None:
         """Convert Anthropic system prompt to OpenAI format."""
         if isinstance(system, str):
             return {"role": "system", "content": system}
         elif isinstance(system, list):
-            text_parts = []
-            for block in system:
-                if get_block_type(block) == "text":
-                    text_parts.append(get_block_attr(block, "text", ""))
+            text_parts = [
+                get_block_attr(block, "text", "")
+                for block in system
+                if get_block_type(block) == "text"
+            ]
             if text_parts:
                 return {"role": "system", "content": "\n\n".join(text_parts).strip()}
         return None

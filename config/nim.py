@@ -1,6 +1,6 @@
 """NVIDIA NIM settings (fixed values, no env config)."""
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -18,8 +18,8 @@ class NimSettings(BaseModel):
     min_p: float = Field(0.0, ge=0.0, le=1.0)
     repetition_penalty: float = Field(1.0, ge=0.0)
 
-    seed: Optional[int] = None
-    stop: Optional[str] = None
+    seed: int | None = None
+    stop: str | None = None
 
     parallel_tool_calls: bool = True
     return_tokens_as_token_ids: bool = False
@@ -27,8 +27,8 @@ class NimSettings(BaseModel):
     ignore_eos: bool = False
 
     min_tokens: int = Field(0, ge=0)
-    chat_template: Optional[str] = None
-    request_id: Optional[str] = None
+    chat_template: str | None = None
+    request_id: str | None = None
 
     reasoning_effort: Literal["low", "medium", "high"] = "high"
     include_reasoning: bool = True

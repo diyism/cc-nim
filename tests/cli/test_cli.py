@@ -3,10 +3,10 @@
 import asyncio
 import json
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from unittest.mock import AsyncMock, MagicMock, patch
 from messaging.event_parser import parse_cli_event
 
 # --- Existing Parser Tests ---
@@ -216,9 +216,7 @@ class TestCLISession:
         ) as mock_exec:
             mock_exec.return_value = mock_process
 
-            events = []
-            async for event in session.start_task("Hello"):
-                events.append(event)
+            events = [e async for e in session.start_task("Hello")]
 
             # Verify command construction
             # Arg 1 is subprocess command
@@ -310,9 +308,7 @@ class TestCLISession:
         ) as mock_exec:
             mock_exec.return_value = mock_process
 
-            events = []
-            async for event in session.start_task("Hello"):
-                events.append(event)
+            events = [e async for e in session.start_task("Hello")]
 
             # Should have error event from stderr, then exit event
             assert len(events) == 2
@@ -392,10 +388,9 @@ class TestCLISession:
         ) as mock_exec:
             mock_exec.return_value = mock_process
 
-            events = []
-            async for event in session.start_task("test"):
-                if event["type"] == "message":
-                    events.append(event)
+            events = [
+                e async for e in session.start_task("test") if e["type"] == "message"
+            ]
 
             assert len(events) == 1
             assert events[0]["content"] == "Split"
@@ -420,10 +415,9 @@ class TestCLISession:
         ) as mock_exec:
             mock_exec.return_value = mock_process
 
-            events = []
-            async for event in session.start_task("test"):
-                if event["type"] == "message":
-                    events.append(event)
+            events = [
+                e async for e in session.start_task("test") if e["type"] == "message"
+            ]
 
             assert len(events) == 1
             assert events[0]["content"] == "Remnant"
@@ -526,10 +520,7 @@ class TestCLISession:
         ) as mock_exec:
             mock_exec.return_value = mock_process
 
-            events = []
-            async for event in session.start_task("test"):
-                if event["type"] == "raw":
-                    events.append(event)
+            events = [e async for e in session.start_task("test") if e["type"] == "raw"]
 
             assert len(events) == 1
             assert events[0]["content"] == "Not valid json"
@@ -582,10 +573,10 @@ class TestCLISessionManager:
         )
 
         # Create first session
-        s1, sid1, is_new1 = await manager.get_or_create_session()
+        s1, sid1, _is_new1 = await manager.get_or_create_session()
 
         # Request same session
-        s2, sid2, is_new2 = await manager.get_or_create_session(session_id=sid1)
+        s2, _sid2, is_new2 = await manager.get_or_create_session(session_id=sid1)
 
         assert s1 is s2
         assert is_new2 is False

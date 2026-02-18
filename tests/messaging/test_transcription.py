@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from messaging.transcription import (
-    transcribe_audio,
     MAX_AUDIO_SIZE_BYTES,
+    transcribe_audio,
 )
 
 
@@ -79,13 +79,15 @@ def test_transcribe_local_import_error_raises():
         f.write(b"fake ogg")
         path = Path(f.name)
     try:
-        with patch(
-            "messaging.transcription._get_local_model",
-            side_effect=ImportError(
-                "Voice notes require the voice extra. Install with: uv sync --extra voice"
+        with (
+            patch(
+                "messaging.transcription._get_local_model",
+                side_effect=ImportError(
+                    "Voice notes require the voice extra. Install with: uv sync --extra voice"
+                ),
             ),
+            pytest.raises(ImportError, match="voice extra"),
         ):
-            with pytest.raises(ImportError, match="voice extra"):
-                transcribe_audio(path, "audio/ogg")
+            transcribe_audio(path, "audio/ogg")
     finally:
         path.unlink(missing_ok=True)

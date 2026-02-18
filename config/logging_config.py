@@ -8,8 +8,8 @@ included at top level for easy grep/filter.
 
 import json
 import logging
-from loguru import logger
 
+from loguru import logger
 
 _configured = False
 

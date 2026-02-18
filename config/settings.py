@@ -1,11 +1,10 @@
 """Centralized configuration using Pydantic Settings."""
 
 from functools import lru_cache
-from typing import Optional
 
-from pydantic import field_validator, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .nim import NimSettings
 
@@ -85,12 +84,12 @@ class Settings(BaseSettings):
     whisper_device: str = Field(default="cpu", validation_alias="WHISPER_DEVICE")
 
     # ==================== Bot Wrapper Config ====================
-    telegram_bot_token: Optional[str] = None
-    allowed_telegram_user_id: Optional[str] = None
-    discord_bot_token: Optional[str] = Field(
+    telegram_bot_token: str | None = None
+    allowed_telegram_user_id: str | None = None
+    discord_bot_token: str | None = Field(
         default=None, validation_alias="DISCORD_BOT_TOKEN"
     )
-    allowed_discord_channels: Optional[str] = Field(
+    allowed_discord_channels: str | None = Field(
         default=None, validation_alias="ALLOWED_DISCORD_CHANNELS"
     )
     claude_workspace: str = "./agent_workspace"
@@ -123,7 +122,7 @@ class Settings(BaseSettings):
     )
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()

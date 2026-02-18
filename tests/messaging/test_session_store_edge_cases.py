@@ -1,8 +1,9 @@
 """Edge case tests for messaging/session.py SessionStore."""
 
 import json
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from messaging.session import SessionStore
 
@@ -82,7 +83,7 @@ class TestSessionStoreSaveEdgeCases:
     def test_save_io_error_handled(self, tmp_store):
         """Write failure in _save() is logged but doesn't raise."""
         tmp_store.save_tree("r1", {"root_id": "r1", "nodes": {"r1": {}}})
-        with patch("builtins.open", side_effect=IOError("disk full")):
+        with patch("builtins.open", side_effect=OSError("disk full")):
             tmp_store._save()
             # Should not raise
 
@@ -126,7 +127,7 @@ class TestSessionStoreClearAll:
         assert store.get_all_trees() == {}
         assert store.get_node_mapping() == {}
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         assert data["trees"] == {}
         assert data["node_to_tree"] == {}

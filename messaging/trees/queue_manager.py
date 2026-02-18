@@ -5,21 +5,22 @@ Uses TreeRepository for data, TreeQueueProcessor for async logic.
 """
 
 import asyncio
-from datetime import datetime, timezone
-from typing import Callable, Awaitable, List, Optional
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+
+from loguru import logger
 
 from ..models import IncomingMessage
-from .data import MessageState, MessageNode, MessageTree
-from .repository import TreeRepository
+from .data import MessageNode, MessageState, MessageTree
 from .processor import TreeQueueProcessor
-from loguru import logger
+from .repository import TreeRepository
 
 # Backward compatibility: re-export moved classes
 __all__ = [
-    "TreeQueueManager",
-    "MessageState",
     "MessageNode",
+    "MessageState",
     "MessageTree",
+    "TreeQueueManager",
 ]
 
 
@@ -37,12 +38,9 @@ class TreeQueueManager:
 
     def __init__(
         self,
-        queue_update_callback: Optional[
-            Callable[[MessageTree], Awaitable[None]]
-        ] = None,
-        node_started_callback: Optional[
-            Callable[[MessageTree, str], Awaitable[None]]
-        ] = None,
+        queue_update_callback: Callable[[MessageTree], Awaitable[None]] | None = None,
+        node_started_callback: Callable[[MessageTree, str], Awaitable[None]]
+        | None = None,
     ):
         self._repository = TreeRepository()
         self._processor = TreeQueueProcessor(
@@ -125,19 +123,19 @@ class TreeQueueManager:
         logger.info(f"Added node {node_id} to tree {tree.root_id}")
         return tree, node
 
-    def get_tree(self, root_id: str) -> Optional[MessageTree]:
+    def get_tree(self, root_id: str) -> MessageTree | None:
         """Get a tree by its root ID."""
         return self._repository.get_tree(root_id)
 
-    def get_tree_for_node(self, node_id: str) -> Optional[MessageTree]:
+    def get_tree_for_node(self, node_id: str) -> MessageTree | None:
         """Get the tree containing a given node."""
         return self._repository.get_tree_for_node(node_id)
 
-    def get_node(self, node_id: str) -> Optional[MessageNode]:
+    def get_node(self, node_id: str) -> MessageNode | None:
         """Get a node from any tree."""
         return self._repository.get_node(node_id)
 
-    def resolve_parent_node_id(self, msg_id: str) -> Optional[str]:
+    def resolve_parent_node_id(self, msg_id: str) -> str | None:
         """Resolve a message ID to the actual parent node ID."""
         return self._repository.resolve_parent_node_id(msg_id)
 
@@ -178,7 +176,7 @@ class TreeQueueManager:
         """Get queue size for the tree containing a node."""
         return self._repository.get_queue_size(node_id)
 
-    def get_pending_children(self, node_id: str) -> List[MessageNode]:
+    def get_pending_children(self, node_id: str) -> list[MessageNode]:
         """Get all pending child nodes (recursively) of a given node."""
         return self._repository.get_pending_children(node_id)
 
@@ -187,7 +185,7 @@ class TreeQueueManager:
         node_id: str,
         error_message: str,
         propagate_to_children: bool = True,
-    ) -> List[MessageNode]:
+    ) -> list[MessageNode]:
         """
         Mark a node as ERROR and optionally propagate to pending children.
 
@@ -223,7 +221,7 @@ class TreeQueueManager:
 
         return affected
 
-    def cancel_tree(self, root_id: str) -> List[MessageNode]:
+    def cancel_tree(self, root_id: str) -> list[MessageNode]:
         """
         Cancel all queued and in-progress messages in a tree.
 
@@ -276,7 +274,7 @@ class TreeQueueManager:
 
         return cancelled_nodes
 
-    async def cancel_node(self, node_id: str) -> List[MessageNode]:
+    async def cancel_node(self, node_id: str) -> list[MessageNode]:
         """
         Cancel a single node (queued or in-progress) without affecting other nodes.
 
@@ -311,16 +309,16 @@ class TreeQueueManager:
 
             node.state = MessageState.ERROR
             node.error_message = "Cancelled by user"
-            node.completed_at = datetime.now(timezone.utc)
+            node.completed_at = datetime.now(UTC)
 
             return [node]
 
-    async def cancel_all(self) -> List[MessageNode]:
+    async def cancel_all(self) -> list[MessageNode]:
         """Cancel all messages in all trees (async wrapper)."""
         async with self._lock:
             return self.cancel_all_sync()
 
-    def cancel_all_sync(self) -> List[MessageNode]:
+    def cancel_all_sync(self) -> list[MessageNode]:
         """
         Cancel all messages in all trees (synchronous/locked version).
         NOTE: Must be called with self._lock held.
@@ -352,14 +350,14 @@ class TreeQueueManager:
 
     def set_queue_update_callback(
         self,
-        queue_update_callback: Optional[Callable[[MessageTree], Awaitable[None]]],
+        queue_update_callback: Callable[[MessageTree], Awaitable[None]] | None,
     ) -> None:
         """Set callback for queue position updates."""
         self._processor.set_queue_update_callback(queue_update_callback)
 
     def set_node_started_callback(
         self,
-        node_started_callback: Optional[Callable[[MessageTree, str], Awaitable[None]]],
+        node_started_callback: Callable[[MessageTree, str], Awaitable[None]] | None,
     ) -> None:
         """Set callback for when a queued node starts processing."""
         self._processor.set_node_started_callback(node_started_callback)
@@ -368,7 +366,7 @@ class TreeQueueManager:
         """Register a node ID to a tree (for external mapping)."""
         self._repository.register_node(node_id, root_id)
 
-    async def cancel_branch(self, branch_root_id: str) -> List[MessageNode]:
+    async def cancel_branch(self, branch_root_id: str) -> list[MessageNode]:
         """
         Cancel all PENDING/IN_PROGRESS nodes in the subtree (branch_root + descendants).
 
@@ -379,7 +377,7 @@ class TreeQueueManager:
             return []
 
         branch_ids = set(tree.get_descendants(branch_root_id))
-        cancelled: List[MessageNode] = []
+        cancelled: list[MessageNode] = []
 
         async with tree.with_lock():
             for nid in branch_ids:
@@ -394,13 +392,13 @@ class TreeQueueManager:
                     self._processor.cancel_current(tree)
                     node.state = MessageState.ERROR
                     node.error_message = "Cancelled by user"
-                    node.completed_at = datetime.now(timezone.utc)
+                    node.completed_at = datetime.now(UTC)
                     cancelled.append(node)
                 else:
                     tree.remove_from_queue(nid)
                     node.state = MessageState.ERROR
                     node.error_message = "Cancelled by user"
-                    node.completed_at = datetime.now(timezone.utc)
+                    node.completed_at = datetime.now(UTC)
                     cancelled.append(node)
 
         if cancelled:
@@ -409,7 +407,7 @@ class TreeQueueManager:
 
     async def remove_branch(
         self, branch_root_id: str
-    ) -> tuple[List[MessageNode], str, bool]:
+    ) -> tuple[list[MessageNode], str, bool]:
         """
         Remove a branch (subtree) from the tree.
 
@@ -445,13 +443,10 @@ class TreeQueueManager:
     def from_dict(
         cls,
         data: dict,
-        queue_update_callback: Optional[
-            Callable[[MessageTree], Awaitable[None]]
-        ] = None,
-        node_started_callback: Optional[
-            Callable[[MessageTree, str], Awaitable[None]]
-        ] = None,
-    ) -> "TreeQueueManager":
+        queue_update_callback: Callable[[MessageTree], Awaitable[None]] | None = None,
+        node_started_callback: Callable[[MessageTree, str], Awaitable[None]]
+        | None = None,
+    ) -> TreeQueueManager:
         """Deserialize from dictionary."""
         manager = cls(
             queue_update_callback=queue_update_callback,

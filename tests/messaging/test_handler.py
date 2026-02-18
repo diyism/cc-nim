@@ -1,8 +1,10 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from messaging.tree_data import MessageTree, MessageNode
-from messaging.models import IncomingMessage
+
+import pytest
+
 from messaging.handler import ClaudeMessageHandler
+from messaging.models import IncomingMessage
+from messaging.tree_data import MessageNode, MessageTree
 from messaging.tree_queue import MessageState
 
 

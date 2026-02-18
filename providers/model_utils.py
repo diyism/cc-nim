@@ -4,7 +4,6 @@ Centralizes model name mapping logic to avoid duplication across the codebase.
 """
 
 import os
-from typing import Optional
 
 # Provider prefixes to strip from model names
 _PROVIDER_PREFIXES = ["anthropic/", "openai/", "gemini/"]
@@ -43,7 +42,7 @@ def is_claude_model(model: str) -> bool:
     return any(name in model_lower for name in _CLAUDE_IDENTIFIERS)
 
 
-def normalize_model_name(model: str, default_model: Optional[str] = None) -> str:
+def normalize_model_name(model: str, default_model: str | None = None) -> str:
     """
     Normalize a model name by stripping prefixes and mapping to default if needed.
 

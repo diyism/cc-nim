@@ -2,15 +2,15 @@
 
 from unittest.mock import patch
 
+from api.models.anthropic import ContentBlockText, Message, MessagesRequest
 from api.optimization_handlers import (
-    try_prefix_detection,
-    try_quota_mock,
-    try_title_skip,
-    try_suggestion_skip,
     try_filepath_mock,
     try_optimizations,
+    try_prefix_detection,
+    try_quota_mock,
+    try_suggestion_skip,
+    try_title_skip,
 )
-from api.models.anthropic import MessagesRequest, Message, ContentBlockText
 from config.settings import Settings
 
 
@@ -40,15 +40,17 @@ class TestTryPrefixDetection:
         settings = Settings()
         settings.fast_prefix_detection = True
         req = _make_request("x")
-        with patch(
-            "api.optimization_handlers.is_prefix_detection_request",
-            return_value=(True, "/ask"),
-        ):
-            with patch(
+        with (
+            patch(
+                "api.optimization_handlers.is_prefix_detection_request",
+                return_value=(True, "/ask"),
+            ),
+            patch(
                 "api.optimization_handlers.extract_command_prefix",
                 return_value="/ask",
-            ):
-                result = try_prefix_detection(req, settings)
+            ),
+        ):
+            result = try_prefix_detection(req, settings)
         assert result is not None
         block = result.content[0]
         assert isinstance(block, ContentBlockText)
@@ -158,15 +160,17 @@ class TestTryFilepathMock:
         settings = Settings()
         settings.enable_filepath_extraction_mock = True
         req = _make_request("x")
-        with patch(
-            "api.optimization_handlers.is_filepath_extraction_request",
-            return_value=(True, "ls", "a.txt b.txt"),
-        ):
-            with patch(
+        with (
+            patch(
+                "api.optimization_handlers.is_filepath_extraction_request",
+                return_value=(True, "ls", "a.txt b.txt"),
+            ),
+            patch(
                 "api.optimization_handlers.extract_filepaths_from_command",
                 return_value="a.txt\nb.txt",
-            ):
-                result = try_filepath_mock(req, settings)
+            ),
+        ):
+            result = try_filepath_mock(req, settings)
         assert result is not None
         block = result.content[0]
         assert isinstance(block, ContentBlockText)
@@ -176,15 +180,17 @@ class TestTryFilepathMock:
         settings = Settings()
         settings.enable_filepath_extraction_mock = True
         req = _make_request("x")
-        with patch(
-            "api.optimization_handlers.is_filepath_extraction_request",
-            return_value=(True, "ls", "out"),
-        ):
-            with patch(
+        with (
+            patch(
+                "api.optimization_handlers.is_filepath_extraction_request",
+                return_value=(True, "ls", "out"),
+            ),
+            patch(
                 "api.optimization_handlers.extract_filepaths_from_command",
                 return_value="",
-            ):
-                result = try_filepath_mock(req, settings)
+            ),
+        ):
+            result = try_filepath_mock(req, settings)
         assert result is not None
         block = result.content[0]
         assert isinstance(block, ContentBlockText)

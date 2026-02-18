@@ -5,16 +5,18 @@ Implements MessagingPlatform for Discord using discord.py.
 """
 
 import asyncio
+import contextlib
 import os
 import tempfile
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Callable, Awaitable, Optional, Any, Set, cast
+from typing import Any, cast
 
 from loguru import logger
 
-from .base import MessagingPlatform
 from ..models import IncomingMessage
 from ..rendering.discord_markdown import format_status_discord
+from .base import MessagingPlatform
 
 AUDIO_EXTENSIONS = (".ogg", ".mp4", ".mp3", ".wav", ".m4a")
 
@@ -39,7 +41,7 @@ def _get_discord() -> Any:
     return _discord_module
 
 
-def _parse_allowed_channels(raw: Optional[str]) -> Set[str]:
+def _parse_allowed_channels(raw: str | None) -> set[str]:
     """Parse comma-separated channel IDs into a set of strings."""
     if not raw or not raw.strip():
         return set()
@@ -54,7 +56,7 @@ if DISCORD_AVAILABLE and _discord_module is not None:
 
         def __init__(
             self,
-            platform: "DiscordPlatform",
+            platform: DiscordPlatform,
             intents: _discord.Intents,
         ) -> None:
             super().__init__(intents=intents)
@@ -84,8 +86,8 @@ class DiscordPlatform(MessagingPlatform):
 
     def __init__(
         self,
-        bot_token: Optional[str] = None,
-        allowed_channel_ids: Optional[str] = None,
+        bot_token: str | None = None,
+        allowed_channel_ids: str | None = None,
     ):
         if not DISCORD_AVAILABLE:
             raise ImportError(
@@ -105,12 +107,12 @@ class DiscordPlatform(MessagingPlatform):
 
         assert _DiscordClient is not None
         self._client = _DiscordClient(self, intents)
-        self._message_handler: Optional[
-            Callable[[IncomingMessage], Awaitable[None]]
-        ] = None
+        self._message_handler: Callable[[IncomingMessage], Awaitable[None]] | None = (
+            None
+        )
         self._connected = False
-        self._limiter: Optional[Any] = None
-        self._start_task: Optional[asyncio.Task] = None
+        self._limiter: Any | None = None
+        self._start_task: asyncio.Task | None = None
 
     def _get_audio_attachment(self, message: Any) -> Any | None:
         """Return first audio attachment, or None."""
@@ -164,9 +166,8 @@ class DiscordPlatform(MessagingPlatform):
         elif "mp3" in ct or fn.endswith(".mp3"):
             ext = ".mp3"
 
-        tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
-        tmp_path = Path(tmp.name)
-        tmp.close()
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+            tmp_path = Path(tmp.name)
 
         try:
             await attachment.save(str(tmp_path))
@@ -215,10 +216,8 @@ class DiscordPlatform(MessagingPlatform):
             )
             return True
         finally:
-            try:
+            with contextlib.suppress(OSError):
                 tmp_path.unlink(missing_ok=True)
-            except OSError:
-                pass
 
     async def _on_discord_message(self, message: Any) -> None:
         """Handle incoming Discord messages."""
@@ -275,14 +274,12 @@ class DiscordPlatform(MessagingPlatform):
             await self._message_handler(incoming)
         except Exception as e:
             logger.error(f"Error handling message: {e}")
-            try:
+            with contextlib.suppress(Exception):
                 await self.send_message(
                     channel_id,
                     format_status_discord("Error:", str(e)[:200]),
                     reply_to=message_id,
                 )
-            except Exception:
-                pass
 
     def _truncate(self, text: str, limit: int = DISCORD_MESSAGE_LIMIT) -> str:
         """Truncate text to Discord's message limit."""
@@ -325,12 +322,10 @@ class DiscordPlatform(MessagingPlatform):
         if self._start_task and not self._start_task.done():
             try:
                 await asyncio.wait_for(self._start_task, timeout=5.0)
-            except asyncio.TimeoutError, asyncio.CancelledError:
+            except TimeoutError, asyncio.CancelledError:
                 self._start_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await self._start_task
-                except asyncio.CancelledError:
-                    pass
 
         self._connected = False
         logger.info("Discord platform stopped")
@@ -339,8 +334,8 @@ class DiscordPlatform(MessagingPlatform):
         self,
         chat_id: str,
         text: str,
-        reply_to: Optional[str] = None,
-        parse_mode: Optional[str] = None,
+        reply_to: str | None = None,
+        parse_mode: str | None = None,
     ) -> str:
         """Send a message to a channel."""
         channel = self._client.get_channel(int(chat_id))
@@ -367,7 +362,7 @@ class DiscordPlatform(MessagingPlatform):
         chat_id: str,
         message_id: str,
         text: str,
-        parse_mode: Optional[str] = None,
+        parse_mode: str | None = None,
     ) -> None:
         """Edit an existing message."""
         channel = self._client.get_channel(int(chat_id))
@@ -411,10 +406,10 @@ class DiscordPlatform(MessagingPlatform):
         self,
         chat_id: str,
         text: str,
-        reply_to: Optional[str] = None,
-        parse_mode: Optional[str] = None,
+        reply_to: str | None = None,
+        parse_mode: str | None = None,
         fire_and_forget: bool = True,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Enqueue a message to be sent."""
         if not self._limiter:
             return await self.send_message(chat_id, text, reply_to, parse_mode)
@@ -432,7 +427,7 @@ class DiscordPlatform(MessagingPlatform):
         chat_id: str,
         message_id: str,
         text: str,
-        parse_mode: Optional[str] = None,
+        parse_mode: str | None = None,
         fire_and_forget: bool = True,
     ) -> None:
         """Enqueue a message edit."""
@@ -495,9 +490,9 @@ class DiscordPlatform(MessagingPlatform):
     def fire_and_forget(self, task: Awaitable[Any]) -> None:
         """Execute a coroutine without awaiting it."""
         if asyncio.iscoroutine(task):
-            asyncio.create_task(task)
+            _ = asyncio.create_task(task)
         else:
-            asyncio.ensure_future(task)
+            _ = asyncio.ensure_future(task)
 
     def on_message(
         self,

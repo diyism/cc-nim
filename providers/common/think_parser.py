@@ -1,7 +1,7 @@
 """Think tag parser for extracting reasoning content from responses."""
 
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Optional, Iterator
 from enum import Enum
 
 
@@ -63,7 +63,7 @@ class ThinkTagParser:
                 else:
                     break
 
-    def _parse_outside_think(self) -> Optional[ContentChunk]:
+    def _parse_outside_think(self) -> ContentChunk | None:
         """Parse content outside think tags."""
         think_start = self._buffer.find(self.OPEN_TAG)
         orphan_close = self._buffer.find(self.CLOSE_TAG)
@@ -115,7 +115,7 @@ class ThinkTagParser:
             # Continue parsing inside think tag
             return self._parse_inside_think()
 
-    def _parse_inside_think(self) -> Optional[ContentChunk]:
+    def _parse_inside_think(self) -> ContentChunk | None:
         """Parse content inside think tags."""
         think_end = self._buffer.find(self.CLOSE_TAG)
 
@@ -150,7 +150,7 @@ class ThinkTagParser:
             # Continue parsing outside think tag
             return self._parse_outside_think()
 
-    def flush(self) -> Optional[ContentChunk]:
+    def flush(self) -> ContentChunk | None:
         """Flush any remaining buffered content."""
         if self._buffer:
             chunk_type = (

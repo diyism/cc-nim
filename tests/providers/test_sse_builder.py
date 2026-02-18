@@ -1,12 +1,13 @@
 """Tests for providers/nvidia_nim/utils/sse_builder.py."""
 
 import json
-import pytest
 from unittest.mock import patch
 
+import pytest
+
 from providers.common.sse_builder import (
-    SSEBuilder,
     ContentBlockManager,
+    SSEBuilder,
     map_stop_reason,
 )
 

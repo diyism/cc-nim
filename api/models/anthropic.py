@@ -1,21 +1,20 @@
 """Pydantic models for Anthropic-compatible requests."""
 
-from enum import Enum
-from typing import List, Dict, Any, Optional, Union, Literal
+from enum import StrEnum
+from typing import Any, Literal
 
+from loguru import logger
 from pydantic import BaseModel, field_validator, model_validator
 
 from config.settings import get_settings
 from providers.model_utils import normalize_model_name
-from loguru import logger
-
 
 # =============================================================================
 # Content Block Types
 # =============================================================================
 
 
-class Role(str, Enum):
+class Role(StrEnum):
     user = "user"
     assistant = "assistant"
     system = "system"
@@ -28,20 +27,20 @@ class ContentBlockText(BaseModel):
 
 class ContentBlockImage(BaseModel):
     type: Literal["image"]
-    source: Dict[str, Any]
+    source: dict[str, Any]
 
 
 class ContentBlockToolUse(BaseModel):
     type: Literal["tool_use"]
     id: str
     name: str
-    input: Dict[str, Any]
+    input: dict[str, Any]
 
 
 class ContentBlockToolResult(BaseModel):
     type: Literal["tool_result"]
     tool_use_id: str
-    content: Union[str, List[Dict[str, Any]], Dict[str, Any], List[Any], Any]
+    content: str | list[dict[str, Any]] | dict[str, Any] | list[Any] | Any
 
 
 class ContentBlockThinking(BaseModel):
@@ -61,25 +60,23 @@ class SystemContent(BaseModel):
 
 class Message(BaseModel):
     role: Literal["user", "assistant"]
-    content: Union[
-        str,
-        List[
-            Union[
-                ContentBlockText,
-                ContentBlockImage,
-                ContentBlockToolUse,
-                ContentBlockToolResult,
-                ContentBlockThinking,
-            ]
-        ],
-    ]
-    reasoning_content: Optional[str] = None
+    content: (
+        str
+        | list[
+            ContentBlockText
+            | ContentBlockImage
+            | ContentBlockToolUse
+            | ContentBlockToolResult
+            | ContentBlockThinking
+        ]
+    )
+    reasoning_content: str | None = None
 
 
 class Tool(BaseModel):
     name: str
-    description: Optional[str] = None
-    input_schema: Dict[str, Any]
+    description: str | None = None
+    input_schema: dict[str, Any]
 
 
 class ThinkingConfig(BaseModel):
@@ -93,23 +90,23 @@ class ThinkingConfig(BaseModel):
 
 class MessagesRequest(BaseModel):
     model: str
-    max_tokens: Optional[int] = None
-    messages: List[Message]
-    system: Optional[Union[str, List[SystemContent]]] = None
-    stop_sequences: Optional[List[str]] = None
-    stream: Optional[bool] = True
-    temperature: Optional[float] = None
-    top_p: Optional[float] = None
-    top_k: Optional[int] = None
-    metadata: Optional[Dict[str, Any]] = None
-    tools: Optional[List[Tool]] = None
-    tool_choice: Optional[Dict[str, Any]] = None
-    thinking: Optional[ThinkingConfig] = None
-    extra_body: Optional[Dict[str, Any]] = None
-    original_model: Optional[str] = None
+    max_tokens: int | None = None
+    messages: list[Message]
+    system: str | list[SystemContent] | None = None
+    stop_sequences: list[str] | None = None
+    stream: bool | None = True
+    temperature: float | None = None
+    top_p: float | None = None
+    top_k: int | None = None
+    metadata: dict[str, Any] | None = None
+    tools: list[Tool] | None = None
+    tool_choice: dict[str, Any] | None = None
+    thinking: ThinkingConfig | None = None
+    extra_body: dict[str, Any] | None = None
+    original_model: str | None = None
 
     @model_validator(mode="after")
-    def map_model(self) -> "MessagesRequest":
+    def map_model(self) -> MessagesRequest:
         """Map any Claude model name to the configured model."""
         settings = get_settings()
         if self.original_model is None:
@@ -128,11 +125,11 @@ class MessagesRequest(BaseModel):
 
 class TokenCountRequest(BaseModel):
     model: str
-    messages: List[Message]
-    system: Optional[Union[str, List[SystemContent]]] = None
-    tools: Optional[List[Tool]] = None
-    thinking: Optional[ThinkingConfig] = None
-    tool_choice: Optional[Dict[str, Any]] = None
+    messages: list[Message]
+    system: str | list[SystemContent] | None = None
+    tools: list[Tool] | None = None
+    thinking: ThinkingConfig | None = None
+    tool_choice: dict[str, Any] | None = None
 
     @field_validator("model")
     @classmethod

@@ -1,7 +1,8 @@
-import pytest
-import pytest_asyncio
 import asyncio
 import time
+
+import pytest
+import pytest_asyncio
 
 from providers.rate_limit import GlobalRateLimiter
 
@@ -38,9 +39,7 @@ class TestProviderRateLimiter:
         # R2 -> 0.50s
         # R3 -> 0.75s
         # R4 -> 1.00s
-        results = []
-        for _ in range(5):
-            results.append(await call_limiter())
+        results = [await call_limiter() for _ in range(5)]
 
         total_time = time.time() - start_time
 
@@ -202,7 +201,7 @@ class TestProviderRateLimiter:
     async def test_execute_with_retry_exhaust_retries_raises(self):
         """When all 429 retries exhausted, last exception is raised."""
         import openai
-        from httpx import Response, Request
+        from httpx import Request, Response
 
         GlobalRateLimiter.reset_instance()
         limiter = GlobalRateLimiter.get_instance(rate_limit=100, rate_window=60)
@@ -226,7 +225,7 @@ class TestProviderRateLimiter:
     async def test_execute_with_retry_succeeds_on_retry(self):
         """429 then success returns result."""
         import openai
-        from httpx import Response, Request
+        from httpx import Request, Response
 
         GlobalRateLimiter.reset_instance()
         limiter = GlobalRateLimiter.get_instance(rate_limit=100, rate_window=60)

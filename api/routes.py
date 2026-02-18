@@ -3,20 +3,20 @@
 import json
 import uuid
 
-from fastapi import APIRouter, Request, Depends, HTTPException
-from loguru import logger
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from loguru import logger
 
-from .models.anthropic import MessagesRequest, TokenCountRequest
-from .models.responses import TokenCountResponse
-from .dependencies import get_provider, get_settings
-from .request_utils import get_token_count
-from .optimization_handlers import try_optimizations
 from config.settings import Settings
 from providers.base import BaseProvider
 from providers.exceptions import ProviderError
 from providers.logging_utils import build_request_summary, log_request_compact
 
+from .dependencies import get_provider, get_settings
+from .models.anthropic import MessagesRequest, TokenCountRequest
+from .models.responses import TokenCountResponse
+from .optimization_handlers import try_optimizations
+from .request_utils import get_token_count
 
 router = APIRouter()
 
@@ -65,8 +65,10 @@ async def create_message(
     except Exception as e:
         import traceback
 
-        logger.error(f"Error: {str(e)}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=getattr(e, "status_code", 500), detail=str(e))
+        logger.error(f"Error: {e!s}\n{traceback.format_exc()}")
+        raise HTTPException(
+            status_code=getattr(e, "status_code", 500), detail=str(e)
+        ) from e
 
 
 @router.post("/v1/messages/count_tokens")
@@ -92,7 +94,7 @@ async def count_tokens(request_data: TokenCountRequest):
                 str(e),
                 traceback.format_exc(),
             )
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/")

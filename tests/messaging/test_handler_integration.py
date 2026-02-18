@@ -1,6 +1,8 @@
-import pytest
 import asyncio
 from unittest.mock import MagicMock
+
+import pytest
+
 from messaging.handler import ClaudeMessageHandler
 from messaging.tree_data import MessageState
 

@@ -1,16 +1,14 @@
 """Dependency injection for FastAPI."""
 
-from typing import Optional
-
 from fastapi import HTTPException
 from loguru import logger
 
-from config.settings import Settings, get_settings as _get_settings, NVIDIA_NIM_BASE_URL
+from config.settings import NVIDIA_NIM_BASE_URL, Settings
+from config.settings import get_settings as _get_settings
 from providers.base import BaseProvider, ProviderConfig
 
-
 # Global provider instance (singleton)
-_provider: Optional[BaseProvider] = None
+_provider: BaseProvider | None = None
 
 
 def get_settings() -> Settings:

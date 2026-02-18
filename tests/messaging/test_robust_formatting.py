@@ -1,6 +1,7 @@
-import pytest
 from unittest.mock import MagicMock
-from messaging.transcript import TranscriptBuffer, RenderCtx
+
+import pytest
+
 from messaging.telegram_markdown import (
     escape_md_v2,
     escape_md_v2_code,
@@ -8,6 +9,7 @@ from messaging.telegram_markdown import (
     mdv2_code_inline,
     render_markdown_to_mdv2,
 )
+from messaging.transcript import RenderCtx, TranscriptBuffer
 
 
 @pytest.fixture

@@ -1,12 +1,14 @@
 """Claude Code CLI session management."""
 
 import asyncio
-import os
 import json
-from typing import AsyncGenerator, Optional, List, Any
+import os
+from collections.abc import AsyncGenerator
+from typing import Any
+
+from loguru import logger
 
 from .process_registry import register_pid, unregister_pid
-from loguru import logger
 
 
 class CLISession:
@@ -16,15 +18,15 @@ class CLISession:
         self,
         workspace_path: str,
         api_url: str,
-        allowed_dirs: Optional[List[str]] = None,
-        plans_directory: Optional[str] = None,
+        allowed_dirs: list[str] | None = None,
+        plans_directory: str | None = None,
     ):
         self.workspace = os.path.normpath(os.path.abspath(workspace_path))
         self.api_url = api_url
         self.allowed_dirs = [os.path.normpath(d) for d in (allowed_dirs or [])]
         self.plans_directory = plans_directory
-        self.process: Optional[asyncio.subprocess.Process] = None
-        self.current_session_id: Optional[str] = None
+        self.process: asyncio.subprocess.Process | None = None
+        self.current_session_id: str | None = None
         self._is_busy = False
         self._cli_lock = asyncio.Lock()
 
@@ -34,8 +36,8 @@ class CLISession:
         return self._is_busy
 
     async def start_task(
-        self, prompt: str, session_id: Optional[str] = None, fork_session: bool = False
-    ) -> AsyncGenerator[dict, None]:
+        self, prompt: str, session_id: str | None = None, fork_session: bool = False
+    ) -> AsyncGenerator[dict]:
         """
         Start a new task or continue an existing session.
 
@@ -194,7 +196,7 @@ class CLISession:
 
     async def _handle_line_gen(
         self, line_str: str, session_id_extracted: bool
-    ) -> AsyncGenerator[dict, None]:
+    ) -> AsyncGenerator[dict]:
         """Process a single line and yield events."""
         try:
             event = json.loads(line_str)
@@ -210,7 +212,7 @@ class CLISession:
             logger.debug(f"Non-JSON output: {line_str}")
             yield {"type": "raw", "content": line_str}
 
-    def _extract_session_id(self, event: Any) -> Optional[str]:
+    def _extract_session_id(self, event: Any) -> str | None:
         """Extract session ID from CLI event."""
         if not isinstance(event, dict):
             return None
@@ -243,7 +245,7 @@ class CLISession:
                 self.process.terminate()
                 try:
                     await asyncio.wait_for(self.process.wait(), timeout=5.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     self.process.kill()
                     await self.process.wait()
                 if self.process and self.process.pid:

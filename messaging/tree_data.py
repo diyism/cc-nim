@@ -1,5 +1,5 @@
 """Backward-compatible re-export. Use messaging.trees.data for new code."""
 
-from .trees.data import MessageTree, MessageNode, MessageState
+from .trees.data import MessageNode, MessageState, MessageTree
 
-__all__ = ["MessageTree", "MessageNode", "MessageState"]
+__all__ = ["MessageNode", "MessageState", "MessageTree"]

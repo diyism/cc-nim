@@ -2,11 +2,10 @@
 
 from typing import Any
 
-from providers.openai_compat import OpenAICompatibleProvider
 from providers.base import ProviderConfig
+from providers.openai_compat import OpenAICompatibleProvider
 
 from .request import build_request_body
-
 
 LMSTUDIO_DEFAULT_BASE_URL = "http://localhost:1234/v1"
 

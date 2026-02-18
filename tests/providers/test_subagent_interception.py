@@ -1,10 +1,12 @@
 import json
-import pytest
 from unittest.mock import MagicMock
-from providers.nvidia_nim import NvidiaNimProvider
-from providers.common import ContentBlockManager
-from providers.base import ProviderConfig
+
+import pytest
+
 from config.nim import NimSettings
+from providers.base import ProviderConfig
+from providers.common import ContentBlockManager
+from providers.nvidia_nim import NvidiaNimProvider
 
 
 @pytest.mark.asyncio
@@ -36,10 +38,8 @@ async def test_task_tool_interception():
         },
     }
 
-    # Call the method
-    events = []
-    for event in provider._process_tool_call(tc, sse):
-        events.append(event)
+    # Call the method (consume generator to trigger side effects)
+    list(provider._process_tool_call(tc, sse))
 
     # Find the emit_tool_delta call and check args
     calls = sse.emit_tool_delta.call_args_list

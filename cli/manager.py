@@ -8,10 +8,10 @@ simultaneously in separate CLI processes.
 
 import asyncio
 import uuid
-from typing import Dict, Optional, Tuple, List
+
+from loguru import logger
 
 from .session import CLISession
-from loguru import logger
 
 
 class CLISessionManager:
@@ -26,9 +26,9 @@ class CLISessionManager:
         self,
         workspace_path: str,
         api_url: str,
-        allowed_dirs: Optional[List[str]] = None,
+        allowed_dirs: list[str] | None = None,
         max_sessions: int = 10,
-        plans_directory: Optional[str] = None,
+        plans_directory: str | None = None,
     ):
         """
         Initialize the session manager.
@@ -46,16 +46,16 @@ class CLISessionManager:
         self.plans_directory = plans_directory
         self.max_sessions = max_sessions
 
-        self._sessions: Dict[str, CLISession] = {}
-        self._pending_sessions: Dict[str, CLISession] = {}
-        self._temp_to_real: Dict[str, str] = {}
+        self._sessions: dict[str, CLISession] = {}
+        self._pending_sessions: dict[str, CLISession] = {}
+        self._temp_to_real: dict[str, str] = {}
         self._lock = asyncio.Lock()
 
         logger.info(f"CLISessionManager initialized (max_sessions={max_sessions})")
 
     async def get_or_create_session(
-        self, session_id: Optional[str] = None
-    ) -> Tuple[CLISession, str, bool]:
+        self, session_id: str | None = None
+    ) -> tuple[CLISession, str, bool]:
         """
         Get an existing session or create a new one.
 
@@ -109,7 +109,7 @@ class CLISessionManager:
             logger.info(f"Registered session: {temp_id} -> {real_session_id}")
             return True
 
-    async def get_real_session_id(self, temp_id: str) -> Optional[str]:
+    async def get_real_session_id(self, temp_id: str) -> str | None:
         """Get the real session ID for a temporary ID."""
         async with self._lock:
             return self._temp_to_real.get(temp_id)
@@ -158,7 +158,7 @@ class CLISessionManager:
             self._temp_to_real.clear()
             logger.info("All sessions stopped")
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get session statistics."""
         return {
             "active_sessions": len(self._sessions),

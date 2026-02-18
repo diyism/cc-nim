@@ -1,6 +1,8 @@
-import pytest
 import json
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from providers.nvidia_nim import NvidiaNimProvider
 
 
@@ -65,8 +67,8 @@ async def test_init(provider_config):
 @pytest.mark.asyncio
 async def test_init_uses_configurable_timeouts():
     """Test that provider passes configurable read/write/connect timeouts to client."""
-    from providers.base import ProviderConfig
     from config.nim import NimSettings
+    from providers.base import ProviderConfig
 
     config = ProviderConfig(
         api_key="test_key",
@@ -139,9 +141,7 @@ async def test_stream_response_text(nim_provider):
     ) as mock_create:
         mock_create.return_value = mock_stream()
 
-        events = []
-        async for event in nim_provider.stream_response(req):
-            events.append(event)
+        events = [e async for e in nim_provider.stream_response(req)]
 
         assert len(events) > 0
         assert "event: message_start" in events[0]
@@ -180,16 +180,17 @@ async def test_stream_response_thinking_reasoning_content(nim_provider):
     ) as mock_create:
         mock_create.return_value = mock_stream()
 
-        events = []
-        async for event in nim_provider.stream_response(req):
-            events.append(event)
+        events = [e async for e in nim_provider.stream_response(req)]
 
         # Check for thinking_delta
         found_thinking = False
         for e in events:
-            if "event: content_block_delta" in e and '"thinking_delta"' in e:
-                if "Thinking..." in e:
-                    found_thinking = True
+            if (
+                "event: content_block_delta" in e
+                and '"thinking_delta"' in e
+                and "Thinking..." in e
+            ):
+                found_thinking = True
         assert found_thinking
 
 
@@ -222,9 +223,7 @@ async def test_tool_call_stream(nim_provider):
     ) as mock_create:
         mock_create.return_value = mock_stream()
 
-        events = []
-        async for event in nim_provider.stream_response(req):
-            events.append(event)
+        events = [e async for e in nim_provider.stream_response(req)]
 
         starts = [
             e for e in events if "event: content_block_start" in e and '"tool_use"' in e

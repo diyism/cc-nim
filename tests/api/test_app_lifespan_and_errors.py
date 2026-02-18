@@ -1,7 +1,7 @@
+import importlib
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import importlib
 import pytest
 from fastapi.testclient import TestClient
 
@@ -36,10 +36,10 @@ def test_create_app_provider_error_handler_returns_anthropic_format():
     ):
         with TestClient(app) as client:
             resp = client.get("/raise_provider")
-            assert resp.status_code == 401
-            body = resp.json()
-            assert body["type"] == "error"
-            assert body["error"]["type"] == "authentication_error"
+        assert resp.status_code == 401
+        body = resp.json()
+        assert body["type"] == "error"
+        assert body["error"]["type"] == "authentication_error"
 
 
 def test_create_app_general_exception_handler_returns_500():
@@ -71,10 +71,10 @@ def test_create_app_general_exception_handler_returns_500():
     ):
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.get("/raise_general")
-            assert resp.status_code == 500
-            body = resp.json()
-            assert body["type"] == "error"
-            assert body["error"]["type"] == "api_error"
+        assert resp.status_code == 500
+        body = resp.json()
+        assert body["type"] == "error"
+        assert body["error"]["type"] == "api_error"
 
 
 @pytest.mark.parametrize(
@@ -135,9 +135,9 @@ def test_app_lifespan_sets_state_and_cleans_up(tmp_path, messaging_enabled):
         patch(
             "messaging.tree_queue.TreeQueueManager.from_dict", return_value=fake_queue
         ),
+        TestClient(app),
     ):
-        with TestClient(app):
-            pass
+        pass
 
     if messaging_enabled:
         create_platform.assert_called_once()
@@ -203,9 +203,9 @@ def test_app_lifespan_cleanup_continues_if_platform_stop_raises(tmp_path):
         ),
         patch("messaging.session.SessionStore", return_value=session_store),
         patch("cli.manager.CLISessionManager", return_value=cli_manager),
+        TestClient(app),
     ):
-        with TestClient(app):
-            pass
+        pass
 
     fake_platform.stop.assert_awaited_once()
     cli_manager.stop_all.assert_awaited_once()
@@ -241,9 +241,9 @@ def test_app_lifespan_messaging_import_error_no_crash(tmp_path, caplog):
             "messaging.factory.create_messaging_platform",
             side_effect=ImportError("discord not installed"),
         ),
+        TestClient(app),
     ):
-        with TestClient(app):
-            pass
+        pass
 
     assert getattr(app.state, "messaging_platform", None) is None
     cleanup_provider.assert_awaited_once()
@@ -294,9 +294,9 @@ def test_app_lifespan_platform_start_exception_cleanup_still_runs(tmp_path):
         ),
         patch("messaging.session.SessionStore", return_value=session_store),
         patch("cli.manager.CLISessionManager", return_value=cli_manager),
+        TestClient(app),
     ):
-        with TestClient(app):
-            pass
+        pass
 
     cleanup_provider.assert_awaited_once()
 
@@ -331,7 +331,7 @@ def test_app_lifespan_flush_pending_save_exception_warning_only(tmp_path):
     session_store.get_all_trees.return_value = []
     session_store.get_node_mapping.return_value = {}
     session_store.sync_from_tree_data = MagicMock()
-    session_store.flush_pending_save = MagicMock(side_effect=IOError("disk full"))
+    session_store.flush_pending_save = MagicMock(side_effect=OSError("disk full"))
 
     cli_manager = MagicMock()
     cli_manager.stop_all = AsyncMock()
@@ -347,9 +347,9 @@ def test_app_lifespan_flush_pending_save_exception_warning_only(tmp_path):
         ),
         patch("messaging.session.SessionStore", return_value=session_store),
         patch("cli.manager.CLISessionManager", return_value=cli_manager),
+        TestClient(app),
     ):
-        with TestClient(app):
-            pass
+        pass
 
     session_store.flush_pending_save.assert_called_once()
     cleanup_provider.assert_awaited_once()

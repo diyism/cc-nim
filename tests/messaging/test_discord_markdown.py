@@ -1,15 +1,15 @@
 """Tests for messaging/discord_markdown.py."""
 
 from messaging.discord_markdown import (
-    escape_discord,
-    escape_discord_code,
-    discord_bold,
-    discord_code_inline,
-    format_status_discord,
-    format_status,
-    render_markdown_to_discord,
     _is_gfm_table_header_line,
     _normalize_gfm_tables,
+    discord_bold,
+    discord_code_inline,
+    escape_discord,
+    escape_discord_code,
+    format_status,
+    format_status_discord,
+    render_markdown_to_discord,
 )
 
 

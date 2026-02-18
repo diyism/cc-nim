@@ -3,11 +3,11 @@
 import openai
 
 from providers.exceptions import (
+    APIError,
     AuthenticationError,
     InvalidRequestError,
-    RateLimitError,
     OverloadedError,
-    APIError,
+    RateLimitError,
 )
 from providers.rate_limit import GlobalRateLimiter
 

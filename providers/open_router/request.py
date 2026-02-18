@@ -1,15 +1,15 @@
 """Request builder for OpenRouter provider."""
 
-from typing import Any, Dict
+from typing import Any
 
-from providers.common.message_converter import AnthropicToOpenAIConverter
 from loguru import logger
 
+from providers.common.message_converter import AnthropicToOpenAIConverter
 
 OPENROUTER_DEFAULT_MAX_TOKENS = 81920
 
 
-def _set_if_not_none(body: Dict[str, Any], key: str, value: Any) -> None:
+def _set_if_not_none(body: dict[str, Any], key: str, value: Any) -> None:
     if value is not None:
         body[key] = value
 
@@ -32,7 +32,7 @@ def build_request_body(request_data: Any) -> dict:
         if system_msg:
             messages.insert(0, system_msg)
 
-    body: Dict[str, Any] = {
+    body: dict[str, Any] = {
         "model": request_data.model,
         "messages": messages,
     }
@@ -55,7 +55,7 @@ def build_request_body(request_data: Any) -> dict:
         body["tool_choice"] = tool_choice
 
     # OpenRouter reasoning: extra_body={"reasoning": {"enabled": True}}
-    extra_body: Dict[str, Any] = {}
+    extra_body: dict[str, Any] = {}
     request_extra = getattr(request_data, "extra_body", None)
     if request_extra:
         extra_body.update(request_extra)

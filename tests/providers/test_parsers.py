@@ -1,6 +1,6 @@
 import pytest
 
-from providers.common import ThinkTagParser, ContentType, HeuristicToolParser
+from providers.common import ContentType, HeuristicToolParser, ThinkTagParser
 
 
 def test_think_tag_parser_basic():
@@ -48,11 +48,11 @@ def test_heuristic_tool_parser_streaming():
     parser = HeuristicToolParser()
 
     # Feed part 1
-    filtered1, tools1 = parser.feed("● <function=Write>")
+    _filtered1, tools1 = parser.feed("● <function=Write>")
     assert tools1 == []
 
     # Feed part 2
-    filtered2, tools2 = parser.feed("<parameter=path>test.txt</parameter>")
+    _filtered2, tools2 = parser.feed("<parameter=path>test.txt</parameter>")
     assert tools2 == []
 
     # Feed part 3 (triggering flush or completion)
@@ -126,7 +126,7 @@ def test_interleaved_thinking_and_tools():
     assert thinking[0].content == "I need to search for a file."
 
     # 2. Parse tool from remaining text
-    filtered, tools = parser_tool.feed(text_remaining)
+    _filtered, tools = parser_tool.feed(text_remaining)
     tools += parser_tool.flush()
 
     assert len(tools) == 1
@@ -151,13 +151,13 @@ def test_partial_interleaved_streaming():
     assert chunks2[0].content == " ends"
 
     text_rem = chunks2[1].content
-    filtered, tools = parser_tool.feed(text_rem)
+    _filtered, tools = parser_tool.feed(text_rem)
     assert tools == []
 
     # Chunk 3: Tool ends
     chunks3 = list(parser_think.feed("tion=Read><parameter=path>test.py</parameter>"))
     text_rem3 = "".join([c.content for c in chunks3])
-    filtered3, tools3 = parser_tool.feed(text_rem3)
+    _filtered3, tools3 = parser_tool.feed(text_rem3)
     tools3 += parser_tool.flush()
 
     assert len(tools3) == 1
@@ -180,9 +180,9 @@ def test_split_across_markers():
         chunk2 = full_text[i:]
 
         tools = []
-        filtered, t = p.feed(chunk1)
+        _filtered, t = p.feed(chunk1)
         tools.extend(t)
-        filtered2, t = p.feed(chunk2)
+        _filtered2, t = p.feed(chunk2)
         tools.extend(t)
         tools.extend(p.flush())
 
@@ -453,7 +453,7 @@ def test_heuristic_tool_parser_unicode_function_name():
     """Unicode characters in function parameters."""
     parser = HeuristicToolParser()
     text = "● <function=Search><parameter=query>日本語テスト</parameter>"
-    filtered, tools = parser.feed(text)
+    _filtered, tools = parser.feed(text)
     tools.extend(parser.flush())
     assert len(tools) == 1
     assert tools[0]["name"] == "Search"
@@ -471,6 +471,6 @@ def test_heuristic_tool_parser_unicode_function_name():
 def test_heuristic_tool_parser_malformed_function_tag(malformed_text):
     """Malformed function tags should still be handled without crashing."""
     parser = HeuristicToolParser()
-    filtered, tools = parser.feed(malformed_text)
+    _filtered, tools = parser.feed(malformed_text)
     tools.extend(parser.flush())
     # Should not crash; may or may not detect a tool depending on regex match

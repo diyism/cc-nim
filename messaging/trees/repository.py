@@ -3,11 +3,9 @@
 Provides data access layer for managing trees and node mappings.
 """
 
-from typing import Dict, Optional, List
-
 from loguru import logger
 
-from .data import MessageTree, MessageNode, MessageState
+from .data import MessageNode, MessageState, MessageTree
 
 
 class TreeRepository:
@@ -18,21 +16,21 @@ class TreeRepository:
     """
 
     def __init__(self):
-        self._trees: Dict[str, MessageTree] = {}  # root_id -> tree
-        self._node_to_tree: Dict[str, str] = {}  # node_id -> root_id
+        self._trees: dict[str, MessageTree] = {}  # root_id -> tree
+        self._node_to_tree: dict[str, str] = {}  # node_id -> root_id
 
-    def get_tree(self, root_id: str) -> Optional[MessageTree]:
+    def get_tree(self, root_id: str) -> MessageTree | None:
         """Get a tree by its root ID."""
         return self._trees.get(root_id)
 
-    def get_tree_for_node(self, node_id: str) -> Optional[MessageTree]:
+    def get_tree_for_node(self, node_id: str) -> MessageTree | None:
         """Get the tree containing a given node."""
         root_id = self._node_to_tree.get(node_id)
         if not root_id:
             return None
         return self._trees.get(root_id)
 
-    def get_node(self, node_id: str) -> Optional[MessageNode]:
+    def get_node(self, node_id: str) -> MessageNode | None:
         """Get a node from any tree."""
         tree = self.get_tree_for_node(node_id)
         return tree.get_node(node_id) if tree else None
@@ -71,7 +69,7 @@ class TreeRepository:
         tree = self.get_tree_for_node(node_id)
         return tree.get_queue_size() if tree else 0
 
-    def resolve_parent_node_id(self, msg_id: str) -> Optional[str]:
+    def resolve_parent_node_id(self, msg_id: str) -> str | None:
         """
         Resolve a message ID to the actual parent node ID.
 
@@ -96,7 +94,7 @@ class TreeRepository:
 
         return None
 
-    def get_pending_children(self, node_id: str) -> List[MessageNode]:
+    def get_pending_children(self, node_id: str) -> list[MessageNode]:
         """
         Get all pending child nodes (recursively) of a given node.
 
@@ -121,20 +119,20 @@ class TreeRepository:
 
         return pending
 
-    def all_trees(self) -> List[MessageTree]:
+    def all_trees(self) -> list[MessageTree]:
         """Get all trees in the repository."""
         return list(self._trees.values())
 
-    def tree_ids(self) -> List[str]:
+    def tree_ids(self) -> list[str]:
         """Get all tree root IDs."""
         return list(self._trees.keys())
 
-    def unregister_nodes(self, node_ids: List[str]) -> None:
+    def unregister_nodes(self, node_ids: list[str]) -> None:
         """Remove node IDs from the node-to-tree mapping."""
         for nid in node_ids:
             self._node_to_tree.pop(nid, None)
 
-    def remove_tree(self, root_id: str) -> Optional[MessageTree]:
+    def remove_tree(self, root_id: str) -> MessageTree | None:
         """
         Remove a tree and all its node mappings from the repository.
 
@@ -157,7 +155,7 @@ class TreeRepository:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "TreeRepository":
+    def from_dict(cls, data: dict) -> TreeRepository:
         """Deserialize from dictionary."""
         from .data import MessageTree
 

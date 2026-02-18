@@ -2,12 +2,12 @@
 
 from unittest.mock import MagicMock
 
+from config.nim import NimSettings
 from providers.nvidia_nim.request import (
-    _set_if_not_none,
     _set_extra,
+    _set_if_not_none,
     build_request_body,
 )
-from config.nim import NimSettings
 
 
 class TestSetIfNotNone:

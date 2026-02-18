@@ -1,7 +1,8 @@
 """Base provider interface - extend this to implement your own provider."""
 
 from abc import ABC, abstractmethod
-from typing import Any, AsyncIterator, Optional
+from collections.abc import AsyncIterator
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -14,8 +15,8 @@ class ProviderConfig(BaseModel):
     """
 
     api_key: str
-    base_url: Optional[str] = None
-    rate_limit: Optional[int] = None
+    base_url: str | None = None
+    rate_limit: int | None = None
     rate_window: int = 60
     http_read_timeout: float = 300.0
     http_write_timeout: float = 10.0

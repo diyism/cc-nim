@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from messaging.platforms.discord import DISCORD_AVAILABLE, DiscordPlatform
 from messaging.platforms.telegram import TelegramPlatform
-from messaging.platforms.discord import DiscordPlatform, DISCORD_AVAILABLE
 
 
 @pytest.fixture

@@ -2,22 +2,23 @@
 
 import json
 import uuid
-from typing import Any, AsyncIterator, Iterator, Optional
+from collections.abc import AsyncIterator, Iterator
+from typing import Any
 
 import httpx
 from loguru import logger
 from openai import AsyncOpenAI
 
 from providers.base import BaseProvider, ProviderConfig
-from providers.rate_limit import GlobalRateLimiter
 from providers.common import (
-    SSEBuilder,
-    map_stop_reason,
-    ThinkTagParser,
-    HeuristicToolParser,
     ContentType,
+    HeuristicToolParser,
+    SSEBuilder,
+    ThinkTagParser,
     map_error,
+    map_stop_reason,
 )
+from providers.rate_limit import GlobalRateLimiter
 
 
 class OpenAICompatibleProvider(BaseProvider):
@@ -30,7 +31,7 @@ class OpenAICompatibleProvider(BaseProvider):
         provider_name: str,
         base_url: str,
         api_key: str,
-        nim_settings: Optional[Any] = None,
+        nim_settings: Any | None = None,
     ):
         super().__init__(config)
         self._provider_name = provider_name

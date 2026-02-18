@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from messaging.handler import ClaudeMessageHandler
 from messaging.tree_data import MessageState

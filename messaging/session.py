@@ -7,9 +7,10 @@ and message trees for conversation continuation.
 
 import json
 import os
-from datetime import datetime, timezone
-from typing import Optional, Dict, List, Any
 import threading
+from datetime import UTC, datetime
+from typing import Any
+
 from loguru import logger
 
 
@@ -24,18 +25,18 @@ class SessionStore:
     def __init__(self, storage_path: str = "sessions.json"):
         self.storage_path = storage_path
         self._lock = threading.Lock()
-        self._trees: Dict[str, dict] = {}  # root_id -> tree data
-        self._node_to_tree: Dict[str, str] = {}  # node_id -> root_id
+        self._trees: dict[str, dict] = {}  # root_id -> tree data
+        self._node_to_tree: dict[str, str] = {}  # node_id -> root_id
         # Per-chat message ID log used to support best-effort UI clearing (/clear).
         # Key: "{platform}:{chat_id}" -> list of records
-        self._message_log: Dict[str, List[Dict[str, Any]]] = {}
-        self._message_log_ids: Dict[str, set[str]] = {}
+        self._message_log: dict[str, list[dict[str, Any]]] = {}
+        self._message_log_ids: dict[str, set[str]] = {}
         self._dirty = False
-        self._save_timer: Optional[threading.Timer] = None
+        self._save_timer: threading.Timer | None = None
         self._save_debounce_secs = 0.5
         cap_raw = os.getenv("MAX_MESSAGE_LOG_ENTRIES_PER_CHAT", "").strip()
         try:
-            self._message_log_cap: Optional[int] = int(cap_raw) if cap_raw else None
+            self._message_log_cap: int | None = int(cap_raw) if cap_raw else None
         except ValueError:
             self._message_log_cap = None
         self._load()
@@ -49,7 +50,7 @@ class SessionStore:
             return
 
         try:
-            with open(self.storage_path, "r", encoding="utf-8") as f:
+            with open(self.storage_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             # Load trees
@@ -64,7 +65,7 @@ class SessionStore:
                 for chat_key, items in raw_log.items():
                     if not isinstance(chat_key, str) or not isinstance(items, list):
                         continue
-                    cleaned: List[Dict[str, Any]] = []
+                    cleaned: list[dict[str, Any]] = []
                     seen: set[str] = set()
                     for it in items:
                         if not isinstance(it, dict):
@@ -164,7 +165,7 @@ class SessionStore:
 
             rec = {
                 "message_id": mid,
-                "ts": datetime.now(timezone.utc).isoformat(),
+                "ts": datetime.now(UTC).isoformat(),
                 "direction": str(direction),
                 "kind": str(kind),
             }
@@ -182,7 +183,7 @@ class SessionStore:
 
             self._schedule_save()
 
-    def get_message_ids_for_chat(self, platform: str, chat_id: str) -> List[str]:
+    def get_message_ids_for_chat(self, platform: str, chat_id: str) -> list[str]:
         """Get all recorded message IDs for a chat (in insertion order)."""
         chat_key = self._make_chat_key(str(platform), str(chat_id))
         with self._lock:
@@ -216,18 +217,18 @@ class SessionStore:
             self._trees[root_id] = tree_data
 
             # Update node-to-tree mapping
-            for node_id in tree_data.get("nodes", {}).keys():
+            for node_id in tree_data.get("nodes", {}):
                 self._node_to_tree[node_id] = root_id
 
             self._schedule_save()
             logger.debug(f"Saved tree {root_id}")
 
-    def get_tree(self, root_id: str) -> Optional[dict]:
+    def get_tree(self, root_id: str) -> dict | None:
         """Get a tree by its root ID."""
         with self._lock:
             return self._trees.get(root_id)
 
-    def get_tree_root_for_node(self, node_id: str) -> Optional[str]:
+    def get_tree_root_for_node(self, node_id: str) -> str | None:
         """Get the root ID of the tree containing a node."""
         with self._lock:
             return self._node_to_tree.get(node_id)
@@ -238,7 +239,7 @@ class SessionStore:
             self._node_to_tree[node_id] = root_id
             self._schedule_save()
 
-    def remove_node_mappings(self, node_ids: List[str]) -> None:
+    def remove_node_mappings(self, node_ids: list[str]) -> None:
         """Remove node IDs from the node-to-tree mapping."""
         with self._lock:
             for nid in node_ids:
@@ -250,22 +251,22 @@ class SessionStore:
         with self._lock:
             tree_data = self._trees.pop(root_id, None)
             if tree_data:
-                for node_id in tree_data.get("nodes", {}).keys():
+                for node_id in tree_data.get("nodes", {}):
                     self._node_to_tree.pop(node_id, None)
                 self._schedule_save()
 
-    def get_all_trees(self) -> Dict[str, dict]:
+    def get_all_trees(self) -> dict[str, dict]:
         """Get all stored trees (public accessor)."""
         with self._lock:
             return dict(self._trees)
 
-    def get_node_mapping(self) -> Dict[str, str]:
+    def get_node_mapping(self) -> dict[str, str]:
         """Get the node-to-tree mapping (public accessor)."""
         with self._lock:
             return dict(self._node_to_tree)
 
     def sync_from_tree_data(
-        self, trees: Dict[str, dict], node_to_tree: Dict[str, str]
+        self, trees: dict[str, dict], node_to_tree: dict[str, str]
     ) -> None:
         """Sync internal tree state from external data and persist."""
         with self._lock:
@@ -276,7 +277,7 @@ class SessionStore:
     def cleanup_old_trees(self, max_age_days: int = 30) -> int:
         """Remove trees older than max_age_days."""
         with self._lock:
-            cutoff = datetime.now(timezone.utc)
+            cutoff = datetime.now(UTC)
             removed = 0
             to_remove = []
 
@@ -296,7 +297,7 @@ class SessionStore:
             for root_id in to_remove:
                 tree_data = self._trees.pop(root_id)
                 # Remove node mappings
-                for node_id in tree_data.get("nodes", {}).keys():
+                for node_id in tree_data.get("nodes", {}):
                     self._node_to_tree.pop(node_id, None)
                 removed += 1
 

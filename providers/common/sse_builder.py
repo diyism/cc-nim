@@ -1,8 +1,9 @@
 """SSE event builder for Anthropic-format streaming responses."""
 
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, Iterator, List, Tuple
+from typing import Any
 
 from loguru import logger
 
@@ -23,7 +24,7 @@ STOP_REASON_MAP = {
 }
 
 
-def map_stop_reason(openai_reason: Optional[str]) -> str:
+def map_stop_reason(openai_reason: str | None) -> str:
     """Map OpenAI finish_reason to Anthropic stop_reason."""
     return (
         STOP_REASON_MAP.get(openai_reason, "end_turn") if openai_reason else "end_turn"
@@ -39,14 +40,14 @@ class ContentBlockManager:
     text_index: int = -1
     thinking_started: bool = False
     text_started: bool = False
-    tool_indices: Dict[int, int] = field(default_factory=dict)
-    tool_contents: Dict[int, str] = field(default_factory=dict)
-    tool_names: Dict[int, str] = field(default_factory=dict)
-    tool_ids: Dict[int, str] = field(default_factory=dict)
-    tool_started: Dict[int, bool] = field(default_factory=dict)
+    tool_indices: dict[int, int] = field(default_factory=dict)
+    tool_contents: dict[int, str] = field(default_factory=dict)
+    tool_names: dict[int, str] = field(default_factory=dict)
+    tool_ids: dict[int, str] = field(default_factory=dict)
+    tool_started: dict[int, bool] = field(default_factory=dict)
     # Buffer streaming args for tools where we don't want to emit partial deltas.
-    task_arg_buffer: Dict[int, str] = field(default_factory=dict)
-    task_args_emitted: Dict[int, bool] = field(default_factory=dict)
+    task_arg_buffer: dict[int, str] = field(default_factory=dict)
+    task_args_emitted: dict[int, bool] = field(default_factory=dict)
 
     def allocate_index(self) -> int:
         """Allocate and return the next block index."""
@@ -72,7 +73,7 @@ class ContentBlockManager:
         else:
             self.tool_names[index] = prev + name
 
-    def buffer_task_args(self, index: int, args: str) -> Optional[dict]:
+    def buffer_task_args(self, index: int, args: str) -> dict | None:
         """Buffer Task tool args and return parsed JSON when complete.
 
         Returns the parsed (and patched) args dict once the buffer forms
@@ -95,9 +96,9 @@ class ContentBlockManager:
         self.task_arg_buffer.pop(index, None)
         return args_json
 
-    def flush_task_arg_buffers(self) -> List[Tuple[int, str]]:
+    def flush_task_arg_buffers(self) -> list[tuple[int, str]]:
         """Flush any remaining Task arg buffers. Returns (tool_index, json_str) pairs."""
-        results: List[Tuple[int, str]] = []
+        results: list[tuple[int, str]] = []
         for tool_index, buf in list(self.task_arg_buffer.items()):
             if self.task_args_emitted.get(tool_index, False):
                 self.task_arg_buffer.pop(tool_index, None)
@@ -136,7 +137,7 @@ class SSEBuilder:
         self._accumulated_text = ""
         self._accumulated_reasoning = ""
 
-    def _format_event(self, event_type: str, data: Dict[str, Any]) -> str:
+    def _format_event(self, event_type: str, data: dict[str, Any]) -> str:
         """Format as SSE string."""
         event_str = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
         logger.debug(f"SSE_EVENT: {event_type} - {event_str.strip()}")
@@ -184,7 +185,7 @@ class SSEBuilder:
     # Content block events
     def content_block_start(self, index: int, block_type: str, **kwargs) -> str:
         """Generate content_block_start event."""
-        content_block: Dict[str, Any] = {"type": block_type}
+        content_block: dict[str, Any] = {"type": block_type}
         if block_type == "thinking":
             content_block["thinking"] = kwargs.get("thinking", "")
         elif block_type == "text":
@@ -205,7 +206,7 @@ class SSEBuilder:
 
     def content_block_delta(self, index: int, delta_type: str, content: str) -> str:
         """Generate content_block_delta event."""
-        delta: Dict[str, Any] = {"type": delta_type}
+        delta: dict[str, Any] = {"type": delta_type}
         if delta_type == "thinking_delta":
             delta["thinking"] = content
         elif delta_type == "text_delta":

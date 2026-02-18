@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from messaging.telegram import TelegramPlatform
+
+import pytest
 from telegram.error import NetworkError, RetryAfter, TelegramError
+
+from messaging.telegram import TelegramPlatform
 
 
 @pytest.fixture
@@ -74,7 +76,6 @@ async def test_telegram_no_retry_on_bad_request(telegram_platform):
 
 def test_handler_build_message_hardening():
     # Formatting hardening now lives in TranscriptBuffer rendering.
-    from messaging.transcript import TranscriptBuffer, RenderCtx
     from messaging.telegram_markdown import (
         escape_md_v2,
         escape_md_v2_code,
@@ -82,6 +83,7 @@ def test_handler_build_message_hardening():
         mdv2_code_inline,
         render_markdown_to_mdv2,
     )
+    from messaging.transcript import RenderCtx, TranscriptBuffer
 
     ctx = RenderCtx(
         bold=mdv2_bold,
@@ -110,7 +112,6 @@ def test_handler_build_message_hardening():
 
 def test_render_output_never_exceeds_4096():
     """Transcript render with various status lengths never exceeds Telegram 4096 limit."""
-    from messaging.transcript import TranscriptBuffer, RenderCtx
     from messaging.telegram_markdown import (
         escape_md_v2,
         escape_md_v2_code,
@@ -118,6 +119,7 @@ def test_render_output_never_exceeds_4096():
         mdv2_code_inline,
         render_markdown_to_mdv2,
     )
+    from messaging.transcript import RenderCtx, TranscriptBuffer
 
     ctx = RenderCtx(
         bold=mdv2_bold,

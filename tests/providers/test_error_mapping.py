@@ -1,18 +1,18 @@
 """Tests for providers/nvidia_nim/errors.py error mapping."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import openai
-from httpx import Response, Request
+import pytest
+from httpx import Request, Response
 
 from providers.common import map_error
 from providers.exceptions import (
+    APIError,
     AuthenticationError,
     InvalidRequestError,
-    RateLimitError,
     OverloadedError,
-    APIError,
+    RateLimitError,
 )
 
 

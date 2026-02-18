@@ -6,40 +6,43 @@ Handles the core workflow of processing user messages via Claude CLI.
 Uses tree-based queuing for message ordering.
 """
 
-import time
 import asyncio
 import os
-from typing import List, Optional, Tuple
+import time
 
-from .platforms.base import MessagingPlatform, SessionManagerInterface
-from .models import IncomingMessage
-from .session import SessionStore
-from .trees.queue_manager import (
-    TreeQueueManager,
-    MessageNode,
-    MessageState,
-    MessageTree,
-)
+from loguru import logger
+
 from .event_parser import parse_cli_event
-from .transcript import TranscriptBuffer, RenderCtx
+from .models import IncomingMessage
+from .platforms.base import MessagingPlatform, SessionManagerInterface
+from .rendering.discord_markdown import (
+    discord_bold,
+    discord_code_inline,
+    escape_discord,
+    escape_discord_code,
+    render_markdown_to_discord,
+)
+from .rendering.discord_markdown import (
+    format_status as format_status_discord,  # (emoji, label, suffix)
+)
 from .rendering.telegram_markdown import (
     escape_md_v2,
     escape_md_v2_code,
     mdv2_bold,
     mdv2_code_inline,
-    format_status as format_status_telegram,
     render_markdown_to_mdv2,
 )
-from .rendering.discord_markdown import (
-    escape_discord,
-    escape_discord_code,
-    discord_bold,
-    discord_code_inline,
-    format_status as format_status_discord,  # (emoji, label, suffix)
-    render_markdown_to_discord,
+from .rendering.telegram_markdown import (
+    format_status as format_status_telegram,
 )
-from loguru import logger
-
+from .session import SessionStore
+from .transcript import RenderCtx, TranscriptBuffer
+from .trees.queue_manager import (
+    MessageNode,
+    MessageState,
+    MessageTree,
+    TreeQueueManager,
+)
 
 # Status message prefixes used to filter our own messages (ignore echo)
 STATUS_MESSAGE_PREFIXES = ("⏳", "💭", "🔧", "✅", "❌", "🚀", "🤖", "📋", "📊", "🔄")
@@ -77,7 +80,7 @@ _EVENT_STATUS_MAP = {
 }
 
 
-def _get_status_for_event(ptype: str, parsed: dict, format_status_fn) -> Optional[str]:
+def _get_status_for_event(ptype: str, parsed: dict, format_status_fn) -> str | None:
     """Return status string for event type, or None if no status update needed."""
     entry = _EVENT_STATUS_MAP.get(ptype)
     if entry is not None:
@@ -115,15 +118,13 @@ class ClaudeMessageHandler:
             node_started_callback=self._mark_node_processing,
         )
 
-    def _format_status(
-        self, emoji: str, label: str, suffix: Optional[str] = None
-    ) -> str:
+    def _format_status(self, emoji: str, label: str, suffix: str | None = None) -> str:
         """Platform-specific status formatting."""
         if self.platform.name == "discord":
             return format_status_discord(emoji, label, suffix)
         return format_status_telegram(emoji, label, suffix)
 
-    def _parse_mode(self) -> Optional[str]:
+    def _parse_mode(self) -> str | None:
         """Platform-specific parse mode (MarkdownV2 for Telegram, None for Discord)."""
         if self.platform.name == "discord":
             return None
@@ -262,7 +263,7 @@ class ClaudeMessageHandler:
         # Create or extend tree
         if parent_node_id and tree and status_msg_id:
             # Reply to existing node - add as child
-            tree, node = await self.tree_queue.add_to_tree(
+            tree, _node = await self.tree_queue.add_to_tree(
                 parent_node_id=parent_node_id,
                 node_id=node_id,
                 incoming=incoming,
@@ -350,7 +351,7 @@ class ClaudeMessageHandler:
 
     def _create_transcript_and_render_ctx(
         self,
-    ) -> Tuple[TranscriptBuffer, RenderCtx]:
+    ) -> tuple[TranscriptBuffer, RenderCtx]:
         """Create transcript buffer and render context for node processing."""
         transcript = TranscriptBuffer(show_tool_results=False)
         return transcript, self._get_render_ctx()
@@ -358,11 +359,11 @@ class ClaudeMessageHandler:
     async def _handle_session_info_event(
         self,
         event_data: dict,
-        tree: Optional[MessageTree],
+        tree: MessageTree | None,
         node_id: str,
-        captured_session_id: Optional[str],
-        temp_session_id: Optional[str],
-    ) -> Tuple[Optional[str], Optional[str]]:
+        captured_session_id: str | None,
+        temp_session_id: str | None,
+    ) -> tuple[str | None, str | None]:
         """Handle session_info event; return updated (captured_session_id, temp_session_id)."""
         if event_data.get("type") != "session_info":
             return captured_session_id, temp_session_id
@@ -389,12 +390,12 @@ class ClaudeMessageHandler:
         parsed: dict,
         transcript: TranscriptBuffer,
         update_ui,
-        last_status: Optional[str],
+        last_status: str | None,
         had_transcript_events: bool,
-        tree: Optional[MessageTree],
+        tree: MessageTree | None,
         node_id: str,
-        captured_session_id: Optional[str],
-    ) -> Tuple[Optional[str], bool]:
+        captured_session_id: str | None,
+    ) -> tuple[str | None, bool]:
         """Process a single parsed CLI event. Returns (last_status, had_transcript_events)."""
         ptype = parsed.get("type") or ""
 
@@ -466,7 +467,7 @@ class ClaudeMessageHandler:
         had_transcript_events = False
         captured_session_id = None
         temp_session_id = None
-        last_status: Optional[str] = None
+        last_status: str | None = None
 
         parent_session_id = None
         if tree and node.parent_id:
@@ -474,7 +475,7 @@ class ClaudeMessageHandler:
             if parent_session_id:
                 logger.info(f"Will fork from parent session: {parent_session_id}")
 
-        async def update_ui(status: Optional[str] = None, force: bool = False) -> None:
+        async def update_ui(status: str | None = None, force: bool = False) -> None:
             nonlocal last_ui_update, last_displayed_text, last_status
             now = time.time()
             if not force and now - last_ui_update < 1.0:
@@ -652,8 +653,8 @@ class ClaudeMessageHandler:
 
     def _get_initial_status(
         self,
-        tree: Optional[object],
-        parent_node_id: Optional[str],
+        tree: object | None,
+        parent_node_id: str | None,
     ) -> str:
         """Get initial status message text."""
         if tree and parent_node_id:
@@ -719,7 +720,7 @@ class ClaudeMessageHandler:
         self,
         platform: str,
         chat_id: str,
-        msg_id: Optional[str],
+        msg_id: str | None,
         kind: str,
     ) -> None:
         """Record outgoing message ID for /clear. Best-effort, never raises."""
@@ -732,7 +733,7 @@ class ClaudeMessageHandler:
         except Exception as e:
             logger.debug(f"Failed to record message_id: {e}")
 
-    def _update_cancelled_nodes_ui(self, nodes: List[MessageNode]) -> None:
+    def _update_cancelled_nodes_ui(self, nodes: list[MessageNode]) -> None:
         """Update status messages and persist tree state for cancelled nodes."""
         trees_to_save: dict[str, MessageTree] = {}
         for node in nodes:

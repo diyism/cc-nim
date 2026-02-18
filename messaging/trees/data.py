@@ -6,13 +6,38 @@ Contains MessageState, MessageNode, and MessageTree classes.
 import asyncio
 from collections import deque
 from contextlib import asynccontextmanager
-from enum import Enum
-from datetime import datetime, timezone
-from typing import Dict, Optional, List, Any, cast
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
+
+from loguru import logger
 
 from ..models import IncomingMessage
-from loguru import logger
+
+
+class _SnapshotQueue(asyncio.Queue[str]):
+    """
+    Queue with snapshot/remove helpers.
+
+    Extends asyncio.Queue to expose read-only snapshot and in-place remove
+    without inflating _unfinished_tasks (drain/put would require task_done).
+    """
+
+    _queue: deque  # Set by asyncio.Queue.__init__
+
+    def get_snapshot(self) -> list[str]:
+        """Return current queue contents in FIFO order (read-only copy)."""
+        return list(self._queue)
+
+    def remove_if_present(self, item: str) -> bool:
+        """Remove item from queue if present. Returns True if removed."""
+        if item not in self._queue:
+            return False
+        object.__setattr__(
+            self, "_queue", deque(x for x in self._queue if x != item)
+        )
+        return True
 
 
 class MessageState(Enum):
@@ -39,12 +64,12 @@ class MessageNode:
     incoming: IncomingMessage  # The original message
     status_message_id: str  # Bot's status message ID
     state: MessageState = MessageState.PENDING
-    parent_id: Optional[str] = None  # Parent node ID (None for root)
-    session_id: Optional[str] = None  # Claude session ID (forked from parent)
-    children_ids: List[str] = field(default_factory=list)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    completed_at: Optional[datetime] = None
-    error_message: Optional[str] = None
+    parent_id: str | None = None  # Parent node ID (None for root)
+    session_id: str | None = None  # Claude session ID (forked from parent)
+    children_ids: list[str] = field(default_factory=list)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    completed_at: datetime | None = None
+    error_message: str | None = None
     context: Any = None  # Additional context if needed
 
     def to_dict(self) -> dict:
@@ -73,7 +98,7 @@ class MessageNode:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "MessageNode":
+    def from_dict(cls, data: dict) -> MessageNode:
         """Create from dictionary (JSON deserialization)."""
         incoming_data = data["incoming"]
         incoming = IncomingMessage(
@@ -119,19 +144,19 @@ class MessageTree:
             root_node: The root message node
         """
         self.root_id = root_node.node_id
-        self._nodes: Dict[str, MessageNode] = {root_node.node_id: root_node}
-        self._status_to_node: Dict[str, str] = {
+        self._nodes: dict[str, MessageNode] = {root_node.node_id: root_node}
+        self._status_to_node: dict[str, str] = {
             root_node.status_message_id: root_node.node_id
         }
-        self._queue: asyncio.Queue[str] = asyncio.Queue()
+        self._queue: _SnapshotQueue = _SnapshotQueue()
         self._lock = asyncio.Lock()
         self._is_processing = False
-        self._current_node_id: Optional[str] = None
-        self._current_task: Optional[asyncio.Task] = None
+        self._current_node_id: str | None = None
+        self._current_task: asyncio.Task | None = None
 
         logger.debug(f"Created MessageTree with root {self.root_id}")
 
-    def set_current_task(self, task: Optional[asyncio.Task]) -> None:
+    def set_current_task(self, task: asyncio.Task | None) -> None:
         """Set the current processing task. Caller must hold lock."""
         self._current_task = task
 
@@ -178,7 +203,7 @@ class MessageTree:
             logger.debug(f"Added node {node_id} as child of {parent_id}")
             return node
 
-    def get_node(self, node_id: str) -> Optional[MessageNode]:
+    def get_node(self, node_id: str) -> MessageNode | None:
         """Get a node by ID (O(1) lookup)."""
         return self._nodes.get(node_id)
 
@@ -186,21 +211,21 @@ class MessageTree:
         """Get the root node."""
         return self._nodes[self.root_id]
 
-    def get_children(self, node_id: str) -> List[MessageNode]:
+    def get_children(self, node_id: str) -> list[MessageNode]:
         """Get all child nodes of a given node."""
         node = self._nodes.get(node_id)
         if not node:
             return []
         return [self._nodes[cid] for cid in node.children_ids if cid in self._nodes]
 
-    def get_parent(self, node_id: str) -> Optional[MessageNode]:
+    def get_parent(self, node_id: str) -> MessageNode | None:
         """Get the parent node."""
         node = self._nodes.get(node_id)
         if not node or not node.parent_id:
             return None
         return self._nodes.get(node.parent_id)
 
-    def get_parent_session_id(self, node_id: str) -> Optional[str]:
+    def get_parent_session_id(self, node_id: str) -> str | None:
         """
         Get the parent's session ID for forking.
 
@@ -213,8 +238,8 @@ class MessageTree:
         self,
         node_id: str,
         state: MessageState,
-        session_id: Optional[str] = None,
-        error_message: Optional[str] = None,
+        session_id: str | None = None,
+        error_message: str | None = None,
     ) -> None:
         """Update a node's state."""
         async with self._lock:
@@ -229,7 +254,7 @@ class MessageTree:
             if error_message:
                 node.error_message = error_message
             if state in (MessageState.COMPLETED, MessageState.ERROR):
-                node.completed_at = datetime.now(timezone.utc)
+                node.completed_at = datetime.now(UTC)
 
             logger.debug(f"Node {node_id} state -> {state.value}")
 
@@ -246,7 +271,7 @@ class MessageTree:
             logger.debug(f"Enqueued node {node_id}, position {position}")
             return position
 
-    async def dequeue(self) -> Optional[str]:
+    async def dequeue(self) -> str | None:
         """
         Get the next node ID from the queue.
 
@@ -257,7 +282,7 @@ class MessageTree:
         except asyncio.QueueEmpty:
             return None
 
-    async def get_queue_snapshot(self) -> List[str]:
+    async def get_queue_snapshot(self) -> list[str]:
         """
         Get a snapshot of the current queue order.
 
@@ -265,10 +290,7 @@ class MessageTree:
             List of node IDs in FIFO order.
         """
         async with self._lock:
-            # Read internal deque directly to avoid mutating queue state.
-            # Drain/put approach would inflate _unfinished_tasks without task_done().
-            queue_deque = cast(deque, getattr(self._queue, "_queue"))
-            return list(queue_deque)
+            return self._queue.get_snapshot()
 
     def get_queue_size(self) -> int:
         """Get number of messages waiting in queue."""
@@ -280,17 +302,8 @@ class MessageTree:
 
         Caller must hold the tree lock (e.g. via with_lock).
         Returns True if node was removed, False if not in queue.
-
-        Note: asyncio.Queue has no built-in remove; we filter via the internal
-        deque. O(n) in queue size; acceptable for typical tree queue sizes.
         """
-        queue_deque = cast(deque, getattr(self._queue, "_queue"))
-        if node_id not in queue_deque:
-            return False
-        object.__setattr__(
-            self._queue, "_queue", deque(x for x in queue_deque if x != node_id)
-        )
-        return True
+        return self._queue.remove_if_present(node_id)
 
     @asynccontextmanager
     async def with_lock(self):
@@ -298,7 +311,7 @@ class MessageTree:
         async with self._lock:
             yield
 
-    def set_processing_state(self, node_id: Optional[str], is_processing: bool) -> None:
+    def set_processing_state(self, node_id: str | None, is_processing: bool) -> None:
         """Set processing state. Caller must hold lock for consistency with queue operations."""
         self._is_processing = is_processing
         self._current_node_id = node_id if is_processing else None
@@ -324,12 +337,12 @@ class MessageTree:
 
     def drain_queue_and_mark_cancelled(
         self, error_message: str = "Cancelled by user"
-    ) -> List["MessageNode"]:
+    ) -> list[MessageNode]:
         """
         Drain the queue, mark each node as ERROR, and return affected nodes.
         Does not acquire lock; caller must ensure no concurrent queue access.
         """
-        nodes: List[MessageNode] = []
+        nodes: list[MessageNode] = []
         while True:
             try:
                 node_id = self._queue.get_nowait()
@@ -348,7 +361,7 @@ class MessageTree:
         self._current_node_id = None
 
     @property
-    def current_node_id(self) -> Optional[str]:
+    def current_node_id(self) -> str | None:
         """Get the ID of the node currently being processed."""
         return self._current_node_id
 
@@ -360,7 +373,7 @@ class MessageTree:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "MessageTree":
+    def from_dict(cls, data: dict) -> MessageTree:
         """Deserialize tree from dictionary."""
         root_id = data["root_id"]
         nodes_data = data["nodes"]
@@ -378,7 +391,7 @@ class MessageTree:
 
         return tree
 
-    def all_nodes(self) -> List[MessageNode]:
+    def all_nodes(self) -> list[MessageNode]:
         """Get all nodes in the tree."""
         return list(self._nodes.values())
 
@@ -386,12 +399,12 @@ class MessageTree:
         """Check if a node exists in this tree."""
         return node_id in self._nodes
 
-    def find_node_by_status_message(self, status_msg_id: str) -> Optional[MessageNode]:
+    def find_node_by_status_message(self, status_msg_id: str) -> MessageNode | None:
         """Find the node that has this status message ID (O(1) lookup)."""
         node_id = self._status_to_node.get(status_msg_id)
         return self._nodes.get(node_id) if node_id else None
 
-    def get_descendants(self, node_id: str) -> List[str]:
+    def get_descendants(self, node_id: str) -> list[str]:
         """
         Get node_id and all descendant IDs (subtree).
 
@@ -400,7 +413,7 @@ class MessageTree:
         """
         if node_id not in self._nodes:
             return []
-        result: List[str] = []
+        result: list[str] = []
         stack = [node_id]
         while stack:
             nid = stack.pop()
@@ -410,7 +423,7 @@ class MessageTree:
                 stack.extend(node.children_ids)
         return result
 
-    def remove_branch(self, branch_root_id: str) -> List[MessageNode]:
+    def remove_branch(self, branch_root_id: str) -> list[MessageNode]:
         """
         Remove a subtree (branch_root and all descendants) from the tree.
 

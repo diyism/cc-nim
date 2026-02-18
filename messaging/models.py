@@ -1,8 +1,8 @@
 """Platform-agnostic message models."""
 
 from dataclasses import dataclass, field
-from typing import Optional, Any
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -20,11 +20,11 @@ class IncomingMessage:
     platform: str  # "telegram", "discord", "slack", etc.
 
     # Optional fields
-    reply_to_message_id: Optional[str] = None
-    username: Optional[str] = None
+    reply_to_message_id: str | None = None
+    username: str | None = None
     # Pre-sent status message ID (e.g. "Transcribing voice note..."); handler edits in place
-    status_message_id: Optional[str] = None
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    status_message_id: str | None = None
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     # Platform-specific raw event for edge cases
     raw_event: Any = None

@@ -5,6 +5,7 @@ Implements MessagingPlatform for Telegram using python-telegram-bot.
 """
 
 import asyncio
+import contextlib
 import os
 import tempfile
 from pathlib import Path
@@ -13,7 +14,8 @@ from pathlib import Path
 # This must be set BEFORE importing telegram.error
 os.environ["PTB_TIMEDELTA"] = "1"
 
-from typing import Callable, Awaitable, Optional, Any, TYPE_CHECKING
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -21,22 +23,21 @@ if TYPE_CHECKING:
     from telegram import Update
     from telegram.ext import ContextTypes
 
-from .base import MessagingPlatform
 from ..models import IncomingMessage
 from ..rendering.telegram_markdown import escape_md_v2, format_status
-
+from .base import MessagingPlatform
 
 # Optional import - python-telegram-bot may not be installed
 try:
     from telegram import Update
+    from telegram.error import NetworkError, RetryAfter, TelegramError
     from telegram.ext import (
         Application,
         CommandHandler,
-        MessageHandler,
         ContextTypes,
+        MessageHandler,
         filters,
     )
-    from telegram.error import TelegramError, RetryAfter, NetworkError
     from telegram.request import HTTPXRequest
 
     TELEGRAM_AVAILABLE = True
@@ -56,8 +57,8 @@ class TelegramPlatform(MessagingPlatform):
 
     def __init__(
         self,
-        bot_token: Optional[str] = None,
-        allowed_user_id: Optional[str] = None,
+        bot_token: str | None = None,
+        allowed_user_id: str | None = None,
     ):
         if not TELEGRAM_AVAILABLE:
             raise ImportError(
@@ -72,12 +73,12 @@ class TelegramPlatform(MessagingPlatform):
             # but start() will fail.
             logger.warning("TELEGRAM_BOT_TOKEN not set")
 
-        self._application: Optional[Application] = None
-        self._message_handler: Optional[
-            Callable[[IncomingMessage], Awaitable[None]]
-        ] = None
+        self._application: Application | None = None
+        self._message_handler: Callable[[IncomingMessage], Awaitable[None]] | None = (
+            None
+        )
         self._connected = False
-        self._limiter: Optional[Any] = None  # Will be MessagingRateLimiter
+        self._limiter: Any | None = None  # Will be MessagingRateLimiter
 
     async def start(self) -> None:
         """Initialize and connect to Telegram."""
@@ -174,7 +175,7 @@ class TelegramPlatform(MessagingPlatform):
         for attempt in range(max_retries):
             try:
                 return await func(*args, **kwargs)
-            except (NetworkError, asyncio.TimeoutError) as e:
+            except (TimeoutError, NetworkError) as e:
                 if "Message is not modified" in str(e):
                     return None
                 if attempt < max_retries - 1:
@@ -229,8 +230,8 @@ class TelegramPlatform(MessagingPlatform):
         self,
         chat_id: str,
         text: str,
-        reply_to: Optional[str] = None,
-        parse_mode: Optional[str] = "MarkdownV2",
+        reply_to: str | None = None,
+        parse_mode: str | None = "MarkdownV2",
     ) -> str:
         """Send a message to a chat."""
         app = self._application
@@ -254,7 +255,7 @@ class TelegramPlatform(MessagingPlatform):
         chat_id: str,
         message_id: str,
         text: str,
-        parse_mode: Optional[str] = "MarkdownV2",
+        parse_mode: str | None = "MarkdownV2",
     ) -> None:
         """Edit an existing message."""
         app = self._application
@@ -322,10 +323,10 @@ class TelegramPlatform(MessagingPlatform):
         self,
         chat_id: str,
         text: str,
-        reply_to: Optional[str] = None,
-        parse_mode: Optional[str] = "MarkdownV2",
+        reply_to: str | None = None,
+        parse_mode: str | None = "MarkdownV2",
         fire_and_forget: bool = True,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Enqueue a message to be sent (using limiter)."""
         # Note: Bot API handles limits better, but we still use our limiter for nice queuing
         if not self._limiter:
@@ -345,7 +346,7 @@ class TelegramPlatform(MessagingPlatform):
         chat_id: str,
         message_id: str,
         text: str,
-        parse_mode: Optional[str] = "MarkdownV2",
+        parse_mode: str | None = "MarkdownV2",
         fire_and_forget: bool = True,
     ) -> None:
         """Enqueue a message edit."""
@@ -406,9 +407,9 @@ class TelegramPlatform(MessagingPlatform):
     def fire_and_forget(self, task: Awaitable[Any]) -> None:
         """Execute a coroutine without awaiting it."""
         if asyncio.iscoroutine(task):
-            asyncio.create_task(task)
+            _ = asyncio.create_task(task)
         else:
-            asyncio.ensure_future(task)
+            _ = asyncio.ensure_future(task)
 
     def on_message(
         self,
@@ -423,7 +424,7 @@ class TelegramPlatform(MessagingPlatform):
         return self._connected
 
     async def _on_start_command(
-        self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         """Handle /start command."""
         if update.message:
@@ -432,7 +433,7 @@ class TelegramPlatform(MessagingPlatform):
         await self._on_telegram_message(update, context)
 
     async def _on_telegram_message(
-        self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         """Handle incoming updates."""
         if (
@@ -447,10 +448,9 @@ class TelegramPlatform(MessagingPlatform):
         chat_id = str(update.effective_chat.id)
 
         # Security check
-        if self.allowed_user_id:
-            if user_id != str(self.allowed_user_id).strip():
-                logger.warning(f"Unauthorized access attempt from {user_id}")
-                return
+        if self.allowed_user_id and user_id != str(self.allowed_user_id).strip():
+            logger.warning(f"Unauthorized access attempt from {user_id}")
+            return
 
         message_id = str(update.message.message_id)
         reply_to = (
@@ -486,18 +486,16 @@ class TelegramPlatform(MessagingPlatform):
             await self._message_handler(incoming)
         except Exception as e:
             logger.error(f"Error handling message: {e}")
-            try:
+            with contextlib.suppress(Exception):
                 await self.send_message(
                     chat_id,
                     f"❌ *{escape_md_v2('Error:')}* {escape_md_v2(str(e)[:200])}",
                     reply_to=incoming.message_id,
                     parse_mode="MarkdownV2",
                 )
-            except Exception:
-                pass
 
     async def _on_telegram_voice(
-        self, update: "Update", context: "ContextTypes.DEFAULT_TYPE"
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         """Handle incoming voice messages."""
         if (
@@ -547,9 +545,8 @@ class TelegramPlatform(MessagingPlatform):
         elif voice.mime_type and "mp4" in voice.mime_type:
             suffix = ".mp4"
 
-        tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
-        tmp_path = Path(tmp.name)
-        tmp.close()
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp_path = Path(tmp.name)
 
         try:
             tg_file = await context.bot.get_file(voice.file_id)
@@ -594,7 +591,5 @@ class TelegramPlatform(MessagingPlatform):
                 "Could not transcribe voice note. Please try again or send text."
             )
         finally:
-            try:
+            with contextlib.suppress(OSError):
                 tmp_path.unlink(missing_ok=True)
-            except OSError:
-                pass

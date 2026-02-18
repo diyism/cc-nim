@@ -1,7 +1,9 @@
+from unittest.mock import MagicMock
+
 from fastapi.testclient import TestClient
+
 from api.app import app
 from api.dependencies import get_provider
-from unittest.mock import MagicMock
 from providers.nvidia_nim import NvidiaNimProvider
 
 # Mock provider
@@ -75,8 +77,8 @@ def test_model_mapping():
 def test_error_fallbacks():
     from providers.exceptions import (
         AuthenticationError,
-        RateLimitError,
         OverloadedError,
+        RateLimitError,
     )
 
     base_payload = {"model": "test", "messages": [], "max_tokens": 10, "stream": True}

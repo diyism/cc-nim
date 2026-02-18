@@ -1,12 +1,13 @@
-import pytest
 from unittest.mock import MagicMock
 
-from api.models.anthropic import MessagesRequest, Message
-from api.detection import (
-    is_suggestion_mode_request,
-    is_filepath_extraction_request,
-)
+import pytest
+
 from api.command_utils import extract_filepaths_from_command
+from api.detection import (
+    is_filepath_extraction_request,
+    is_suggestion_mode_request,
+)
+from api.models.anthropic import Message, MessagesRequest
 
 
 def _mk_req(messages, tools=None):

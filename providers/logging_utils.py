@@ -6,13 +6,14 @@ while maintaining full traceability through request IDs and content hashes.
 
 import hashlib
 import json
-from typing import Any, Dict, List
+from typing import Any
 
-from utils.text import extract_text_from_content
 from loguru import logger
 
+from utils.text import extract_text_from_content
 
-def generate_request_fingerprint(messages: List[Any]) -> str:
+
+def generate_request_fingerprint(messages: list[Any]) -> str:
     """Generate unique short hash for message content.
 
     Creates a SHA256 hash of all message content, returning an 8-char prefix
@@ -38,7 +39,7 @@ def generate_request_fingerprint(messages: List[Any]) -> str:
     return f"fp_{hash_digest[:8]}"
 
 
-def get_last_user_message_preview(messages: List[Any], max_len: int = 100) -> str:
+def get_last_user_message_preview(messages: list[Any], max_len: int = 100) -> str:
     """Extract a preview of the last user message."""
     for msg in reversed(messages):
         if hasattr(msg, "role") and msg.role == "user":
@@ -49,7 +50,7 @@ def get_last_user_message_preview(messages: List[Any], max_len: int = 100) -> st
     return "(no user message)"
 
 
-def get_tool_names(tools: List[Any] | None, max_count: int = 5) -> List[str]:
+def get_tool_names(tools: list[Any] | None, max_count: int = 5) -> list[str]:
     """Extract tool names from tool list, limiting to max_count."""
     if not tools:
         return []
@@ -64,7 +65,7 @@ def get_tool_names(tools: List[Any] | None, max_count: int = 5) -> List[str]:
     return names
 
 
-def build_request_summary(request_data: Any) -> Dict[str, Any]:
+def build_request_summary(request_data: Any) -> dict[str, Any]:
     """Build compact metadata dict for logging.
 
     Returns a dictionary with key metrics about the request without
@@ -97,7 +98,7 @@ def build_request_summary(request_data: Any) -> Dict[str, Any]:
 
 
 def log_full_payload(
-    logger_instance: Any, request_id: str, payload: Dict[str, Any]
+    logger_instance: Any, request_id: str, payload: dict[str, Any]
 ) -> None:
     """Log full payload to the standard logger."""
     logger_instance.debug(

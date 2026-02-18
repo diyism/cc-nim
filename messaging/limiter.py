@@ -7,9 +7,11 @@ using a strict sliding window algorithm and a task queue.
 
 import asyncio
 import os
-from collections import deque
 import time
-from typing import Awaitable, Callable, Any, Optional, Dict
+from collections import deque
+from collections.abc import Awaitable, Callable
+from typing import Any
+
 from loguru import logger
 
 
@@ -57,7 +59,7 @@ class SlidingWindowLimiter:
             else:
                 await asyncio.sleep(0)
 
-    async def __aenter__(self) -> "SlidingWindowLimiter":
+    async def __aenter__(self) -> SlidingWindowLimiter:
         await self.acquire()
         return self
 
@@ -73,14 +75,14 @@ class MessagingRateLimiter:
     only the latest version of a message update is processed.
     """
 
-    _instance: Optional["MessagingRateLimiter"] = None
+    _instance: MessagingRateLimiter | None = None
     _lock = asyncio.Lock()
 
     def __new__(cls, *args, **kwargs):
-        return super(MessagingRateLimiter, cls).__new__(cls)
+        return super().__new__(cls)
 
     @classmethod
-    async def get_instance(cls) -> "MessagingRateLimiter":
+    async def get_instance(cls) -> MessagingRateLimiter:
         """Get the singleton instance of the limiter."""
         async with cls._lock:
             if cls._instance is None:
@@ -100,12 +102,12 @@ class MessagingRateLimiter:
         self.limiter = SlidingWindowLimiter(rate_limit, rate_window)
         # Custom queue state - using deque for O(1) popleft
         self._queue_list: deque[str] = deque()  # Deque of dedup_keys in order
-        self._queue_map: Dict[
+        self._queue_map: dict[
             str, tuple[Callable[[], Awaitable[Any]], list[asyncio.Future]]
         ] = {}
         self._condition = asyncio.Condition()
         self._shutdown = asyncio.Event()
-        self._worker_task: Optional[asyncio.Task] = None
+        self._worker_task: asyncio.Task | None = None
 
         self._initialized = True
         self._paused_until = 0
@@ -216,7 +218,7 @@ class MessagingRateLimiter:
         task.cancel()
         try:
             await asyncio.wait_for(task, timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("MessagingRateLimiter worker did not stop before timeout")
         except asyncio.CancelledError:
             pass
@@ -243,7 +245,7 @@ class MessagingRateLimiter:
         async with self._condition:
             if dedup_key in self._queue_map:
                 # Compaction: Update existing task with new func, append new futures
-                old_func, old_futures = self._queue_map[dedup_key]
+                _old_func, old_futures = self._queue_map[dedup_key]
                 old_futures.extend(futures)
                 self._queue_map[dedup_key] = (func, old_futures)
                 logger.debug(
@@ -258,7 +260,7 @@ class MessagingRateLimiter:
                 self._condition.notify_all()
 
     async def enqueue(
-        self, func: Callable[[], Awaitable[Any]], dedup_key: Optional[str] = None
+        self, func: Callable[[], Awaitable[Any]], dedup_key: str | None = None
     ) -> Any:
         """
         Enqueue a messaging task and return its future result.
@@ -273,7 +275,7 @@ class MessagingRateLimiter:
         return await future
 
     def fire_and_forget(
-        self, func: Callable[[], Awaitable[Any]], dedup_key: Optional[str] = None
+        self, func: Callable[[], Awaitable[Any]], dedup_key: str | None = None
     ):
         """Enqueue a task without waiting for the result."""
         if dedup_key is None:
@@ -307,4 +309,4 @@ class MessagingRateLimiter:
                         future.set_exception(e)
                     break
 
-        asyncio.create_task(_wrapped())
+        _ = asyncio.create_task(_wrapped())

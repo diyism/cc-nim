@@ -1,10 +1,10 @@
 """Pydantic models for API responses."""
 
-from typing import List, Dict, Any, Optional, Union, Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from .anthropic import ContentBlockText, ContentBlockToolUse, ContentBlockThinking
+from .anthropic import ContentBlockText, ContentBlockThinking, ContentBlockToolUse
 
 
 class TokenCountResponse(BaseModel):
@@ -22,14 +22,12 @@ class MessagesResponse(BaseModel):
     id: str
     model: str
     role: Literal["assistant"] = "assistant"
-    content: List[
-        Union[
-            ContentBlockText, ContentBlockToolUse, ContentBlockThinking, Dict[str, Any]
-        ]
+    content: list[
+        ContentBlockText | ContentBlockToolUse | ContentBlockThinking | dict[str, Any]
     ]
     type: Literal["message"] = "message"
-    stop_reason: Optional[
-        Literal["end_turn", "max_tokens", "stop_sequence", "tool_use"]
-    ] = None
-    stop_sequence: Optional[str] = None
+    stop_reason: (
+        Literal["end_turn", "max_tokens", "stop_sequence", "tool_use"] | None
+    ) = None
+    stop_sequence: str | None = None
     usage: Usage

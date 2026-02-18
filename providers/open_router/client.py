@@ -1,13 +1,13 @@
 """OpenRouter provider implementation."""
 
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
-from providers.openai_compat import OpenAICompatibleProvider
 from providers.base import ProviderConfig
 from providers.common import SSEBuilder
+from providers.openai_compat import OpenAICompatibleProvider
 
 from .request import build_request_body
-
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -34,6 +34,5 @@ class OpenRouterProvider(OpenAICompatibleProvider):
             for item in reasoning_details:
                 text = item.get("text", "") if isinstance(item, dict) else ""
                 if text:
-                    for event in sse.ensure_thinking_block():
-                        yield event
+                    yield from sse.ensure_thinking_block()
                     yield sse.emit_thinking_delta(text)

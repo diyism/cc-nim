@@ -3,8 +3,8 @@
 from typing import Any
 
 from config.nim import NimSettings
-from providers.openai_compat import OpenAICompatibleProvider
 from providers.base import ProviderConfig
+from providers.openai_compat import OpenAICompatibleProvider
 
 from .request import build_request_body
 

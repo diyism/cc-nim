@@ -1,6 +1,5 @@
 from unittest.mock import patch
 
-from messaging.transcript import TranscriptBuffer, RenderCtx
 from messaging.telegram_markdown import (
     escape_md_v2,
     escape_md_v2_code,
@@ -8,6 +7,7 @@ from messaging.telegram_markdown import (
     mdv2_code_inline,
     render_markdown_to_mdv2,
 )
+from messaging.transcript import RenderCtx, TranscriptBuffer
 
 
 def _ctx() -> RenderCtx:

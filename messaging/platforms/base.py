@@ -1,17 +1,13 @@
 """Abstract base class for messaging platforms."""
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import (
-    Callable,
-    Awaitable,
-    Optional,
-    Protocol,
-    Tuple,
-    runtime_checkable,
-    AsyncGenerator,
     Any,
-    Dict,
+    Protocol,
+    runtime_checkable,
 )
+
 from ..models import IncomingMessage
 
 
@@ -20,8 +16,8 @@ class CLISession(Protocol):
     """Protocol for CLI session - avoid circular import from cli package."""
 
     def start_task(
-        self, prompt: str, session_id: Optional[str] = None, fork_session: bool = False
-    ) -> AsyncGenerator[Dict, Any]:
+        self, prompt: str, session_id: str | None = None, fork_session: bool = False
+    ) -> AsyncGenerator[dict, Any]:
         """Start a task in the CLI session."""
         ...
 
@@ -41,8 +37,8 @@ class SessionManagerInterface(Protocol):
     """
 
     async def get_or_create_session(
-        self, session_id: Optional[str] = None
-    ) -> Tuple[CLISession, str, bool]:
+        self, session_id: str | None = None
+    ) -> tuple[CLISession, str, bool]:
         """
         Get an existing session or create a new one.
 
@@ -93,8 +89,8 @@ class MessagingPlatform(ABC):
         self,
         chat_id: str,
         text: str,
-        reply_to: Optional[str] = None,
-        parse_mode: Optional[str] = None,
+        reply_to: str | None = None,
+        parse_mode: str | None = None,
     ) -> str:
         """
         Send a message to a chat.
@@ -116,7 +112,7 @@ class MessagingPlatform(ABC):
         chat_id: str,
         message_id: str,
         text: str,
-        parse_mode: Optional[str] = None,
+        parse_mode: str | None = None,
     ) -> None:
         """
         Edit an existing message.
@@ -149,10 +145,10 @@ class MessagingPlatform(ABC):
         self,
         chat_id: str,
         text: str,
-        reply_to: Optional[str] = None,
-        parse_mode: Optional[str] = None,
+        reply_to: str | None = None,
+        parse_mode: str | None = None,
         fire_and_forget: bool = True,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Enqueue a message to be sent.
 
@@ -167,7 +163,7 @@ class MessagingPlatform(ABC):
         chat_id: str,
         message_id: str,
         text: str,
-        parse_mode: Optional[str] = None,
+        parse_mode: str | None = None,
         fire_and_forget: bool = True,
     ) -> None:
         """

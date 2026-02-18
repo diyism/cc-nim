@@ -8,11 +8,12 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from config.settings import get_settings
 from config.logging_config import configure_logging
-from .routes import router
-from .dependencies import cleanup_provider
+from config.settings import get_settings
 from providers.exceptions import ProviderError
+
+from .dependencies import cleanup_provider
+from .routes import router
 
 # Opt-in to future behavior for python-telegram-bot
 os.environ["PTB_TIMEDELTA"] = "1"
@@ -31,7 +32,7 @@ async def _best_effort(
     """Run a shutdown step with timeout; never raise to callers."""
     try:
         await asyncio.wait_for(awaitable, timeout=timeout_s)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning(f"Shutdown step timed out: {name} ({timeout_s}s)")
     except Exception as e:
         logger.warning(f"Shutdown step failed: {name}: {type(e).__name__}: {e}")
@@ -61,9 +62,9 @@ async def lifespan(app: FastAPI):
         )
 
         if messaging_platform:
+            from cli.manager import CLISessionManager
             from messaging.handler import ClaudeMessageHandler
             from messaging.session import SessionStore
-            from cli.manager import CLISessionManager
 
             # Setup workspace - CLI runs in allowed_dir if set (e.g. project root)
             workspace = (
@@ -202,7 +203,7 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def general_error_handler(request: Request, exc: Exception):
         """Handle general errors and return Anthropic format."""
-        logger.error(f"General Error: {str(exc)}")
+        logger.error(f"General Error: {exc!s}")
         import traceback
 
         logger.error(traceback.format_exc())

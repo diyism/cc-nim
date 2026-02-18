@@ -1,15 +1,16 @@
 """Tests for tree-based message queue system."""
 
-import pytest
 import asyncio
 
+import pytest
+
+from messaging.models import IncomingMessage
 from messaging.tree_queue import (
-    MessageState,
     MessageNode,
+    MessageState,
     MessageTree,
     TreeQueueManager,
 )
-from messaging.models import IncomingMessage
 
 
 class TestMessageState:

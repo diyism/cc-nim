@@ -1,16 +1,17 @@
 """Tests for api/request_utils.py module."""
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
+from api.command_utils import extract_command_prefix
 from api.detection import (
+    is_prefix_detection_request,
     is_quota_check_request,
     is_title_generation_request,
-    is_prefix_detection_request,
 )
-from api.command_utils import extract_command_prefix
+from api.models.anthropic import Message, MessagesRequest
 from api.request_utils import get_token_count
-from api.models.anthropic import MessagesRequest, Message
 
 
 class TestQuotaCheckRequest:

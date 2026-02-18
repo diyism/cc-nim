@@ -4,7 +4,7 @@ Contains token counting for API requests.
 """
 
 import json
-from typing import Any, List, Optional, Union
+from typing import Any
 
 import tiktoken
 from loguru import logger
@@ -22,9 +22,9 @@ def _get_block_attr(block: Any, key: str, default: Any = "") -> Any:
 
 
 def get_token_count(
-    messages: List,
-    system: Optional[Union[str, List]] = None,
-    tools: Optional[List] = None,
+    messages: list,
+    system: str | list | None = None,
+    tools: list | None = None,
 ) -> int:
     """Estimate token count for a request.
 

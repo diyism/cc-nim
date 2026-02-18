@@ -1,10 +1,11 @@
 """Concurrency and race condition tests for tree data structures and queue manager."""
 
-import pytest
 import asyncio
 
+import pytest
+
 from messaging.models import IncomingMessage
-from messaging.tree_data import MessageState, MessageNode, MessageTree
+from messaging.tree_data import MessageNode, MessageState, MessageTree
 from messaging.tree_queue import TreeQueueManager
 
 

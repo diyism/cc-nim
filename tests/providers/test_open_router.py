@@ -1,11 +1,13 @@
 """Tests for OpenRouter provider."""
 
-import pytest
 import json
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from providers.base import ProviderConfig
 from providers.open_router import OpenRouterProvider
 from providers.open_router.request import OPENROUTER_DEFAULT_MAX_TOKENS
-from providers.base import ProviderConfig
 
 
 class MockMessage:
@@ -151,9 +153,7 @@ async def test_stream_response_text(open_router_provider):
     ) as mock_create:
         mock_create.return_value = mock_stream()
 
-        events = []
-        async for event in open_router_provider.stream_response(req):
-            events.append(event)
+        events = [e async for e in open_router_provider.stream_response(req)]
 
         assert len(events) > 0
         assert "event: message_start" in events[0]
@@ -192,15 +192,16 @@ async def test_stream_response_reasoning_content(open_router_provider):
     ) as mock_create:
         mock_create.return_value = mock_stream()
 
-        events = []
-        async for event in open_router_provider.stream_response(req):
-            events.append(event)
+        events = [e async for e in open_router_provider.stream_response(req)]
 
         found_thinking = False
         for e in events:
-            if "event: content_block_delta" in e and '"thinking_delta"' in e:
-                if "Thinking..." in e:
-                    found_thinking = True
+            if (
+                "event: content_block_delta" in e
+                and '"thinking_delta"' in e
+                and "Thinking..." in e
+            ):
+                found_thinking = True
         assert found_thinking
 
 
@@ -225,9 +226,7 @@ async def test_stream_response_empty_choices_skipped(open_router_provider):
         open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
     ) as mock_create:
         mock_create.return_value = mock_stream()
-        events = []
-        async for event in open_router_provider.stream_response(req):
-            events.append(event)
+        events = [e async for e in open_router_provider.stream_response(req)]
         assert any("content_block_delta" in e and "ok" in e for e in events)
 
 
@@ -255,9 +254,7 @@ async def test_stream_response_delta_none_skipped(open_router_provider):
         open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
     ) as mock_create:
         mock_create.return_value = mock_stream()
-        events = []
-        async for event in open_router_provider.stream_response(req):
-            events.append(event)
+        events = [e async for e in open_router_provider.stream_response(req)]
         assert any("x" in e for e in events)
 
 
@@ -299,9 +296,7 @@ async def test_stream_response_reasoning_details(open_router_provider):
         open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
     ) as mock_create:
         mock_create.return_value = mock_stream()
-        events = []
-        async for event in open_router_provider.stream_response(req):
-            events.append(event)
+        events = [e async for e in open_router_provider.stream_response(req)]
         assert any("Step 1" in e for e in events)
 
 
@@ -318,9 +313,7 @@ async def test_stream_response_error_path(open_router_provider):
         open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
     ) as mock_create:
         mock_create.return_value = mock_stream()
-        events = []
-        async for event in open_router_provider.stream_response(req):
-            events.append(event)
+        events = [e async for e in open_router_provider.stream_response(req)]
         # Error is emitted; message_stop/done indicates stream completed
         assert any("API failed" in e for e in events)
         assert any("message_stop" in e for e in events)
@@ -346,8 +339,6 @@ async def test_stream_response_finish_reason_only(open_router_provider):
         open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
     ) as mock_create:
         mock_create.return_value = mock_stream()
-        events = []
-        async for event in open_router_provider.stream_response(req):
-            events.append(event)
+        events = [e async for e in open_router_provider.stream_response(req)]
         assert any("message_delta" in e for e in events)
         assert any("message_stop" in e for e in events)

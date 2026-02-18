@@ -1,14 +1,15 @@
 """Tests for Discord platform adapter."""
 
 import asyncio
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from messaging.discord import (
-    DiscordPlatform,
-    _parse_allowed_channels,
-    _get_discord,
     DISCORD_AVAILABLE,
+    DiscordPlatform,
+    _get_discord,
+    _parse_allowed_channels,
 )
 
 
@@ -18,10 +19,12 @@ class TestGetDiscord:
     def test_raises_when_discord_not_available(self):
         import messaging.platforms.discord as discord_mod
 
-        with patch.object(discord_mod, "DISCORD_AVAILABLE", False):
-            with patch.object(discord_mod, "_discord_module", None):
-                with pytest.raises(ImportError, match="discord.py is required"):
-                    _get_discord()
+        with (
+            patch.object(discord_mod, "DISCORD_AVAILABLE", False),
+            patch.object(discord_mod, "_discord_module", None),
+            pytest.raises(ImportError, match=r"discord\.py is required"),
+        ):
+            _get_discord()
 
 
 class TestParseAllowedChannels:
@@ -130,22 +133,24 @@ class TestDiscordPlatform:
     async def test_send_message_channel_not_found_raises(self):
         platform = DiscordPlatform(bot_token="token")
         platform._connected = True
-        with patch.object(
-            platform._client, "get_channel", MagicMock(return_value=None)
+        with (
+            patch.object(platform._client, "get_channel", MagicMock(return_value=None)),
+            pytest.raises(RuntimeError, match="Channel"),
         ):
-            with pytest.raises(RuntimeError, match="Channel"):
-                await platform.send_message("123", "Hello")
+            await platform.send_message("123", "Hello")
 
     @pytest.mark.asyncio
     async def test_send_message_channel_no_send_raises(self):
         platform = DiscordPlatform(bot_token="token")
         platform._connected = True
         mock_channel = MagicMock(spec=[])  # No send attr
-        with patch.object(
-            platform._client, "get_channel", MagicMock(return_value=mock_channel)
+        with (
+            patch.object(
+                platform._client, "get_channel", MagicMock(return_value=mock_channel)
+            ),
+            pytest.raises(RuntimeError, match="Channel"),
         ):
-            with pytest.raises(RuntimeError, match="Channel"):
-                await platform.send_message("123", "Hello")
+            await platform.send_message("123", "Hello")
 
     @pytest.mark.asyncio
     async def test_queue_send_message_without_limiter_calls_send_message(self):
@@ -243,13 +248,15 @@ class TestDiscordPlatform:
         mock_channel = AsyncMock()
         mock_channel.send = AsyncMock(return_value=mock_msg)
         platform._connected = True
-        with patch.object(
-            platform._client, "get_channel", MagicMock(return_value=mock_channel)
+        with (
+            patch.object(
+                platform._client, "get_channel", MagicMock(return_value=mock_channel)
+            ),
+            patch("messaging.platforms.discord._get_discord") as mock_get,
         ):
-            with patch("messaging.platforms.discord._get_discord") as mock_get:
-                mock_discord = MagicMock()
-                mock_get.return_value = mock_discord
-                msg_id = await platform.send_message("123", "Hello", reply_to="456")
+            mock_discord = MagicMock()
+            mock_get.return_value = mock_discord
+            msg_id = await platform.send_message("123", "Hello", reply_to="456")
         assert msg_id == "999"
         mock_channel.send.assert_awaited_once()
         call_kw = mock_channel.send.call_args[1]
@@ -280,12 +287,14 @@ class TestDiscordPlatform:
         mock_channel = AsyncMock()
         mock_channel.fetch_message = AsyncMock(return_value=mock_msg)
         platform._connected = True
-        with patch.object(
-            platform._client, "get_channel", MagicMock(return_value=mock_channel)
+        with (
+            patch.object(
+                platform._client, "get_channel", MagicMock(return_value=mock_channel)
+            ),
+            patch("messaging.platforms.discord._get_discord") as mock_get,
         ):
-            with patch("messaging.platforms.discord._get_discord") as mock_get:
-                mock_get.return_value = MagicMock()
-                await platform.delete_message("123", "456")
+            mock_get.return_value = MagicMock()
+            await platform.delete_message("123", "456")
         mock_msg.delete.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -326,14 +335,19 @@ class TestDiscordPlatform:
         async def _fake_start(_token):
             platform._connected = True
 
-        with patch.object(
-            platform._client, "start", new_callable=AsyncMock, side_effect=_fake_start
-        ):
-            with patch(
+        with (
+            patch.object(
+                platform._client,
+                "start",
+                new_callable=AsyncMock,
+                side_effect=_fake_start,
+            ),
+            patch(
                 "messaging.limiter.MessagingRateLimiter.get_instance",
                 new_callable=AsyncMock,
-            ):
-                await platform.start()
+            ),
+        ):
+            await platform.start()
         assert platform.is_connected is True
 
     @pytest.mark.asyncio
@@ -351,11 +365,16 @@ class TestDiscordPlatform:
         platform = DiscordPlatform(bot_token="token")
         platform._connected = True
         mock_close = AsyncMock()
-        with patch.object(
-            platform._client, "is_closed", new_callable=MagicMock, return_value=False
+        with (
+            patch.object(
+                platform._client,
+                "is_closed",
+                new_callable=MagicMock,
+                return_value=False,
+            ),
+            patch.object(platform._client, "close", mock_close),
         ):
-            with patch.object(platform._client, "close", mock_close):
-                platform._start_task = None
-                await platform.stop()
+            platform._start_task = None
+            await platform.stop()
         mock_close.assert_awaited_once()
         assert platform.is_connected is False

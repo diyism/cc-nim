@@ -4,11 +4,12 @@ This parser emits an ordered stream of low-level events suitable for building a
 Claude Code-like transcript in messaging UIs.
 """
 
-from typing import Dict, List, Any
+from typing import Any
+
 from loguru import logger
 
 
-def parse_cli_event(event: Any) -> List[Dict]:
+def parse_cli_event(event: Any) -> list[dict]:
     """
     Parse a CLI event and return a structured result.
 
@@ -22,7 +23,7 @@ def parse_cli_event(event: Any) -> List[Dict]:
         return []
 
     etype = event.get("type")
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
 
     # Some CLI/proxy layers emit "system" events that are not user-visible and
     # carry no transcript content. Ignore them explicitly to avoid noisy logs.
@@ -31,9 +32,7 @@ def parse_cli_event(event: Any) -> List[Dict]:
 
     # 1. Handle full messages (assistant/user or result)
     msg_obj = None
-    if etype == "assistant":
-        msg_obj = event.get("message")
-    elif etype == "user":
+    if etype == "assistant" or etype == "user":
         msg_obj = event.get("message")
     elif etype == "result":
         res = event.get("result")

@@ -1,10 +1,11 @@
 """Global rate limiter for API requests."""
 
 import asyncio
-from collections import deque
 import random
 import time
-from typing import Any, Callable, Optional, TypeVar
+from collections import deque
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 import openai
 from loguru import logger
@@ -22,7 +23,7 @@ class GlobalRateLimiter:
     Reactive limits - pauses all requests when a 429 is hit.
     """
 
-    _instance: Optional["GlobalRateLimiter"] = None
+    _instance: GlobalRateLimiter | None = None
 
     def __init__(self, rate_limit: int = 40, rate_window: float = 60.0):
         # Prevent double initialization in singleton
@@ -49,9 +50,9 @@ class GlobalRateLimiter:
     @classmethod
     def get_instance(
         cls,
-        rate_limit: Optional[int] = None,
-        rate_window: Optional[float] = None,
-    ) -> "GlobalRateLimiter":
+        rate_limit: int | None = None,
+        rate_window: float | None = None,
+    ) -> GlobalRateLimiter:
         """Get or create the singleton instance.
 
         Args:
@@ -167,7 +168,7 @@ class GlobalRateLimiter:
         Raises:
             The last exception if all retries are exhausted.
         """
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
 
         for attempt in range(1 + max_retries):
             await self.wait_if_blocked()

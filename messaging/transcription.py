@@ -4,8 +4,9 @@ Uses local faster-whisper for free, offline transcription.
 """
 
 import os
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator, Protocol, cast
+from typing import Any, Protocol, cast
 
 from loguru import logger
 
@@ -116,10 +117,7 @@ def _transcribe_local(file_path: Path, whisper_model: str, whisper_device: str) 
             segments, _info = model.transcribe(str(file_path), beam_size=5)
         else:
             raise
-    parts: list[str] = []
-    for segment in segments:
-        if segment.text:
-            parts.append(segment.text)
+    parts = [s.text for s in segments if s.text]
     result = " ".join(parts).strip()
     logger.debug(f"Local transcription: {len(result)} chars")
     return result or "(no speech detected)"

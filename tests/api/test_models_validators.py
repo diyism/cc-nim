@@ -1,6 +1,8 @@
-import pytest
 from unittest.mock import patch
-from api.models.anthropic import MessagesRequest, TokenCountRequest, Message
+
+import pytest
+
+from api.models.anthropic import Message, MessagesRequest, TokenCountRequest
 from config.settings import Settings
 
 

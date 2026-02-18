@@ -1,12 +1,13 @@
 """Tests for streaming error handling in providers/nvidia_nim/client.py."""
 
 import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from providers.nvidia_nim import NvidiaNimProvider
-from providers.base import ProviderConfig
+import pytest
+
 from config.nim import NimSettings
+from providers.base import ProviderConfig
+from providers.nvidia_nim import NvidiaNimProvider
 
 
 class AsyncStreamMock:
@@ -78,10 +79,7 @@ def _make_chunk(
 
 async def _collect_stream(provider, request):
     """Collect all SSE events from a stream."""
-    events = []
-    async for event in provider.stream_response(request):
-        events.append(event)
-    return events
+    return [e async for e in provider.stream_response(request)]
 
 
 class TestStreamingExceptionHandling:
@@ -96,19 +94,21 @@ class TestStreamingExceptionHandling:
         mock_stream = AsyncMock()
         mock_stream.__aiter__ = MagicMock(side_effect=RuntimeError("API failed"))
 
-        with patch.object(
-            provider._client.chat.completions,
-            "create",
-            new_callable=AsyncMock,
-            side_effect=RuntimeError("API failed"),
-        ):
-            with patch.object(
+        with (
+            patch.object(
+                provider._client.chat.completions,
+                "create",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("API failed"),
+            ),
+            patch.object(
                 provider._global_rate_limiter,
                 "wait_if_blocked",
                 new_callable=AsyncMock,
                 return_value=False,
-            ):
-                events = await _collect_stream(provider, request)
+            ),
+        ):
+            events = await _collect_stream(provider, request)
 
         # Should have message_start, error text block, close blocks, message_delta, message_stop, done
         event_text = "".join(events)
@@ -126,19 +126,21 @@ class TestStreamingExceptionHandling:
         chunk1 = _make_chunk(content="Hello ")
         stream_mock = AsyncStreamMock([chunk1], error=RuntimeError("Connection lost"))
 
-        with patch.object(
-            provider._client.chat.completions,
-            "create",
-            new_callable=AsyncMock,
-            return_value=stream_mock,
-        ):
-            with patch.object(
+        with (
+            patch.object(
+                provider._client.chat.completions,
+                "create",
+                new_callable=AsyncMock,
+                return_value=stream_mock,
+            ),
+            patch.object(
                 provider._global_rate_limiter,
                 "wait_if_blocked",
                 new_callable=AsyncMock,
                 return_value=False,
-            ):
-                events = await _collect_stream(provider, request)
+            ),
+        ):
+            events = await _collect_stream(provider, request)
 
         event_text = "".join(events)
         assert "Hello" in event_text
@@ -154,19 +156,21 @@ class TestStreamingExceptionHandling:
         empty_chunk = _make_chunk(finish_reason="stop")
         stream_mock = AsyncStreamMock([empty_chunk])
 
-        with patch.object(
-            provider._client.chat.completions,
-            "create",
-            new_callable=AsyncMock,
-            return_value=stream_mock,
-        ):
-            with patch.object(
+        with (
+            patch.object(
+                provider._client.chat.completions,
+                "create",
+                new_callable=AsyncMock,
+                return_value=stream_mock,
+            ),
+            patch.object(
                 provider._global_rate_limiter,
                 "wait_if_blocked",
                 new_callable=AsyncMock,
                 return_value=False,
-            ):
-                events = await _collect_stream(provider, request)
+            ),
+        ):
+            events = await _collect_stream(provider, request)
 
         event_text = "".join(events)
         assert '"text_delta"' in event_text
@@ -182,19 +186,21 @@ class TestStreamingExceptionHandling:
         chunk2 = _make_chunk(finish_reason="stop")
         stream_mock = AsyncStreamMock([chunk1, chunk2])
 
-        with patch.object(
-            provider._client.chat.completions,
-            "create",
-            new_callable=AsyncMock,
-            return_value=stream_mock,
-        ):
-            with patch.object(
+        with (
+            patch.object(
+                provider._client.chat.completions,
+                "create",
+                new_callable=AsyncMock,
+                return_value=stream_mock,
+            ),
+            patch.object(
                 provider._global_rate_limiter,
                 "wait_if_blocked",
                 new_callable=AsyncMock,
                 return_value=False,
-            ):
-                events = await _collect_stream(provider, request)
+            ),
+        ):
+            events = await _collect_stream(provider, request)
 
         event_text = "".join(events)
         assert "thinking" in event_text
@@ -212,19 +218,21 @@ class TestStreamingExceptionHandling:
         chunk3 = _make_chunk(finish_reason="stop")
         stream_mock = AsyncStreamMock([chunk1, chunk2, chunk3])
 
-        with patch.object(
-            provider._client.chat.completions,
-            "create",
-            new_callable=AsyncMock,
-            return_value=stream_mock,
-        ):
-            with patch.object(
+        with (
+            patch.object(
+                provider._client.chat.completions,
+                "create",
+                new_callable=AsyncMock,
+                return_value=stream_mock,
+            ),
+            patch.object(
                 provider._global_rate_limiter,
                 "wait_if_blocked",
                 new_callable=AsyncMock,
                 return_value=False,
-            ):
-                events = await _collect_stream(provider, request)
+            ),
+        ):
+            events = await _collect_stream(provider, request)
 
         event_text = "".join(events)
         assert "thinking_delta" in event_text
@@ -407,19 +415,21 @@ class TestStreamChunkEdgeCases:
         finish_chunk = _make_chunk(finish_reason="stop")
         stream_mock = AsyncStreamMock([empty_choices_chunk, finish_chunk])
 
-        with patch.object(
-            provider._client.chat.completions,
-            "create",
-            new_callable=AsyncMock,
-            return_value=stream_mock,
-        ):
-            with patch.object(
+        with (
+            patch.object(
+                provider._client.chat.completions,
+                "create",
+                new_callable=AsyncMock,
+                return_value=stream_mock,
+            ),
+            patch.object(
                 provider._global_rate_limiter,
                 "wait_if_blocked",
                 new_callable=AsyncMock,
                 return_value=False,
-            ):
-                events = await _collect_stream(provider, request)
+            ),
+        ):
+            events = await _collect_stream(provider, request)
 
         event_text = "".join(events)
         assert "message_start" in event_text
@@ -442,19 +452,21 @@ class TestStreamChunkEdgeCases:
         finish_chunk = _make_chunk(finish_reason="stop")
         stream_mock = AsyncStreamMock([none_delta_chunk, finish_chunk])
 
-        with patch.object(
-            provider._client.chat.completions,
-            "create",
-            new_callable=AsyncMock,
-            return_value=stream_mock,
-        ):
-            with patch.object(
+        with (
+            patch.object(
+                provider._client.chat.completions,
+                "create",
+                new_callable=AsyncMock,
+                return_value=stream_mock,
+            ),
+            patch.object(
                 provider._global_rate_limiter,
                 "wait_if_blocked",
                 new_callable=AsyncMock,
                 return_value=False,
-            ):
-                events = await _collect_stream(provider, request)
+            ),
+        ):
+            events = await _collect_stream(provider, request)
 
         event_text = "".join(events)
         assert "message_start" in event_text
@@ -472,19 +484,21 @@ class TestStreamChunkEdgeCases:
             [chunk1], error=ConnectionResetError("Connection reset")
         )
 
-        with patch.object(
-            provider._client.chat.completions,
-            "create",
-            new_callable=AsyncMock,
-            return_value=stream_mock,
-        ):
-            with patch.object(
+        with (
+            patch.object(
+                provider._client.chat.completions,
+                "create",
+                new_callable=AsyncMock,
+                return_value=stream_mock,
+            ),
+            patch.object(
                 provider._global_rate_limiter,
                 "wait_if_blocked",
                 new_callable=AsyncMock,
                 return_value=False,
-            ):
-                events = await _collect_stream(provider, request)
+            ),
+        ):
+            events = await _collect_stream(provider, request)
 
         event_text = "".join(events)
         assert "Partial" in event_text

@@ -1,19 +1,20 @@
 """Request builder for NVIDIA NIM provider."""
 
-from typing import Any, Dict
+from typing import Any
+
+from loguru import logger
 
 from config.nim import NimSettings
 from providers.common.message_converter import AnthropicToOpenAIConverter
-from loguru import logger
 
 
-def _set_if_not_none(body: Dict[str, Any], key: str, value: Any) -> None:
+def _set_if_not_none(body: dict[str, Any], key: str, value: Any) -> None:
     if value is not None:
         body[key] = value
 
 
 def _set_extra(
-    extra_body: Dict[str, Any], key: str, value: Any, ignore_value: Any = None
+    extra_body: dict[str, Any], key: str, value: Any, ignore_value: Any = None
 ) -> None:
     if key in extra_body:
         return
@@ -40,7 +41,7 @@ def build_request_body(request_data: Any, nim: NimSettings) -> dict:
         if system_msg:
             messages.insert(0, system_msg)
 
-    body: Dict[str, Any] = {
+    body: dict[str, Any] = {
         "model": request_data.model,
         "messages": messages,
     }
@@ -84,7 +85,7 @@ def build_request_body(request_data: Any, nim: NimSettings) -> dict:
     body["parallel_tool_calls"] = nim.parallel_tool_calls
 
     # Handle non-standard parameters via extra_body
-    extra_body: Dict[str, Any] = {}
+    extra_body: dict[str, Any] = {}
     request_extra = getattr(request_data, "extra_body", None)
     if request_extra:
         extra_body.update(request_extra)

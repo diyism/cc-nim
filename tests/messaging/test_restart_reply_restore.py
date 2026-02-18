@@ -1,10 +1,11 @@
-import pytest
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from messaging.handler import ClaudeMessageHandler
+from messaging.models import IncomingMessage
 from messaging.session import SessionStore
 from messaging.tree_queue import TreeQueueManager
-from messaging.models import IncomingMessage
 
 
 @pytest.mark.asyncio

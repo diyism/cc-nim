@@ -1,6 +1,6 @@
 """CLI integration for Claude Code."""
 
-from .session import CLISession
 from .manager import CLISessionManager
+from .session import CLISession
 
 __all__ = ["CLISession", "CLISessionManager"]

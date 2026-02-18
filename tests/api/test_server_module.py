@@ -10,8 +10,9 @@ def test_server_main_invokes_uvicorn_run(monkeypatch):
     from types import SimpleNamespace
     from unittest.mock import patch
 
-    import config.settings as settings_mod
     import uvicorn as uvicorn_mod
+
+    import config.settings as settings_mod
 
     # Patch settings used by server.__main__ block.
     old_get_settings = settings_mod.get_settings

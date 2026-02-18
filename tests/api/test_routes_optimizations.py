@@ -1,6 +1,8 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from fastapi.testclient import TestClient
+
 from api.app import app
 from api.dependencies import get_settings
 from config.settings import Settings
@@ -29,15 +31,17 @@ def test_create_message_fast_prefix_detection(client, mock_settings):
         "messages": [{"role": "user", "content": "What is the prefix?"}],
     }
 
-    with patch(
-        "api.optimization_handlers.is_prefix_detection_request",
-        return_value=(True, "/ask"),
-    ):
-        with patch(
+    with (
+        patch(
+            "api.optimization_handlers.is_prefix_detection_request",
+            return_value=(True, "/ask"),
+        ),
+        patch(
             "api.optimization_handlers.extract_command_prefix",
             return_value="/ask",
-        ):
-            response = client.post("/v1/messages", json=payload)
+        ),
+    ):
+        response = client.post("/v1/messages", json=payload)
 
     assert response.status_code == 200
     data = response.json()

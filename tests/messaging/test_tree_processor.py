@@ -1,9 +1,12 @@
-import pytest
 import asyncio
+import contextlib
 from unittest.mock import AsyncMock, MagicMock
-from messaging.tree_processor import TreeQueueProcessor
-from messaging.tree_data import MessageTree, MessageNode, MessageState
+
+import pytest
+
 from messaging.models import IncomingMessage
+from messaging.tree_data import MessageNode, MessageState, MessageTree
+from messaging.tree_processor import TreeQueueProcessor
 
 
 @pytest.fixture
@@ -87,10 +90,8 @@ async def test_enqueue_and_start_when_free(tree_processor, sample_tree):
 
     # Clean up task
     sample_tree._current_task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await sample_tree._current_task
-    except asyncio.CancelledError:
-        pass
 
 
 @pytest.mark.asyncio
@@ -153,10 +154,8 @@ async def test_process_next_with_item(tree_processor, sample_tree):
 
     # Clean up
     sample_tree._current_task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await sample_tree._current_task
-    except asyncio.CancelledError:
-        pass
 
 
 @pytest.mark.asyncio

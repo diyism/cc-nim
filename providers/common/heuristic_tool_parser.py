@@ -1,9 +1,9 @@
 import re
 import uuid
 from enum import Enum
-from typing import List, Dict, Any, Tuple
-from loguru import logger
+from typing import Any
 
+from loguru import logger
 
 # Some OpenAI-compatible backends/models occasionally leak internal sentinel tokens
 # into `delta.content` (e.g. "<|tool_call_end|>"). These should never be shown to
@@ -64,7 +64,7 @@ class HeuristicToolParser:
         self.buffer = self.buffer[start:]
         return prefix
 
-    def feed(self, text: str) -> Tuple[str, List[Dict[str, Any]]]:
+    def feed(self, text: str) -> tuple[str, list[dict[str, Any]]]:
         """
         Feed text into the parser.
         Returns a tuple of (filtered_text, detected_tool_calls).
@@ -201,7 +201,7 @@ class HeuristicToolParser:
 
         return filtered_output, detected_tools
 
-    def flush(self) -> List[Dict[str, Any]]:
+    def flush(self) -> list[dict[str, Any]]:
         """
         Flush any remaining tool calls in the buffer.
         """

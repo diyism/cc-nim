@@ -1,8 +1,10 @@
-import logging
-import pytest
 import asyncio
+import contextlib
+import logging
 import os
 import sys
+
+import pytest
 
 # Set mock environment BEFORE any imports that use Settings
 os.environ.setdefault("NVIDIA_NIM_API_KEY", "test_key")
@@ -14,12 +16,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
-from providers.base import ProviderConfig
-from providers.nvidia_nim import NvidiaNimProvider
+
 from config.nim import NimSettings
-from messaging.base import CLISession, SessionManagerInterface, MessagingPlatform
+from messaging.base import CLISession, MessagingPlatform, SessionManagerInterface
 from messaging.models import IncomingMessage
 from messaging.session import SessionStore
+from providers.base import ProviderConfig
+from providers.nvidia_nim import NvidiaNimProvider
 
 
 @pytest.fixture
@@ -161,7 +164,7 @@ def _propagate_loguru_to_caplog():
 
     handler_id = loguru_logger.add(_PropagateHandler(), format="{message}")
     yield
-    try:
-        loguru_logger.remove(handler_id)
-    except ValueError:
-        pass  # Handler already removed (e.g. by test_logging_config tests)
+    with contextlib.suppress(ValueError):
+        loguru_logger.remove(
+            handler_id
+        )  # Handler already removed (e.g. by test_logging_config)

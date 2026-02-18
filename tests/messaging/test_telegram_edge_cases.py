@@ -41,7 +41,7 @@ async def test_telegram_platform_stop_no_application_is_noop():
 @pytest.mark.asyncio
 async def test_with_retry_returns_none_when_message_not_modified_network_error():
     with patch("messaging.platforms.telegram.TELEGRAM_AVAILABLE", True):
-        from messaging.telegram import TelegramPlatform, NetworkError
+        from messaging.telegram import NetworkError, TelegramPlatform
 
         platform = TelegramPlatform(bot_token="t")
 
@@ -54,7 +54,7 @@ async def test_with_retry_returns_none_when_message_not_modified_network_error()
 @pytest.mark.asyncio
 async def test_with_retry_retries_network_error_then_succeeds(monkeypatch):
     with patch("messaging.platforms.telegram.TELEGRAM_AVAILABLE", True):
-        from messaging.telegram import TelegramPlatform, NetworkError
+        from messaging.telegram import NetworkError, TelegramPlatform
 
         platform = TelegramPlatform(bot_token="t")
 
@@ -75,7 +75,7 @@ async def test_with_retry_retries_network_error_then_succeeds(monkeypatch):
 @pytest.mark.asyncio
 async def test_with_retry_honors_retry_after_timedelta(monkeypatch):
     with patch("messaging.platforms.telegram.TELEGRAM_AVAILABLE", True):
-        from messaging.telegram import TelegramPlatform, RetryAfter
+        from messaging.telegram import RetryAfter, TelegramPlatform
 
         platform = TelegramPlatform(bot_token="t")
 
@@ -96,7 +96,7 @@ async def test_with_retry_honors_retry_after_timedelta(monkeypatch):
 @pytest.mark.asyncio
 async def test_with_retry_drops_parse_mode_on_markdown_entity_error():
     with patch("messaging.platforms.telegram.TELEGRAM_AVAILABLE", True):
-        from messaging.telegram import TelegramPlatform, TelegramError
+        from messaging.telegram import TelegramError, TelegramPlatform
 
         platform = TelegramPlatform(bot_token="t")
 
@@ -200,7 +200,7 @@ async def test_on_telegram_message_handler_error_sends_error_message():
 @pytest.mark.asyncio
 async def test_telegram_start_retries_on_network_error(monkeypatch):
     with patch("messaging.platforms.telegram.TELEGRAM_AVAILABLE", True):
-        from messaging.telegram import TelegramPlatform, NetworkError
+        from messaging.telegram import NetworkError, TelegramPlatform
 
         platform = TelegramPlatform(bot_token="token", allowed_user_id=None)
 
@@ -225,7 +225,7 @@ async def test_telegram_start_retries_on_network_error(monkeypatch):
 async def test_edit_message_with_text_exceeding_4096_raises():
     """edit_message with text > 4096 raises TelegramError (BadRequest)."""
     with patch("messaging.platforms.telegram.TELEGRAM_AVAILABLE", True):
-        from messaging.telegram import TelegramPlatform, TelegramError
+        from messaging.telegram import TelegramError, TelegramPlatform
 
         platform = TelegramPlatform(bot_token="t")
         platform._application = MagicMock()
@@ -299,7 +299,7 @@ async def test_on_telegram_message_non_text_update_ignored():
 async def test_with_retry_message_not_found_returns_none():
     """'message to edit not found' returns None without retry."""
     with patch("messaging.platforms.telegram.TELEGRAM_AVAILABLE", True):
-        from messaging.telegram import TelegramPlatform, TelegramError
+        from messaging.telegram import TelegramError, TelegramPlatform
 
         platform = TelegramPlatform(bot_token="t")
 

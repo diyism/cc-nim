@@ -1,12 +1,15 @@
+import asyncio
+import os
+import time
+
 import pytest
 import pytest_asyncio
-import asyncio
-import time
-import os
 
 # Set environment variables relative to test execution
 os.environ["MESSAGING_RATE_LIMIT"] = "1"
 os.environ["MESSAGING_RATE_WINDOW"] = "0.5"
+
+import contextlib
 
 from messaging.limiter import MessagingRateLimiter
 
@@ -135,10 +138,8 @@ class TestMessagingRateLimiter:
             return "success"
 
         # First call fails and triggers pause
-        try:
+        with contextlib.suppress(Exception):
             await limiter.enqueue(mock_fail, dedup_key="key1")
-        except Exception:
-            pass  # Expected
 
         assert limiter._paused_until > 0
 
@@ -162,10 +163,8 @@ class TestMessagingRateLimiter:
         async def mock_flood():
             raise Exception("Flood wait: retry after 2 seconds")
 
-        try:
+        with contextlib.suppress(Exception):
             await limiter.enqueue(mock_flood, dedup_key="retry_parse")
-        except Exception:
-            pass
 
         # Should have parsed "after 2" -> 2 seconds
         assert limiter._paused_until > 0
@@ -179,10 +178,8 @@ class TestMessagingRateLimiter:
         async def mock_error():
             raise ValueError("some regular error")
 
-        try:
+        with contextlib.suppress(ValueError):
             await limiter.enqueue(mock_error, dedup_key="non_flood")
-        except ValueError:
-            pass
 
         # Should NOT have paused since it's not a flood error
         assert limiter._paused_until == 0
@@ -201,10 +198,8 @@ class TestMessagingRateLimiter:
         async def mock_flood():
             raise FloodWaitCustom()
 
-        try:
+        with contextlib.suppress(Exception):
             await limiter.enqueue(mock_flood, dedup_key="flood_sec")
-        except Exception:
-            pass
 
         assert limiter._paused_until > 0
 

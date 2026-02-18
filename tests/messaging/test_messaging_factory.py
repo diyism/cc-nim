@@ -1,6 +1,6 @@
 """Tests for messaging platform factory."""
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from messaging.factory import create_messaging_platform
 
@@ -11,16 +11,18 @@ class TestCreateMessagingPlatform:
     def test_telegram_with_token(self):
         """Create Telegram platform when bot_token is provided."""
         mock_platform = MagicMock()
-        with patch("messaging.platforms.telegram.TELEGRAM_AVAILABLE", True):
-            with patch(
+        with (
+            patch("messaging.platforms.telegram.TELEGRAM_AVAILABLE", True),
+            patch(
                 "messaging.platforms.telegram.TelegramPlatform",
                 return_value=mock_platform,
-            ):
-                result = create_messaging_platform(
-                    "telegram",
-                    bot_token="test_token",
-                    allowed_user_id="12345",
-                )
+            ),
+        ):
+            result = create_messaging_platform(
+                "telegram",
+                bot_token="test_token",
+                allowed_user_id="12345",
+            )
 
         assert result is mock_platform
 
@@ -37,16 +39,18 @@ class TestCreateMessagingPlatform:
     def test_discord_with_token(self):
         """Create Discord platform when discord_bot_token is provided."""
         mock_platform = MagicMock()
-        with patch("messaging.platforms.discord.DISCORD_AVAILABLE", True):
-            with patch(
+        with (
+            patch("messaging.platforms.discord.DISCORD_AVAILABLE", True),
+            patch(
                 "messaging.platforms.discord.DiscordPlatform",
                 return_value=mock_platform,
-            ):
-                result = create_messaging_platform(
-                    "discord",
-                    discord_bot_token="test_token",
-                    allowed_discord_channels="123,456",
-                )
+            ),
+        ):
+            result = create_messaging_platform(
+                "discord",
+                discord_bot_token="test_token",
+                allowed_discord_channels="123,456",
+            )
 
         assert result is mock_platform
 

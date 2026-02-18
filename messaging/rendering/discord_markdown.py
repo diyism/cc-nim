@@ -5,7 +5,6 @@ Used by the message handler and Discord platform adapter.
 """
 
 import re
-from typing import List, Optional
 
 from markdown_it import MarkdownIt
 
@@ -38,7 +37,7 @@ def _normalize_gfm_tables(text: str) -> str:
     if len(lines) < 2:
         return text
 
-    out_lines: List[str] = []
+    out_lines: list[str] = []
     in_fence = False
 
     for idx, line in enumerate(lines):
@@ -52,11 +51,12 @@ def _normalize_gfm_tables(text: str) -> str:
             and idx + 1 < len(lines)
             and _is_gfm_table_header_line(line)
             and _TABLE_SEP_RE.match(lines[idx + 1])
+            and out_lines
+            and out_lines[-1].strip() != ""
         ):
-            if out_lines and out_lines[-1].strip() != "":
-                m = re.match(r"^(\s*)", line)
-                indent = m.group(1) if m else ""
-                out_lines.append(indent)
+            m = re.match(r"^(\s*)", line)
+            indent = m.group(1) if m else ""
+            out_lines.append(indent)
 
         out_lines.append(line)
 
@@ -83,7 +83,7 @@ def discord_code_inline(text: str) -> str:
     return f"`{escape_discord_code(text)}`"
 
 
-def format_status_discord(label: str, suffix: Optional[str] = None) -> str:
+def format_status_discord(label: str, suffix: str | None = None) -> str:
     """Format a status message for Discord (label in bold, optional suffix)."""
     base = discord_bold(label)
     if suffix:
@@ -91,7 +91,7 @@ def format_status_discord(label: str, suffix: Optional[str] = None) -> str:
     return base
 
 
-def format_status(emoji: str, label: str, suffix: Optional[str] = None) -> str:
+def format_status(emoji: str, label: str, suffix: str | None = None) -> str:
     """Format a status message with emoji for Discord (matches Telegram API)."""
     base = f"{emoji} {discord_bold(label)}"
     if suffix:
@@ -108,21 +108,18 @@ def render_markdown_to_discord(text: str) -> str:
     tokens = _MD.parse(text)
 
     def render_inline_table_plain(children) -> str:
-        out: List[str] = []
+        out: list[str] = []
         for tok in children:
-            if tok.type == "text":
-                out.append(tok.content)
-            elif tok.type == "code_inline":
+            if tok.type == "text" or tok.type == "code_inline":
                 out.append(tok.content)
             elif tok.type in {"softbreak", "hardbreak"}:
                 out.append(" ")
-            elif tok.type == "image":
-                if tok.content:
-                    out.append(tok.content)
+            elif tok.type == "image" and tok.content:
+                out.append(tok.content)
         return "".join(out)
 
     def render_inline(children) -> str:
-        out: List[str] = []
+        out: list[str] = []
         i = 0
         while i < len(children):
             tok = children[i]
@@ -131,17 +128,11 @@ def render_markdown_to_discord(text: str) -> str:
                 out.append(escape_discord(tok.content))
             elif t in {"softbreak", "hardbreak"}:
                 out.append("\n")
-            elif t == "em_open":
+            elif t == "em_open" or t == "em_close":
                 out.append("*")
-            elif t == "em_close":
-                out.append("*")
-            elif t == "strong_open":
+            elif t == "strong_open" or t == "strong_close":
                 out.append("**")
-            elif t == "strong_close":
-                out.append("**")
-            elif t == "s_open":
-                out.append("~~")
-            elif t == "s_close":
+            elif t == "s_open" or t == "s_close":
                 out.append("~~")
             elif t == "code_inline":
                 out.append(f"`{escape_discord_code(tok.content)}`")
@@ -162,9 +153,7 @@ def render_markdown_to_discord(text: str) -> str:
                     i += 1
                 link_text = ""
                 for child in inner_tokens:
-                    if child.type == "text":
-                        link_text += child.content
-                    elif child.type == "code_inline":
+                    if child.type == "text" or child.type == "code_inline":
                         link_text += child.content
                 out.append(f"[{escape_discord(link_text)}]({href})")
             elif t == "image":
@@ -187,9 +176,9 @@ def render_markdown_to_discord(text: str) -> str:
             i += 1
         return "".join(out)
 
-    out: List[str] = []
-    list_stack: List[dict] = []
-    pending_prefix: Optional[str] = None
+    out: list[str] = []
+    list_stack: list[dict] = []
+    pending_prefix: str | None = None
     blockquote_level = 0
     in_heading = False
 
@@ -262,17 +251,17 @@ def render_markdown_to_discord(text: str) -> str:
                 out.append("\n")
                 pending_prefix = None
 
-            rows: List[List[str]] = []
-            row_is_header: List[bool] = []
+            rows: list[list[str]] = []
+            row_is_header: list[bool] = []
 
             j = i + 1
             in_thead = False
             in_row = False
-            current_row: List[str] = []
+            current_row: list[str] = []
             current_row_header = False
 
             in_cell = False
-            cell_parts: List[str] = []
+            cell_parts: list[str] = []
 
             while j < len(tokens):
                 tt = tokens[j].type
@@ -306,23 +295,25 @@ def render_markdown_to_discord(text: str) -> str:
 
             if rows:
                 col_count = max((len(r) for r in rows), default=0)
-                norm_rows: List[List[str]] = []
+                norm_rows: list[list[str]] = []
                 for r in rows:
                     if len(r) < col_count:
                         r = r + [""] * (col_count - len(r))
                     norm_rows.append(r)
 
-                widths: List[int] = []
+                widths: list[int] = []
                 for c in range(col_count):
                     w = max((len(r[c]) for r in norm_rows), default=0)
                     widths.append(max(w, 3))
 
-                def fmt_row(r: List[str]) -> str:
-                    cells = [r[c].ljust(widths[c]) for c in range(col_count)]
+                def fmt_row(
+                    r: list[str], _w: list[int] = widths, _c: int = col_count
+                ) -> str:
+                    cells = [r[c].ljust(_w[c]) for c in range(_c)]
                     return "| " + " | ".join(cells) + " |"
 
-                def fmt_sep() -> str:
-                    cells = ["-" * widths[c] for c in range(col_count)]
+                def fmt_sep(_w: list[int] = widths, _c: int = col_count) -> str:
+                    cells = ["-" * _w[c] for c in range(_c)]
                     return "| " + " | ".join(cells) + " |"
 
                 last_header_idx = -1
@@ -330,7 +321,7 @@ def render_markdown_to_discord(text: str) -> str:
                     if is_h:
                         last_header_idx = idx
 
-                lines: List[str] = []
+                lines: list[str] = []
                 for idx, r in enumerate(norm_rows):
                     lines.append(fmt_row(r))
                     if idx == last_header_idx:
@@ -364,10 +355,10 @@ def render_markdown_to_discord(text: str) -> str:
 
 
 __all__ = [
-    "escape_discord",
-    "escape_discord_code",
     "discord_bold",
     "discord_code_inline",
+    "escape_discord",
+    "escape_discord_code",
     "format_status",
     "format_status_discord",
     "render_markdown_to_discord",

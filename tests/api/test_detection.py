@@ -3,10 +3,10 @@
 from unittest.mock import patch
 
 from api.detection import (
-    is_prefix_detection_request,
     is_filepath_extraction_request,
+    is_prefix_detection_request,
 )
-from api.models.anthropic import MessagesRequest, Message
+from api.models.anthropic import Message, MessagesRequest
 
 
 def _make_request(content: str, **kwargs) -> MessagesRequest:
@@ -66,7 +66,7 @@ class TestIsFilepathExtractionRequest:
         """Output containing < is split and first part used."""
         content = "Command:\nls\nOutput:\na.txt b.txt <extra>\nfilepaths"
         req = _make_request(content)
-        is_fp, cmd, out = is_filepath_extraction_request(req)
+        is_fp, _cmd, out = is_filepath_extraction_request(req)
         assert is_fp is True
         assert "<" not in out
         assert out == "a.txt b.txt"
@@ -75,6 +75,6 @@ class TestIsFilepathExtractionRequest:
         """Output containing \\n\\n is split and first part used."""
         content = "Command:\nls\nOutput:\na.txt\nb.txt\n\nmore text\nfilepaths"
         req = _make_request(content)
-        is_fp, cmd, out = is_filepath_extraction_request(req)
+        is_fp, _cmd, out = is_filepath_extraction_request(req)
         assert is_fp is True
         assert "more" not in out

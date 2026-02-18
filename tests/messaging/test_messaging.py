@@ -1,9 +1,10 @@
 """Tests for messaging/ module."""
 
-import pytest
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
+
+import pytest
 
 # --- Existing Tests ---
 
@@ -99,7 +100,7 @@ class TestSessionStore:
 
         store = SessionStore(storage_path=str(tmp_path / "sessions.json"))
 
-        old_date = (datetime.now(timezone.utc) - timedelta(days=40)).isoformat()
+        old_date = (datetime.now(UTC) - timedelta(days=40)).isoformat()
 
         # Old tree
         store.save_tree(
@@ -109,11 +110,7 @@ class TestSessionStore:
         # New tree
         store.save_tree(
             "new_root",
-            {
-                "nodes": {
-                    "new_root": {"created_at": datetime.now(timezone.utc).isoformat()}
-                }
-            },
+            {"nodes": {"new_root": {"created_at": datetime.now(UTC).isoformat()}}},
         )
 
         removed = store.cleanup_old_trees(30)
@@ -165,7 +162,7 @@ class TestSessionStore:
         store.save_tree("r1", {"root_id": "r1", "nodes": {"r1": {}}})
 
         # Mock open to raise exception
-        with patch("builtins.open", side_effect=IOError("Disk full")):
+        with patch("builtins.open", side_effect=OSError("Disk full")):
             store.save_tree("r2", {"root_id": "r2", "nodes": {"r2": {}}})
 
         # Should log error but not crash. Tree should be in memory.
@@ -199,8 +196,8 @@ class TestTreeQueueManager:
     @pytest.mark.asyncio
     async def test_create_tree_and_enqueue(self):
         """Test creating a tree and enqueueing."""
-        from messaging.tree_queue import TreeQueueManager
         from messaging.models import IncomingMessage
+        from messaging.tree_queue import TreeQueueManager
 
         mgr = TreeQueueManager()
         processed = []

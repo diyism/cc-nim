@@ -1,10 +1,10 @@
 import pytest
 
 from providers.model_utils import (
-    strip_provider_prefixes,
+    get_original_model,
     is_claude_model,
     normalize_model_name,
-    get_original_model,
+    strip_provider_prefixes,
 )
 
 

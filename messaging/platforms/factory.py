@@ -6,8 +6,6 @@ To add a new platform (e.g. Discord, Slack):
 2. Add a case to create_messaging_platform() below
 """
 
-from typing import Optional
-
 from loguru import logger
 
 from .base import MessagingPlatform
@@ -16,7 +14,7 @@ from .base import MessagingPlatform
 def create_messaging_platform(
     platform_type: str,
     **kwargs,
-) -> Optional[MessagingPlatform]:
+) -> MessagingPlatform | None:
     """Create a messaging platform instance based on type.
 
     Args:

@@ -1,7 +1,8 @@
 """Tests for extract_text_from_content helper functions."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from utils.text import extract_text_from_content
 

@@ -11,12 +11,11 @@ import atexit
 import os
 import subprocess
 import threading
-from typing import Set
+
 from loguru import logger
 
-
 _lock = threading.Lock()
-_pids: Set[int] = set()
+_pids: set[int] = set()
 _atexit_registered = False
 
 

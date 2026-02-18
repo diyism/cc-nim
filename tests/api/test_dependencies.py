@@ -1,11 +1,13 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 from fastapi import HTTPException
-from unittest.mock import AsyncMock, MagicMock, patch
-from api.dependencies import get_provider, get_settings, cleanup_provider
+
+from api.dependencies import cleanup_provider, get_provider, get_settings
+from config.nim import NimSettings
 from providers.lmstudio import LMStudioProvider
 from providers.nvidia_nim import NvidiaNimProvider
 from providers.open_router import OpenRouterProvider
-from config.nim import NimSettings
 
 
 def _make_mock_settings(**overrides):

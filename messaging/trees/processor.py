@@ -4,10 +4,11 @@ Handles the async processing lifecycle of tree nodes.
 """
 
 import asyncio
-from typing import Callable, Awaitable, Optional
+from collections.abc import Awaitable, Callable
 
-from .data import MessageTree, MessageNode, MessageState
 from loguru import logger
+
+from .data import MessageNode, MessageState, MessageTree
 
 
 class TreeQueueProcessor:
@@ -19,26 +20,23 @@ class TreeQueueProcessor:
 
     def __init__(
         self,
-        queue_update_callback: Optional[
-            Callable[[MessageTree], Awaitable[None]]
-        ] = None,
-        node_started_callback: Optional[
-            Callable[[MessageTree, str], Awaitable[None]]
-        ] = None,
+        queue_update_callback: Callable[[MessageTree], Awaitable[None]] | None = None,
+        node_started_callback: Callable[[MessageTree, str], Awaitable[None]]
+        | None = None,
     ):
         self._queue_update_callback = queue_update_callback
         self._node_started_callback = node_started_callback
 
     def set_queue_update_callback(
         self,
-        queue_update_callback: Optional[Callable[[MessageTree], Awaitable[None]]],
+        queue_update_callback: Callable[[MessageTree], Awaitable[None]] | None,
     ) -> None:
         """Update the callback used to refresh queue positions."""
         self._queue_update_callback = queue_update_callback
 
     def set_node_started_callback(
         self,
-        node_started_callback: Optional[Callable[[MessageTree, str], Awaitable[None]]],
+        node_started_callback: Callable[[MessageTree, str], Awaitable[None]] | None,
     ) -> None:
         """Update the callback used when a queued node starts processing."""
         self._node_started_callback = node_started_callback

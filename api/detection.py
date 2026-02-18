@@ -4,8 +4,6 @@ Detects quota checks, title generation, prefix detection, suggestion mode,
 and filepath extraction requests to enable fast-path responses.
 """
 
-from typing import Tuple
-
 from utils.text import extract_text_from_content
 
 from .models.anthropic import MessagesRequest
@@ -41,7 +39,7 @@ def is_title_generation_request(request_data: MessagesRequest) -> bool:
     return False
 
 
-def is_prefix_detection_request(request_data: MessagesRequest) -> Tuple[bool, str]:
+def is_prefix_detection_request(request_data: MessagesRequest) -> tuple[bool, str]:
     """Check if this is a fast prefix detection request.
 
     Prefix detection requests contain a policy_spec block and
@@ -81,7 +79,7 @@ def is_suggestion_mode_request(request_data: MessagesRequest) -> bool:
 
 def is_filepath_extraction_request(
     request_data: MessagesRequest,
-) -> Tuple[bool, str, str]:
+) -> tuple[bool, str, str]:
     """Check if this is a filepath extraction request.
 
     Filepath extraction requests have a single user message with

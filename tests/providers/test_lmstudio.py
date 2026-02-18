@@ -1,8 +1,9 @@
 """Tests for LM Studio provider."""
 
 import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from providers.base import ProviderConfig
 from providers.lmstudio import LMStudioProvider
@@ -65,10 +66,7 @@ def _make_request(model="test-model", **kwargs):
 
 async def _collect_stream(provider, request):
     """Collect all SSE events from a stream."""
-    events = []
-    async for event in provider.stream_response(request):
-        events.append(event)
-    return events
+    return [e async for e in provider.stream_response(request)]
 
 
 class MockMessage:
@@ -217,9 +215,7 @@ async def test_stream_response_text(lmstudio_provider):
     ) as mock_create:
         mock_create.return_value = mock_stream()
 
-        events = []
-        async for event in lmstudio_provider.stream_response(req):
-            events.append(event)
+        events = [e async for e in lmstudio_provider.stream_response(req)]
 
         assert len(events) > 0
         assert "event: message_start" in events[0]
@@ -258,15 +254,16 @@ async def test_stream_response_reasoning_content(lmstudio_provider):
     ) as mock_create:
         mock_create.return_value = mock_stream()
 
-        events = []
-        async for event in lmstudio_provider.stream_response(req):
-            events.append(event)
+        events = [e async for e in lmstudio_provider.stream_response(req)]
 
         found_thinking = False
         for e in events:
-            if "event: content_block_delta" in e and '"thinking_delta"' in e:
-                if "Thinking..." in e:
-                    found_thinking = True
+            if (
+                "event: content_block_delta" in e
+                and '"thinking_delta"' in e
+                and "Thinking..." in e
+            ):
+                found_thinking = True
         assert found_thinking
 
 
@@ -424,9 +421,7 @@ async def test_stream_response_tool_call(lmstudio_provider):
         new_callable=AsyncMock,
         return_value=mock_stream(),
     ):
-        events = []
-        async for event in lmstudio_provider.stream_response(request):
-            events.append(event)
+        events = [e async for e in lmstudio_provider.stream_response(request)]
 
     starts = [
         e for e in events if "event: content_block_start" in e and '"tool_use"' in e
