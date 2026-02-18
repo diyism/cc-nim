@@ -80,7 +80,7 @@ class Settings(BaseSettings):
     hf_token: str = Field(default="", validation_alias="HF_TOKEN")
     # Model size: "tiny" | "base" | "small" | "medium" | "large-v2"
     whisper_model: str = Field(default="base", validation_alias="WHISPER_MODEL")
-    # Device: "cpu" | "cuda" | "auto" (auto = try cuda, fall back to cpu)
+    # Device: "cpu" | "cuda" | "auto" (auto = try cuda, fail fast; no fallback)
     whisper_device: str = Field(default="cpu", validation_alias="WHISPER_DEVICE")
 
     # ==================== Bot Wrapper Config ====================
