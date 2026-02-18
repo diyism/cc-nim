@@ -79,6 +79,38 @@ class TelegramPlatform(MessagingPlatform):
         )
         self._connected = False
         self._limiter: Any | None = None  # Will be MessagingRateLimiter
+        # Pending voice transcriptions: (chat_id, msg_id) -> (voice_msg_id, status_msg_id)
+        self._pending_voice: dict[tuple[str, str], tuple[str, str]] = {}
+        self._pending_voice_lock = asyncio.Lock()
+
+    async def _register_pending_voice(
+        self, chat_id: str, voice_msg_id: str, status_msg_id: str
+    ) -> None:
+        """Register a voice note as pending transcription (for /clear reply during transcription)."""
+        async with self._pending_voice_lock:
+            self._pending_voice[(chat_id, voice_msg_id)] = (voice_msg_id, status_msg_id)
+            self._pending_voice[(chat_id, status_msg_id)] = (
+                voice_msg_id,
+                status_msg_id,
+            )
+
+    async def cancel_pending_voice(
+        self, chat_id: str, reply_id: str
+    ) -> tuple[str, str] | None:
+        """Cancel a pending voice transcription. Returns (voice_msg_id, status_msg_id) if found."""
+        async with self._pending_voice_lock:
+            entry = self._pending_voice.pop((chat_id, reply_id), None)
+            if entry is None:
+                return None
+            voice_msg_id, status_msg_id = entry
+            self._pending_voice.pop((chat_id, voice_msg_id), None)
+            self._pending_voice.pop((chat_id, status_msg_id), None)
+            return (voice_msg_id, status_msg_id)
+
+    async def _is_voice_still_pending(self, chat_id: str, voice_msg_id: str) -> bool:
+        """Check if a voice note is still pending (not cancelled)."""
+        async with self._pending_voice_lock:
+            return (chat_id, voice_msg_id) in self._pending_voice
 
     async def start(self) -> None:
         """Initialize and connect to Telegram."""
@@ -532,6 +564,7 @@ class TelegramPlatform(MessagingPlatform):
         )
 
         message_id = str(update.message.message_id)
+        await self._register_pending_voice(chat_id, message_id, str(status_msg_id))
         reply_to = (
             str(update.message.reply_to_message.message_id)
             if update.message.reply_to_message
@@ -561,6 +594,14 @@ class TelegramPlatform(MessagingPlatform):
                 whisper_model=settings.whisper_model,
                 whisper_device=settings.whisper_device,
             )
+
+            if not await self._is_voice_still_pending(chat_id, message_id):
+                await self.queue_delete_message(chat_id, str(status_msg_id))
+                return
+
+            async with self._pending_voice_lock:
+                self._pending_voice.pop((chat_id, message_id), None)
+                self._pending_voice.pop((chat_id, str(status_msg_id)), None)
 
             incoming = IncomingMessage(
                 text=transcribed,

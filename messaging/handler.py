@@ -923,6 +923,26 @@ class ClaudeMessageHandler:
                 self.tree_queue.resolve_parent_node_id(reply_id) if tree else None
             )
             if not branch_root_id:
+                cancel_fn = getattr(self.platform, "cancel_pending_voice", None)
+                if cancel_fn is not None:
+                    cancelled = await cancel_fn(incoming.chat_id, reply_id)
+                    if cancelled is not None:
+                        voice_msg_id, status_msg_id = cancelled
+                        msg_ids_to_del: set[str] = {voice_msg_id, status_msg_id}
+                        if incoming.message_id is not None:
+                            msg_ids_to_del.add(str(incoming.message_id))
+                        await self._delete_message_ids(incoming.chat_id, msg_ids_to_del)
+                        msg_id = await self.platform.queue_send_message(
+                            incoming.chat_id,
+                            self._format_status(
+                                "🗑", "Cleared.", "Voice note cancelled."
+                            ),
+                            fire_and_forget=False,
+                        )
+                        self._record_outgoing_message(
+                            incoming.platform, incoming.chat_id, msg_id, "command"
+                        )
+                        return
                 msg_id = await self.platform.queue_send_message(
                     incoming.chat_id,
                     self._format_status(

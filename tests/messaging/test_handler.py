@@ -619,3 +619,37 @@ async def test_handle_message_clear_command_reply_to_root_clears_tree(
     assert set(deleted_ids) == {"100", "101", "150"}
     mock_session_store.remove_tree.assert_called_once_with("100")
     assert handler.tree_queue.get_tree_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_handle_message_clear_command_reply_pending_voice_cancels(
+    handler, mock_platform, mock_session_store, incoming_message_factory
+):
+    """Reply /clear to a voice note during transcription cancels it."""
+
+    async def cancel_pending(chat_id, reply_id):
+        if reply_id == "100":
+            return ("100", "101")
+        return None
+
+    mock_platform.cancel_pending_voice = AsyncMock(side_effect=cancel_pending)
+    mock_platform.queue_delete_message = AsyncMock()
+    deleted_ids = []
+
+    async def _capture_delete(chat_id, message_id, fire_and_forget=True):
+        deleted_ids.append(message_id)
+
+    mock_platform.queue_delete_message = AsyncMock(side_effect=_capture_delete)
+
+    incoming = incoming_message_factory(
+        text="/clear",
+        chat_id="chat_1",
+        message_id="150",
+        reply_to_message_id="100",
+    )
+    await handler.handle_message(incoming)
+
+    mock_platform.cancel_pending_voice.assert_called_once_with("chat_1", "100")
+    assert set(deleted_ids) == {"100", "101", "150"}
+    call_args = mock_platform.queue_send_message.call_args[0]
+    assert "Voice note cancelled" in call_args[1]
