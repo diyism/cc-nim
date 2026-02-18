@@ -78,3 +78,7 @@ skip-magic-trailing-comma = false
 
 [tool.ty.environment]
 python-version = "3.14"
+
+[tool.ty.analysis]
+# Optional voice extra: torch, transformers, librosa may not be installed in CI
+allowed-unresolved-imports = ["torch", "transformers", "librosa"]
