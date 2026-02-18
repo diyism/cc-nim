@@ -36,19 +36,23 @@ def test_transcribe_local_success():
         f.write(b"fake ogg content")
         path = Path(f.name)
     try:
-        mock_segment = MagicMock()
-        mock_segment.text = "Hello world"
-        mock_model = MagicMock()
-        mock_model.transcribe.return_value = (iter([mock_segment]), None)
+        mock_pipe = MagicMock()
+        mock_pipe.return_value = {"text": "Hello world"}
+        fake_audio = {"array": [0.0], "sampling_rate": 16000}
 
-        with patch(
-            "messaging.transcription._get_local_model",
-            return_value=mock_model,
+        with (
+            patch("messaging.transcription._load_audio", return_value=fake_audio),
+            patch(
+                "messaging.transcription._get_pipeline",
+                return_value=mock_pipe,
+            ),
         ):
             result = transcribe_audio(path, "audio/ogg", whisper_model="base")
 
         assert result == "Hello world"
-        mock_model.transcribe.assert_called_once()
+        mock_pipe.assert_called_once_with(
+            fake_audio, generate_kwargs={"language": "en", "task": "transcribe"}
+        )
     finally:
         path.unlink(missing_ok=True)
 
@@ -59,12 +63,16 @@ def test_transcribe_local_empty_segments_returns_no_speech():
         f.write(b"fake ogg")
         path = Path(f.name)
     try:
-        mock_model = MagicMock()
-        mock_model.transcribe.return_value = (iter([]), None)
+        mock_pipe = MagicMock()
+        mock_pipe.return_value = {"text": ""}
+        fake_audio = {"array": [0.0], "sampling_rate": 16000}
 
-        with patch(
-            "messaging.transcription._get_local_model",
-            return_value=mock_model,
+        with (
+            patch("messaging.transcription._load_audio", return_value=fake_audio),
+            patch(
+                "messaging.transcription._get_pipeline",
+                return_value=mock_pipe,
+            ),
         ):
             result = transcribe_audio(path, "audio/ogg", whisper_model="base")
 
@@ -86,14 +94,14 @@ def test_transcribe_invalid_device_raises():
 
 
 def test_transcribe_local_import_error_raises():
-    """Local backend when faster-whisper not installed raises ImportError."""
+    """Local backend when voice extra not installed raises ImportError."""
     with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as f:
         f.write(b"fake ogg")
         path = Path(f.name)
     try:
         with (
             patch(
-                "messaging.transcription._get_local_model",
+                "messaging.transcription._get_pipeline",
                 side_effect=ImportError(
                     "Voice notes require the voice extra. Install with: uv sync --extra voice"
                 ),

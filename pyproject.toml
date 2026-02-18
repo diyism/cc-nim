@@ -20,7 +20,20 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-voice = ["faster-whisper>=1.0.0"]
+voice = [
+    "torch>=2.0.0",
+    "transformers>=4.45.0",
+    "accelerate>=0.30.0",
+    "librosa>=0.10.0",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
 
 [dependency-groups]
 dev = [

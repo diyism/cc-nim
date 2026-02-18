@@ -235,7 +235,7 @@ Get a token from [@BotFather](https://t.me/BotFather); find your user ID via [@u
 
 ### Voice Notes
 
-Send voice messages on Telegram or Discord; they are transcribed to text and processed as regular prompts. Uses [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — free, no API key, works offline.
+Send voice messages on Telegram or Discord; they are transcribed to text and processed as regular prompts. Uses [Hugging Face transformers Whisper](https://huggingface.co/openai/whisper-large-v3-turbo) — free, no API key, works offline, CUDA 13 compatible. No ffmpeg required (audio loaded via librosa).
 
 Install the optional voice extra:
 
@@ -248,7 +248,7 @@ uv sync --extra voice
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `VOICE_NOTE_ENABLED` | Enable voice note handling | `true` |
-| `WHISPER_MODEL` | Model size: `tiny`, `base`, `small`, `medium`, `large-v2`, `large-v3`, `large-v3-turbo` | `base` |
+| `WHISPER_MODEL` | Hugging Face model ID or short name (`tiny`, `base`, `small`, `medium`, `large-v2`, `large-v3`, `large-v3-turbo`) | `openai/whisper-large-v3-turbo` |
 | `WHISPER_DEVICE` | `cpu` \| `cuda` | `cpu` |
 | `HF_TOKEN` | Hugging Face token for faster model downloads (optional; [create one](https://huggingface.co/settings/tokens)) | — |
 

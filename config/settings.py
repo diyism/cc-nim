@@ -78,8 +78,10 @@ class Settings(BaseSettings):
     )
     # Hugging Face token for faster model downloads (optional)
     hf_token: str = Field(default="", validation_alias="HF_TOKEN")
-    # Model size: "tiny" | "base" | "small" | "medium" | "large-v2" | "large-v3" | "large-v3-turbo"
-    whisper_model: str = Field(default="base", validation_alias="WHISPER_MODEL")
+    # Hugging Face Whisper model ID (e.g. openai/whisper-large-v3-turbo) or short name
+    whisper_model: str = Field(
+        default="openai/whisper-large-v3-turbo", validation_alias="WHISPER_MODEL"
+    )
     # Device: "cpu" | "cuda"
     whisper_device: str = Field(default="cpu", validation_alias="WHISPER_DEVICE")
 
