@@ -85,7 +85,7 @@ def transcribe_audio(
     file_path: Path,
     mime_type: str,
     *,
-    whisper_model: str = "openai/whisper-large-v3-turbo",
+    whisper_model: str = "base",
     whisper_device: str = "cpu",
 ) -> str:
     """
@@ -94,7 +94,7 @@ def transcribe_audio(
     Args:
         file_path: Path to audio file (OGG, MP3, MP4, WAV, M4A supported)
         mime_type: MIME type of the audio (e.g. "audio/ogg")
-        whisper_model: Model ID (e.g. "openai/whisper-large-v3-turbo") or short name
+        whisper_model: Model ID (e.g. "openai/whisper-base") or short name
         whisper_device: "cpu" | "cuda"
 
     Returns:

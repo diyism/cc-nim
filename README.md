@@ -248,7 +248,7 @@ uv sync --extra voice
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `VOICE_NOTE_ENABLED` | Enable voice note handling | `true` |
-| `WHISPER_MODEL` | Hugging Face model ID or short name (`tiny`, `base`, `small`, `medium`, `large-v2`, `large-v3`, `large-v3-turbo`) | `openai/whisper-large-v3-turbo` |
+| `WHISPER_MODEL` | Hugging Face model ID or short name (`tiny`, `base`, `small`, `medium`, `large-v2`, `large-v3`, `large-v3-turbo`) | `base` |
 | `WHISPER_DEVICE` | `cpu` \| `cuda` | `cpu` |
 | `HF_TOKEN` | Hugging Face token for faster model downloads (optional; [create one](https://huggingface.co/settings/tokens)) | — |
 
