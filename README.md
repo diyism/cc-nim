@@ -113,7 +113,7 @@ That's it! Claude Code now uses your configured provider for free.
 <details>
 <summary><b>Model Picker</b></summary>
 
-`claude-pick` is an interactive model selector that lets you choose a model from your active provider before launching Claude.
+`claude-pick` is an interactive model selector that lets you choose any model from your active provider each time you launch Claude — no need to edit `MODEL` in `.env` every time you want to switch.
 
 https://github.com/user-attachments/assets/9a33c316-90f8-4418-9650-97e7d33ad645
 
