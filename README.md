@@ -420,7 +420,7 @@ class MyPlatform(MessagingPlatform):
         # Cleanup
         ...
 
-    async def send_message(self, chat_id, text, reply_to=None, parse_mode=None):
+    async def send_message(self, chat_id, text, reply_to=None, parse_mode=None, message_thread_id=None):
         # Send a message
         ...
 
