@@ -10,10 +10,11 @@ from api.detection import (
 from api.models.anthropic import Message, MessagesRequest
 
 
-def _mk_req(messages, tools=None):
+def _mk_req(messages, tools=None, system=None):
     req = MagicMock(spec=MessagesRequest)
     req.messages = messages
     req.tools = tools
+    req.system = system
     return req
 
 
@@ -63,6 +64,20 @@ class TestFilepathExtractionDetection:
         req = _mk_req([msg], tools=None)
         ok, cmd, out = is_filepath_extraction_request(req)
         assert (ok, cmd, out) == (False, "", "")
+
+    def test_detects_filepath_extraction_via_system_block(self):
+        """Command: + Output: in user, no filepaths in user; system has extract instructions."""
+        msg = _mk_msg("user", "Command: ls\nOutput: avazu-ctr\nfree-claude-code")
+        req = _mk_req(
+            [msg],
+            tools=None,
+            system="Extract any file paths that this command reads or modifies.",
+        )
+        ok, cmd, out = is_filepath_extraction_request(req)
+        assert ok is True
+        assert cmd == "ls"
+        assert "avazu-ctr" in out
+        assert "free-claude-code" in out
 
     def test_extracts_command_and_output_and_cleans_output(self):
         msg = _mk_msg(

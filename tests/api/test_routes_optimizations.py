@@ -88,6 +88,21 @@ def test_create_message_title_generation_skip(client, mock_settings):
     app.dependency_overrides.clear()
 
 
+def test_create_message_empty_messages_returns_400(client):
+    """POST /v1/messages with messages: [] returns 400 invalid_request_error."""
+    payload = {
+        "model": "claude-3-sonnet",
+        "max_tokens": 100,
+        "messages": [],
+    }
+    response = client.post("/v1/messages", json=payload)
+    assert response.status_code == 400
+    data = response.json()
+    assert data.get("type") == "error"
+    assert data.get("error", {}).get("type") == "invalid_request_error"
+    assert "cannot be empty" in data.get("error", {}).get("message", "")
+
+
 def test_count_tokens_endpoint(client):
     payload = {
         "model": "claude-3-sonnet",

@@ -81,7 +81,12 @@ def test_error_fallbacks():
         RateLimitError,
     )
 
-    base_payload = {"model": "test", "messages": [], "max_tokens": 10, "stream": True}
+    base_payload = {
+        "model": "test",
+        "messages": [{"role": "user", "content": "Hi"}],
+        "max_tokens": 10,
+        "stream": True,
+    }
 
     def _raise_auth(*args, **kwargs):
         raise AuthenticationError("Invalid Key")

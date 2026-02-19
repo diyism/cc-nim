@@ -99,7 +99,18 @@ def is_filepath_extraction_request(
     if "Command:" not in content or "Output:" not in content:
         return False, "", ""
 
-    if "filepaths" not in content.lower() and "<filepaths>" not in content.lower():
+    # Match if user content OR system block indicates filepath extraction
+    user_has_filepaths = (
+        "filepaths" in content.lower() or "<filepaths>" in content.lower()
+    )
+    system_text = (
+        extract_text_from_content(request_data.system) if request_data.system else ""
+    )
+    system_has_extract = (
+        "extract any file paths" in system_text.lower()
+        or "file paths that this command" in system_text.lower()
+    )
+    if not user_has_filepaths and not system_has_extract:
         return False, "", ""
 
     try:

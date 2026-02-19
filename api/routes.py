@@ -9,7 +9,7 @@ from loguru import logger
 
 from config.settings import Settings
 from providers.base import BaseProvider
-from providers.exceptions import ProviderError
+from providers.exceptions import InvalidRequestError, ProviderError
 from providers.logging_utils import build_request_summary, log_request_compact
 
 from .dependencies import get_provider, get_settings
@@ -36,6 +36,9 @@ async def create_message(
     """Create a message (always streaming)."""
 
     try:
+        if not request_data.messages:
+            raise InvalidRequestError("messages cannot be empty")
+
         optimized = try_optimizations(request_data, settings)
         if optimized is not None:
             return optimized
