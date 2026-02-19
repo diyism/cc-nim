@@ -111,6 +111,36 @@ ANTHROPIC_AUTH_TOKEN=freecc ANTHROPIC_BASE_URL=http://localhost:8082 claude
 That's it! Claude Code now uses your configured provider for free.
 
 <details>
+<summary><b>Multi-Model Support (Model Picker)</b></summary>
+
+`claude-pick` is an interactive model selector that lets you choose any model from your active provider each time you launch Claude — no need to edit `MODEL` in `.env` every time you want to switch.
+
+https://github.com/user-attachments/assets/9a33c316-90f8-4418-9650-97e7d33ad645
+
+**1. Install [fzf](https://github.com/junegunn/fzf)** (highly recommended for the interactive picker):
+
+```bash
+brew install fzf        # macOS/Linux
+```
+
+**2. Add the alias to `~/.zshrc` or `~/.bashrc`:**
+
+```bash
+# Use the absolute path to your cloned repo
+alias claude-pick="/absolute/path/to/free-claude-code/claude-pick"
+```
+
+Then reload your shell (`source ~/.zshrc` or `source ~/.bashrc`) and run `claude-pick` to pick a model and launch Claude.
+
+**Skip the picker with a fixed model** (no picker needed):
+
+```bash
+alias claude-kimi='ANTHROPIC_BASE_URL="http://localhost:8082" ANTHROPIC_AUTH_TOKEN="freecc:moonshotai/kimi-k2.5" claude'
+```
+
+</details>
+
+<details>
 <summary><b>VSCode Extension Setup</b></summary>
 
 1. Start the proxy server (same as above).
@@ -431,33 +461,6 @@ class MyPlatform(MessagingPlatform):
     def on_message(self, handler):
         # Register callback for incoming messages
         ...
-```
-
----
-
-## Model Picker
-
-`claude-pick` is an interactive model selector that lets you choose a model from your active provider before launching Claude.
-
-**1. Install [fzf](https://github.com/junegunn/fzf)** (highly recommended for the interactive picker):
-
-```bash
-brew install fzf        # macOS/Linux
-```
-
-**2. Add the alias to `~/.zshrc` or `~/.bashrc`:**
-
-```bash
-# Use the absolute path to your cloned repo
-alias claude-pick="/absolute/path/to/free-claude-code/claude-pick"
-```
-
-Then reload your shell (`source ~/.zshrc`) and run `claude-pick` to pick a model and launch Claude.
-
-**Skip the picker with a fixed model** (no alias or picker needed):
-
-```bash
-alias claude-kimi='ANTHROPIC_BASE_URL="http://localhost:8082" ANTHROPIC_AUTH_TOKEN="freecc:moonshotai/kimi-k2.5" claude'
 ```
 
 ---
