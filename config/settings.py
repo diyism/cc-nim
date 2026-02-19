@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     provider_rate_window: int = Field(
         default=60, validation_alias="PROVIDER_RATE_WINDOW"
     )
+    provider_max_concurrency: int = Field(
+        default=5, validation_alias="PROVIDER_MAX_CONCURRENCY"
+    )
 
     # ==================== HTTP Client Timeouts ====================
     http_read_timeout: float = Field(
@@ -94,7 +97,6 @@ class Settings(BaseSettings):
     )
     claude_workspace: str = "./agent_workspace"
     allowed_dir: str = ""
-    max_cli_sessions: int = 10
 
     # ==================== Server ====================
     host: str = "0.0.0.0"

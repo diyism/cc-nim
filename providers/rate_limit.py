@@ -4,7 +4,8 @@ import asyncio
 import random
 import time
 from collections import deque
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from typing import Any, TypeVar
 
 import openai
@@ -19,13 +20,22 @@ class GlobalRateLimiter:
     when a rate limit error is encountered (reactive) and
     throttles requests (proactive) using a strict rolling window.
 
+    Optionally enforces a max_concurrency cap: at most N provider streams
+    may be open simultaneously, independent of the sliding window.
+
     Proactive limits - throttles requests to stay within API limits.
     Reactive limits - pauses all requests when a 429 is hit.
+    Concurrency limit - caps simultaneously open streams.
     """
 
     _instance: GlobalRateLimiter | None = None
 
-    def __init__(self, rate_limit: int = 40, rate_window: float = 60.0):
+    def __init__(
+        self,
+        rate_limit: int = 40,
+        rate_window: float = 60.0,
+        max_concurrency: int = 5,
+    ):
         # Prevent double initialization in singleton
         if hasattr(self, "_initialized"):
             return
@@ -34,6 +44,8 @@ class GlobalRateLimiter:
             raise ValueError("rate_limit must be > 0")
         if rate_window <= 0:
             raise ValueError("rate_window must be > 0")
+        if max_concurrency <= 0:
+            raise ValueError("max_concurrency must be > 0")
 
         self._rate_limit = rate_limit
         self._rate_window = float(rate_window)
@@ -41,10 +53,11 @@ class GlobalRateLimiter:
         self._request_times: deque[float] = deque()
         self._blocked_until: float = 0
         self._lock = asyncio.Lock()
+        self._concurrency_sem = asyncio.Semaphore(max_concurrency)
         self._initialized = True
 
         logger.info(
-            f"GlobalRateLimiter (Provider) initialized ({rate_limit} req / {rate_window}s)"
+            f"GlobalRateLimiter (Provider) initialized ({rate_limit} req / {rate_window}s, max_concurrency={max_concurrency})"
         )
 
     @classmethod
@@ -52,17 +65,20 @@ class GlobalRateLimiter:
         cls,
         rate_limit: int | None = None,
         rate_window: float | None = None,
+        max_concurrency: int = 5,
     ) -> GlobalRateLimiter:
         """Get or create the singleton instance.
 
         Args:
             rate_limit: Requests per window (only used on first creation)
             rate_window: Window in seconds (only used on first creation)
+            max_concurrency: Max simultaneous open streams (only used on first creation)
         """
         if cls._instance is None:
             cls._instance = cls(
                 rate_limit=rate_limit or 40,
                 rate_window=rate_window or 60.0,
+                max_concurrency=max_concurrency,
             )
         return cls._instance
 
@@ -139,6 +155,18 @@ class GlobalRateLimiter:
     def remaining_wait(self) -> float:
         """Get remaining reactive wait time in seconds."""
         return max(0.0, self._blocked_until - time.monotonic())
+
+    @asynccontextmanager
+    async def concurrency_slot(self) -> AsyncIterator[None]:
+        """Async context manager that holds one concurrency slot for a stream.
+
+        Blocks until a slot is available (controlled by max_concurrency).
+        """
+        await self._concurrency_sem.acquire()
+        try:
+            yield
+        finally:
+            self._concurrency_sem.release()
 
     async def execute_with_retry(
         self,
