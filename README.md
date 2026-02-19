@@ -130,7 +130,7 @@ brew install fzf        # macOS/Linux
 alias claude-pick="/absolute/path/to/free-claude-code/claude-pick"
 ```
 
-Then reload your shell (`source ~/.zshrc`) and run `claude-pick` to pick a model and launch Claude.
+Then reload your shell (`source ~/.zshrc` or `source ~/.bashrc`) and run `claude-pick` to pick a model and launch Claude.
 
 **Skip the picker with a fixed model** (no picker needed):
 
