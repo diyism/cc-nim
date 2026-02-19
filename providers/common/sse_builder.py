@@ -146,6 +146,7 @@ class SSEBuilder:
     # Message lifecycle events
     def message_start(self) -> str:
         """Generate message_start event."""
+        usage = {"input_tokens": self.input_tokens, "output_tokens": 1}
         return self._format_event(
             "message_start",
             {
@@ -158,8 +159,9 @@ class SSEBuilder:
                     "model": self.model,
                     "stop_reason": None,
                     "stop_sequence": None,
-                    "usage": {"input_tokens": self.input_tokens, "output_tokens": 1},
+                    "usage": usage,
                 },
+                "usage": usage,
             },
         )
 
@@ -170,7 +172,10 @@ class SSEBuilder:
             {
                 "type": "message_delta",
                 "delta": {"stop_reason": stop_reason, "stop_sequence": None},
-                "usage": {"output_tokens": output_tokens},
+                "usage": {
+                    "input_tokens": self.input_tokens,
+                    "output_tokens": output_tokens,
+                },
             },
         )
 

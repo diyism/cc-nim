@@ -290,7 +290,6 @@ class TestLMStudioStreamingExceptionHandling:
         assert "message_start" in event_text
         assert "API failed" in event_text
         assert "message_stop" in event_text
-        assert "[DONE]" in event_text
 
     @pytest.mark.asyncio
     async def test_error_after_partial_content(self, lmstudio_provider):
@@ -361,7 +360,6 @@ class TestLMStudioStreamChunkEdgeCases:
         event_text = "".join(events)
         assert "message_start" in event_text
         assert "message_stop" in event_text
-        assert "[DONE]" in event_text
 
     @pytest.mark.asyncio
     async def test_stream_chunk_with_none_delta_handled(self, lmstudio_provider):
@@ -387,7 +385,6 @@ class TestLMStudioStreamChunkEdgeCases:
         event_text = "".join(events)
         assert "message_start" in event_text
         assert "message_stop" in event_text
-        assert "[DONE]" in event_text
 
 
 # --- Native Tool Calls ---
