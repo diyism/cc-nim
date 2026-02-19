@@ -323,4 +323,3 @@ class OpenAICompatibleProvider(BaseProvider):
                 )
         yield sse.message_delta(map_stop_reason(finish_reason), output_tokens)
         yield sse.message_stop()
-        yield sse.done()
