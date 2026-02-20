@@ -130,7 +130,8 @@ def test_app_lifespan_sets_state_and_cleans_up(tmp_path, messaging_enabled):
         patch("messaging.session.SessionStore", return_value=session_store),
         patch("cli.manager.CLISessionManager", return_value=cli_manager),
         patch(
-            "messaging.trees.queue_manager.TreeQueueManager.from_dict", return_value=fake_queue
+            "messaging.trees.queue_manager.TreeQueueManager.from_dict",
+            return_value=fake_queue,
         ),
         TestClient(app),
     ):
