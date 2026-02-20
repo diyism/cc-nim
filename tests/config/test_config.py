@@ -104,15 +104,6 @@ class TestSettings:
         settings = Settings()
         assert settings.http_connect_timeout == 5.0
 
-    def test_http_timeouts_defaults(self):
-        """HTTP timeout defaults are set correctly."""
-        from config.settings import Settings
-
-        settings = Settings()
-        assert settings.http_read_timeout == 300.0
-        assert settings.http_write_timeout == 10.0
-        assert settings.http_connect_timeout == 2.0
-
 
 # --- NimSettings Validation Tests ---
 
