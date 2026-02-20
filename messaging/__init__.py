@@ -5,8 +5,8 @@ from .event_parser import parse_cli_event
 from .handler import ClaudeMessageHandler
 from .models import IncomingMessage
 from .session import SessionStore
-from .tree_data import MessageNode, MessageState, MessageTree
-from .tree_queue import TreeQueueManager
+from .trees.data import MessageNode, MessageState, MessageTree
+from .trees.queue_manager import TreeQueueManager
 
 __all__ = [
     "CLISession",

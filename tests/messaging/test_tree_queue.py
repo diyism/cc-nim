@@ -5,7 +5,7 @@ import asyncio
 import pytest
 
 from messaging.models import IncomingMessage
-from messaging.tree_queue import (
+from messaging.trees.queue_manager import (
     MessageNode,
     MessageState,
     MessageTree,

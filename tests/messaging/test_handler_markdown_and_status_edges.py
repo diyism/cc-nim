@@ -5,7 +5,7 @@ import pytest
 from messaging.handler import ClaudeMessageHandler
 from messaging.models import IncomingMessage
 from messaging.telegram_markdown import render_markdown_to_mdv2
-from messaging.tree_data import MessageNode, MessageState
+from messaging.trees.data import MessageNode, MessageState
 
 
 def test_render_markdown_to_mdv2_empty_returns_empty():

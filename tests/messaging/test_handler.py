@@ -4,8 +4,8 @@ import pytest
 
 from messaging.handler import ClaudeMessageHandler
 from messaging.models import IncomingMessage
-from messaging.tree_data import MessageNode, MessageTree
-from messaging.tree_queue import MessageState
+from messaging.trees.data import MessageNode, MessageTree
+from messaging.trees.queue_manager import MessageState
 
 
 @pytest.fixture

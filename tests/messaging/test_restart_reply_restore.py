@@ -5,7 +5,7 @@ import pytest
 from messaging.handler import ClaudeMessageHandler
 from messaging.models import IncomingMessage
 from messaging.session import SessionStore
-from messaging.tree_queue import TreeQueueManager
+from messaging.trees.queue_manager import TreeQueueManager
 
 
 @pytest.mark.asyncio

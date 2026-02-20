@@ -107,7 +107,7 @@ async def lifespan(app: FastAPI):
             saved_trees = session_store.get_all_trees()
             if saved_trees:
                 logger.info(f"Restoring {len(saved_trees)} conversation trees...")
-                from messaging.tree_queue import TreeQueueManager
+                from messaging.trees.queue_manager import TreeQueueManager
 
                 message_handler.tree_queue = TreeQueueManager.from_dict(
                     {
