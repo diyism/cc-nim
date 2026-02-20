@@ -17,10 +17,6 @@ NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
-    # ==================== Provider Selection ====================
-    # Valid: "nvidia_nim" | "open_router" | "lmstudio"
-    provider_type: str = "nvidia_nim"
-
     # ==================== OpenRouter Config ====================
     open_router_api_key: str = Field(default="", validation_alias="OPENROUTER_API_KEY")
 
@@ -41,7 +37,8 @@ class Settings(BaseSettings):
 
     # ==================== Model ====================
     # All Claude model requests are mapped to this single model
-    model: str = "moonshotai/kimi-k2-thinking"
+    # Format: provider_type/model/name
+    model: str = "nvidia_nim/meta/llama3-70b-instruct"
 
     # ==================== Provider Rate Limiting ====================
     provider_rate_limit: int = Field(default=40, validation_alias="PROVIDER_RATE_LIMIT")
@@ -123,6 +120,34 @@ class Settings(BaseSettings):
         if v not in ("cpu", "cuda"):
             raise ValueError(f"whisper_device must be 'cpu' or 'cuda', got {v!r}")
         return v
+
+    @field_validator("model")
+    @classmethod
+    def validate_model_format(cls, v: str) -> str:
+        valid_providers = ("nvidia_nim", "open_router", "lmstudio")
+        if "/" not in v:
+            raise ValueError(
+                f"Model must be prefixed with provider type. "
+                f"Valid providers: {', '.join(valid_providers)}. "
+                f"Format: provider_type/model/name"
+            )
+        provider = v.split("/", 1)[0]
+        if provider not in valid_providers:
+            raise ValueError(
+                f"Invalid provider: '{provider}'. "
+                f"Supported: 'nvidia_nim', 'open_router', 'lmstudio'"
+            )
+        return v
+
+    @property
+    def provider_type(self) -> str:
+        """Extract provider type from the model string."""
+        return self.model.split("/", 1)[0]
+
+    @property
+    def model_name(self) -> str:
+        """Extract the actual model name from the model string."""
+        return self.model.split("/", 1)[1]
 
     model_config = SettingsConfigDict(
         env_file=".env",

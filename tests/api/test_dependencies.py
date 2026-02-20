@@ -13,6 +13,7 @@ from providers.open_router import OpenRouterProvider
 def _make_mock_settings(**overrides):
     """Create a mock settings object with all required fields for get_provider()."""
     mock = MagicMock()
+    mock.model = "nvidia_nim/meta/llama3"
     mock.provider_type = "nvidia_nim"
     mock.nvidia_nim_api_key = "test_key"
     mock.provider_rate_limit = 40

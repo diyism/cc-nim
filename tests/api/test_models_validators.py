@@ -9,7 +9,7 @@ from config.settings import Settings
 @pytest.fixture
 def mock_settings():
     settings = Settings()
-    settings.model = "target-model-from-settings"
+    settings.model = "nvidia_nim/target-model-from-settings"
     return settings
 
 
