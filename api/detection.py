@@ -4,7 +4,7 @@ Detects quota checks, title generation, prefix detection, suggestion mode,
 and filepath extraction requests to enable fast-path responses.
 """
 
-from utils.text import extract_text_from_content
+from providers.common.text import extract_text_from_content
 
 from .models.anthropic import MessagesRequest
 

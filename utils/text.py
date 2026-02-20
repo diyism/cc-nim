@@ -1,17 +1,8 @@
-"""Shared text extraction utilities."""
+"""Shared text extraction utilities.
 
-from typing import Any
+This module is deprecated. Use providers.common.text instead.
+"""
 
+from providers.common.text import extract_text_from_content
 
-def extract_text_from_content(content: Any) -> str:
-    """Extract concatenated text from message content (str or list of content blocks)."""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for block in content:
-            text = getattr(block, "text", "")
-            if text and isinstance(text, str):
-                parts.append(text)
-        return "".join(parts)
-    return ""
+__all__ = ["extract_text_from_content"]

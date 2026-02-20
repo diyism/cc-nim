@@ -10,7 +10,7 @@ from typing import Any
 
 from loguru import logger
 
-from utils.text import extract_text_from_content
+from providers.common.text import extract_text_from_content
 
 
 def generate_request_fingerprint(messages: list[Any]) -> str:
