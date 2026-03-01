@@ -27,18 +27,18 @@ A lightweight proxy that routes Claude Code's Anthropic API calls to **NVIDIA NI
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **Zero Cost** | 40 req/min free on NVIDIA NIM. Free models on OpenRouter. Fully local with LM Studio |
-| **Drop-in Replacement** | Set 2 env vars. No modifications to Claude Code CLI or VSCode extension needed |
-| **3 Providers** | NVIDIA NIM, OpenRouter (hundreds of models), LM Studio (local & offline) |
-| **Thinking Token Support** | Parses `<think>` tags and `reasoning_content` into native Claude thinking blocks |
-| **Heuristic Tool Parser** | Models outputting tool calls as text are auto-parsed into structured tool use |
-| **Request Optimization** | 5 categories of trivial API calls intercepted locally, saving quota and latency |
-| **Discord Bot** | Remote autonomous coding with tree-based threading, session persistence, and live progress (Telegram also supported) |
-| **Smart Rate Limiting** | Proactive rolling-window throttle + reactive 429 exponential backoff + optional concurrency cap across all providers |
-| **Subagent Control** | Task tool interception forces `run_in_background=False`. No runaway subagents |
-| **Extensible** | Clean `BaseProvider` and `MessagingPlatform` ABCs. Add new providers or platforms easily |
+| Feature                    | Description                                                                                                          |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Zero Cost**              | 40 req/min free on NVIDIA NIM. Free models on OpenRouter. Fully local with LM Studio                                 |
+| **Drop-in Replacement**    | Set 2 env vars. No modifications to Claude Code CLI or VSCode extension needed                                       |
+| **3 Providers**            | NVIDIA NIM, OpenRouter (hundreds of models), LM Studio (local & offline)                                             |
+| **Thinking Token Support** | Parses `<think>` tags and `reasoning_content` into native Claude thinking blocks                                     |
+| **Heuristic Tool Parser**  | Models outputting tool calls as text are auto-parsed into structured tool use                                        |
+| **Request Optimization**   | 5 categories of trivial API calls intercepted locally, saving quota and latency                                      |
+| **Discord Bot**            | Remote autonomous coding with tree-based threading, session persistence, and live progress (Telegram also supported) |
+| **Smart Rate Limiting**    | Proactive rolling-window throttle + reactive 429 exponential backoff + optional concurrency cap across all providers |
+| **Subagent Control**       | Task tool interception forces `run_in_background=False`. No runaway subagents                                        |
+| **Extensible**             | Clean `BaseProvider` and `MessagingPlatform` ABCs. Add new providers or platforms easily                             |
 
 ## Quick Start
 
@@ -187,19 +187,19 @@ alias claude-kimi='ANTHROPIC_BASE_URL="http://localhost:8082" ANTHROPIC_AUTH_TOK
 
 ## Providers
 
-| Provider | Cost | Rate Limit | Models | Best For |
-|----------|------|------------|--------|----------|
-| **NVIDIA NIM** | Free | 40 req/min | Kimi K2, GLM5, Devstral, MiniMax | Daily driver, generous free tier |
-| **OpenRouter** | Free / Paid | Varies | 200+ (GPT-4o, Claude, Step, etc.) | Model variety, fallback options |
-| **LM Studio** | Free (local) | Unlimited | Any GGUF model | Privacy, offline use, no rate limits |
+| Provider       | Cost         | Rate Limit | Models                            | Best For                             |
+| -------------- | ------------ | ---------- | --------------------------------- | ------------------------------------ |
+| **NVIDIA NIM** | Free         | 40 req/min | Kimi K2, GLM5, Devstral, MiniMax  | Daily driver, generous free tier     |
+| **OpenRouter** | Free / Paid  | Varies     | 200+ (GPT-4o, Claude, Step, etc.) | Model variety, fallback options      |
+| **LM Studio**  | Free (local) | Unlimited  | Any GGUF model                    | Privacy, offline use, no rate limits |
 
 Switch providers by changing `MODEL` in `.env`. Use the prefix format `provider/model/name`. Invalid prefix causes an error.
 
-| Provider | MODEL prefix | API Key Variable | Base URL |
-|----------|--------------|------------------|----------|
-| NVIDIA NIM | `nvidia_nim/...` | `NVIDIA_NIM_API_KEY` | `integrate.api.nvidia.com/v1` |
-| OpenRouter | `open_router/...` | `OPENROUTER_API_KEY` | `openrouter.ai/api/v1` |
-| LM Studio | `lmstudio/...` | (none) | `localhost:1234/v1` |
+| Provider   | MODEL prefix      | API Key Variable     | Base URL                      |
+| ---------- | ----------------- | -------------------- | ----------------------------- |
+| NVIDIA NIM | `nvidia_nim/...`  | `NVIDIA_NIM_API_KEY` | `integrate.api.nvidia.com/v1` |
+| OpenRouter | `open_router/...` | `OPENROUTER_API_KEY` | `openrouter.ai/api/v1`        |
+| LM Studio  | `lmstudio/...`    | (none)               | `localhost:1234/v1`           |
 
 LM Studio runs locally. Start the server in the Developer tab or via `lms server start`, load a model, and set `MODEL` to the model identifier.
 
@@ -210,6 +210,7 @@ LM Studio runs locally. Start the server in the Developer tab or via `lms server
 Control Claude Code remotely from Discord. Send tasks, watch live progress, and manage multiple concurrent sessions. Telegram is also supported.
 
 **Capabilities:**
+
 - Tree-based message threading: reply to a message to fork the conversation
 - Session persistence across server restarts
 - Live streaming of thinking tokens, tool calls, and results
@@ -279,27 +280,27 @@ uv sync --extra voice --extra voice_local
 
 **Configuration:**
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VOICE_NOTE_ENABLED` | Enable voice note handling | `true` |
-| `WHISPER_DEVICE` | `cpu` \| `cuda` \| `nvidia_nim` | `cpu` |
-| `WHISPER_MODEL` | See supported models below | `base` |
-| `HF_TOKEN` | Hugging Face token for faster model downloads (optional, for local Whisper) | — |
-| `NVIDIA_NIM_API_KEY` | API key for NVIDIA NIM (required for `nvidia_nim` device) | — |
+| Variable             | Description                                                                 | Default |
+| -------------------- | --------------------------------------------------------------------------- | ------- |
+| `VOICE_NOTE_ENABLED` | Enable voice note handling                                                  | `true`  |
+| `WHISPER_DEVICE`     | `cpu` \| `cuda` \| `nvidia_nim`                                             | `cpu`   |
+| `WHISPER_MODEL`      | See supported models below                                                  | `base`  |
+| `HF_TOKEN`           | Hugging Face token for faster model downloads (optional, for local Whisper) | —       |
+| `NVIDIA_NIM_API_KEY` | API key for NVIDIA NIM (required for `nvidia_nim` device)                   | —       |
 
 **Supported `WHISPER_MODEL` values:**
 
-| Model | Device | Description |
-|-------|--------|-------------|
-| `tiny`, `base`, `small`, `medium`, `large-v2`, `large-v3`, `large-v3-turbo` | `cpu` / `cuda` | Local Whisper (Hugging Face) |
-| `openai/whisper-large-v3` | `nvidia_nim` | Auto language detection (best overall) |
-| `nvidia/parakeet-ctc-1.1b-asr` | `nvidia_nim` | English-only |
-| `nvidia/parakeet-ctc-0.6b-asr` | `nvidia_nim` | English-only |
-| `nvidia/parakeet-ctc-0.6b-zh-cn` | `nvidia_nim` | Mandarin Chinese |
-| `nvidia/parakeet-ctc-0.6b-zh-tw` | `nvidia_nim` | Traditional Chinese |
-| `nvidia/parakeet-ctc-0.6b-es` | `nvidia_nim` | Spanish |
-| `nvidia/parakeet-ctc-0.6b-vi` | `nvidia_nim` | Vietnamese |
-| `nvidia/parakeet-1.1b-rnnt-multilingual-asr` | `nvidia_nim` | Multilingual RNNT |
+| Model                                                                       | Device         | Description                            |
+| --------------------------------------------------------------------------- | -------------- | -------------------------------------- |
+| `tiny`, `base`, `small`, `medium`, `large-v2`, `large-v3`, `large-v3-turbo` | `cpu` / `cuda` | Local Whisper (Hugging Face)           |
+| `openai/whisper-large-v3`                                                   | `nvidia_nim`   | Auto language detection (best overall) |
+| `nvidia/parakeet-ctc-1.1b-asr`                                              | `nvidia_nim`   | English-only                           |
+| `nvidia/parakeet-ctc-0.6b-asr`                                              | `nvidia_nim`   | English-only                           |
+| `nvidia/parakeet-ctc-0.6b-zh-cn`                                            | `nvidia_nim`   | Mandarin Chinese                       |
+| `nvidia/parakeet-ctc-0.6b-zh-tw`                                            | `nvidia_nim`   | Traditional Chinese                    |
+| `nvidia/parakeet-ctc-0.6b-es`                                               | `nvidia_nim`   | Spanish                                |
+| `nvidia/parakeet-ctc-0.6b-vi`                                               | `nvidia_nim`   | Vietnamese                             |
+| `nvidia/parakeet-1.1b-rnnt-multilingual-asr`                                | `nvidia_nim`   | Multilingual RNNT                      |
 
 ---
 
@@ -311,6 +312,7 @@ uv sync --extra voice --extra voice_local
 Full list in [`nvidia_nim_models.json`](nvidia_nim_models.json).
 
 Popular models:
+
 - `nvidia_nim/minimaxai/minimax-m2.5`
 - `nvidia_nim/qwen/qwen3.5-397b-a17b`
 - `nvidia_nim/z-ai/glm5`
@@ -320,6 +322,7 @@ Popular models:
 Browse: [build.nvidia.com](https://build.nvidia.com/explore/discover)
 
 Update model list:
+
 ```bash
 curl "https://integrate.api.nvidia.com/v1/models" > nvidia_nim_models.json
 ```
@@ -332,6 +335,7 @@ curl "https://integrate.api.nvidia.com/v1/models" > nvidia_nim_models.json
 Hundreds of models from StepFun, OpenAI, Anthropic, Google, and more.
 
 Popular models:
+
 - `open_router/stepfun/step-3.5-flash:free`
 - `open_router/deepseek/deepseek-r1-0528:free`
 - `open_router/openai/gpt-oss-120b:free`
@@ -348,9 +352,12 @@ Browse free models: [https://openrouter.ai/collections/free-models](https://open
 Run models locally with [LM Studio](https://lmstudio.ai). Load a model in the Chat or Developer tab, then set `MODEL` to its identifier.
 
 Examples (native tool-use support):
-- `lmstudio-community/qwen2.5-7b-instruct`
-- `lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF`
-- `bartowski/Ministral-8B-Instruct-2410-GGUF`
+
+- `unsloth/Qwen3.5-35B-A3B-GGUF`
+- `unsloth/Qwen3.5-27B-GGUF`
+- `unsloth/Qwen3.5-122B-A10B-GGUF`
+- `TeichAI/Qwen3-14B-Claude-4.5-Opus-High-Reasoning-Distill-GGUF`
+- `LiquidAI/LFM2-24B-A2B-GGUF`
 
 Browse: [model.lmstudio.ai](https://model.lmstudio.ai)
 
@@ -360,35 +367,35 @@ Browse: [model.lmstudio.ai](https://model.lmstudio.ai)
 
 ## Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MODEL` | Model to use (prefix format: `provider/model/name`; invalid prefix causes error) | `nvidia_nim/stepfun-ai/step-3.5-flash` |
-| `NVIDIA_NIM_API_KEY` | NVIDIA API key (NIM provider) | required |
-| `OPENROUTER_API_KEY` | OpenRouter API key (OpenRouter provider) | required |
-| `LM_STUDIO_BASE_URL` | LM Studio server URL | `http://localhost:1234/v1` |
-| `PROVIDER_RATE_LIMIT` | LLM API requests per window | `40` |
-| `PROVIDER_RATE_WINDOW` | Rate limit window (seconds) | `60` |
-| `PROVIDER_MAX_CONCURRENCY` | Max simultaneous open provider streams | `5` |
-| `HTTP_READ_TIMEOUT` | Read timeout for provider API requests (seconds) | `300` |
-| `HTTP_WRITE_TIMEOUT` | Write timeout for provider API requests (seconds) | `10` |
-| `HTTP_CONNECT_TIMEOUT` | Connect timeout for provider API requests (seconds) | `2` |
-| `FAST_PREFIX_DETECTION` | Enable fast prefix detection | `true` |
-| `ENABLE_NETWORK_PROBE_MOCK` | Enable network probe mock | `true` |
-| `ENABLE_TITLE_GENERATION_SKIP` | Skip title generation | `true` |
-| `ENABLE_SUGGESTION_MODE_SKIP` | Skip suggestion mode | `true` |
-| `ENABLE_FILEPATH_EXTRACTION_MOCK` | Enable filepath extraction mock | `true` |
-| `MESSAGING_PLATFORM` | Messaging platform: `discord` or `telegram` | `discord` |
-| `DISCORD_BOT_TOKEN` | Discord Bot Token | `""` |
-| `ALLOWED_DISCORD_CHANNELS` | Comma-separated channel IDs (empty = none allowed) | `""` |
-| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token | `""` |
-| `ALLOWED_TELEGRAM_USER_ID` | Allowed Telegram User ID | `""` |
-| `VOICE_NOTE_ENABLED` | Enable voice note handling | `true` |
-| `WHISPER_MODEL` | Local Whisper model size | `base` |
-| `WHISPER_DEVICE` | `cpu` \| `cuda` | `cpu` |
-| `MESSAGING_RATE_LIMIT` | Messaging messages per window | `1` |
-| `MESSAGING_RATE_WINDOW` | Messaging window (seconds) | `1` |
-| `CLAUDE_WORKSPACE` | Directory for agent workspace | `./agent_workspace` |
-| `ALLOWED_DIR` | Allowed directories for agent | `""` |
+| Variable                          | Description                                                                      | Default                                |
+| --------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------- |
+| `MODEL`                           | Model to use (prefix format: `provider/model/name`; invalid prefix causes error) | `nvidia_nim/stepfun-ai/step-3.5-flash` |
+| `NVIDIA_NIM_API_KEY`              | NVIDIA API key (NIM provider)                                                    | required                               |
+| `OPENROUTER_API_KEY`              | OpenRouter API key (OpenRouter provider)                                         | required                               |
+| `LM_STUDIO_BASE_URL`              | LM Studio server URL                                                             | `http://localhost:1234/v1`             |
+| `PROVIDER_RATE_LIMIT`             | LLM API requests per window                                                      | `40`                                   |
+| `PROVIDER_RATE_WINDOW`            | Rate limit window (seconds)                                                      | `60`                                   |
+| `PROVIDER_MAX_CONCURRENCY`        | Max simultaneous open provider streams                                           | `5`                                    |
+| `HTTP_READ_TIMEOUT`               | Read timeout for provider API requests (seconds)                                 | `300`                                  |
+| `HTTP_WRITE_TIMEOUT`              | Write timeout for provider API requests (seconds)                                | `10`                                   |
+| `HTTP_CONNECT_TIMEOUT`            | Connect timeout for provider API requests (seconds)                              | `2`                                    |
+| `FAST_PREFIX_DETECTION`           | Enable fast prefix detection                                                     | `true`                                 |
+| `ENABLE_NETWORK_PROBE_MOCK`       | Enable network probe mock                                                        | `true`                                 |
+| `ENABLE_TITLE_GENERATION_SKIP`    | Skip title generation                                                            | `true`                                 |
+| `ENABLE_SUGGESTION_MODE_SKIP`     | Skip suggestion mode                                                             | `true`                                 |
+| `ENABLE_FILEPATH_EXTRACTION_MOCK` | Enable filepath extraction mock                                                  | `true`                                 |
+| `MESSAGING_PLATFORM`              | Messaging platform: `discord` or `telegram`                                      | `discord`                              |
+| `DISCORD_BOT_TOKEN`               | Discord Bot Token                                                                | `""`                                   |
+| `ALLOWED_DISCORD_CHANNELS`        | Comma-separated channel IDs (empty = none allowed)                               | `""`                                   |
+| `TELEGRAM_BOT_TOKEN`              | Telegram Bot Token                                                               | `""`                                   |
+| `ALLOWED_TELEGRAM_USER_ID`        | Allowed Telegram User ID                                                         | `""`                                   |
+| `VOICE_NOTE_ENABLED`              | Enable voice note handling                                                       | `true`                                 |
+| `WHISPER_MODEL`                   | Local Whisper model size                                                         | `base`                                 |
+| `WHISPER_DEVICE`                  | `cpu` \| `cuda`                                                                  | `cpu`                                  |
+| `MESSAGING_RATE_LIMIT`            | Messaging messages per window                                                    | `1`                                    |
+| `MESSAGING_RATE_WINDOW`           | Messaging window (seconds)                                                       | `1`                                    |
+| `CLAUDE_WORKSPACE`                | Directory for agent workspace                                                    | `./agent_workspace`                    |
+| `ALLOWED_DIR`                     | Allowed directories for agent                                                    | `""`                                   |
 
 See [`.env.example`](.env.example) for all supported parameters.
 
