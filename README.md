@@ -353,11 +353,11 @@ Run models locally with [LM Studio](https://lmstudio.ai). Load a model in the Ch
 
 Examples (native tool-use support):
 
-- `unsloth/Qwen3.5-35B-A3B-GGUF`
-- `unsloth/Qwen3.5-27B-GGUF`
-- `unsloth/Qwen3.5-122B-A10B-GGUF`
-- `TeichAI/Qwen3-14B-Claude-4.5-Opus-High-Reasoning-Distill-GGUF`
 - `LiquidAI/LFM2-24B-A2B-GGUF`
+- `unsloth/MiniMax-M2.5-GGUF`
+- `unsloth/GLM-4.7-Flash-GGUF`
+- `unsloth/Qwen3.5-35B-A3B-GGUF`
+- `LocoreMind/LocoOperator-4B`
 
 Browse: [model.lmstudio.ai](https://model.lmstudio.ai)
 
