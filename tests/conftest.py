@@ -29,6 +29,16 @@ from providers.base import ProviderConfig
 from providers.nvidia_nim import NvidiaNimProvider
 
 
+@pytest.fixture(autouse=True)
+def _isolate_from_dotenv(monkeypatch):
+    """Prevent Pydantic BaseSettings from reading the .env file during tests."""
+    from config.settings import Settings
+
+    monkeypatch.setattr(
+        Settings, "model_config", {**Settings.model_config, "env_file": None}
+    )
+
+
 @pytest.fixture
 def provider_config():
     return ProviderConfig(

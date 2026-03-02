@@ -41,7 +41,7 @@ async def create_message(
         if optimized is not None:
             return optimized
 
-        # Resolve provider from the tier-aware model mapping
+        # Resolve provider from the model-aware mapping
         provider_type = Settings.parse_provider_type(
             request_data.resolved_provider_model or settings.model
         )

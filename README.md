@@ -32,7 +32,7 @@ A lightweight proxy that routes Claude Code's Anthropic API calls to **NVIDIA NI
 | **Zero Cost**              | 40 req/min free on NVIDIA NIM. Free models on OpenRouter. Fully local with LM Studio                                 |
 | **Drop-in Replacement**    | Set 2 env vars. No modifications to Claude Code CLI or VSCode extension needed                                       |
 | **3 Providers**            | NVIDIA NIM, OpenRouter (hundreds of models), LM Studio (local & offline)                                             |
-| **Per-Tier Model Mapping** | Route Opus / Sonnet / Haiku requests to different models and providers. Mix providers freely per tier                |
+| **Per-Model Mapping**      | Route Opus / Sonnet / Haiku requests to different models and providers. Mix providers freely per model               |
 | **Thinking Token Support** | Parses `<think>` tags and `reasoning_content` into native Claude thinking blocks                                     |
 | **Heuristic Tool Parser**  | Models outputting tool calls as text are auto-parsed into structured tool use                                        |
 | **Request Optimization**   | 5 categories of trivial API calls intercepted locally, saving quota and latency                                      |
@@ -68,7 +68,11 @@ Choose your provider and edit `.env`:
 
 ```dotenv
 NVIDIA_NIM_API_KEY="nvapi-your-key-here"
-MODEL="nvidia_nim/z-ai/glm4.7"
+
+MODEL_OPUS="nvidia_nim/moonshotai/kimi-k2.5"
+MODEL_SONNET="nvidia_nim/z-ai/glm5"
+MODEL_HAIKU="nvidia_nim/stepfun-ai/step-3.5-flash"
+MODEL="nvidia_nim/z-ai/glm4.7"                     # fallback
 ```
 
 </details>
@@ -78,7 +82,11 @@ MODEL="nvidia_nim/z-ai/glm4.7"
 
 ```dotenv
 OPENROUTER_API_KEY="sk-or-your-key-here"
-MODEL="open_router/stepfun/step-3.5-flash:free"
+
+MODEL_OPUS="open_router/deepseek/deepseek-r1-0528:free"
+MODEL_SONNET="open_router/openai/gpt-oss-120b:free"
+MODEL_HAIKU="open_router/stepfun/step-3.5-flash:free"
+MODEL="open_router/stepfun/step-3.5-flash:free"     # fallback
 ```
 
 </details>
@@ -87,24 +95,27 @@ MODEL="open_router/stepfun/step-3.5-flash:free"
 <summary><b>LM Studio</b> (fully local, no API key)</summary>
 
 ```dotenv
-MODEL="lmstudio/lmstudio-community/qwen2.5-7b-instruct"
+MODEL_OPUS="lmstudio/unsloth/MiniMax-M2.5-GGUF"
+MODEL_SONNET="lmstudio/unsloth/Qwen3.5-35B-A3B-GGUF"
+MODEL_HAIKU="lmstudio/unsloth/GLM-4.7-Flash-GGUF"
+MODEL="lmstudio/unsloth/GLM-4.7-Flash-GGUF"         # fallback
 ```
 
 </details>
 
 <details>
-<summary><b>Per-Tier Model Mapping</b> (mix providers per Claude tier)</summary>
+<summary><b>Mix providers</b> (use multiple providers together)</summary>
 
-Claude Code sends requests tagged as Opus, Sonnet, or Haiku. You can route each tier to a different model — even across different providers. `MODEL` acts as the fallback when a tier-specific variable is not set.
+Each `MODEL_*` variable can use a different provider. `MODEL` is the fallback for unrecognized Claude models.
 
 ```dotenv
 NVIDIA_NIM_API_KEY="nvapi-your-key-here"
 OPENROUTER_API_KEY="sk-or-your-key-here"
 
-MODEL_OPUS="nvidia_nim/z-ai/glm4.7"
-MODEL_SONNET="open_router/arcee-ai/trinity-large-preview:free"
-MODEL_HAIKU="open_router/stepfun/step-3.5-flash:free"
-MODEL="nvidia_nim/z-ai/glm4.7"              # fallback for unrecognized tiers
+MODEL_OPUS="nvidia_nim/moonshotai/kimi-k2.5"
+MODEL_SONNET="open_router/deepseek/deepseek-r1-0528:free"
+MODEL_HAIKU="lmstudio/unsloth/GLM-4.7-Flash-GGUF"
+MODEL="nvidia_nim/z-ai/glm4.7"                      # fallback
 ```
 
 </details>
@@ -198,7 +209,7 @@ alias claude-kimi='ANTHROPIC_BASE_URL="http://localhost:8082" ANTHROPIC_AUTH_TOK
 ```
 
 - **Transparent proxy**: Claude Code sends standard Anthropic API requests to the proxy server
-- **Per-tier model routing**: Opus / Sonnet / Haiku requests are resolved to their tier-specific model and provider, with the default `MODEL` as fallback
+- **Per-model routing**: Opus / Sonnet / Haiku requests are resolved to their model-specific backend and provider, with the default `MODEL` as fallback
 - **Request optimization**: 5 categories of trivial requests (quota probes, title generation, prefix detection, suggestions, filepath extraction) are intercepted and responded to instantly without using API quota
 - **Format translation**: real requests are translated from Anthropic format to the provider's OpenAI-compatible format and streamed back
 - **Thinking tokens**: `<think>` tags and `reasoning_content` fields are converted into native Claude thinking blocks so Claude Code renders them correctly
@@ -390,9 +401,9 @@ Browse: [model.lmstudio.ai](https://model.lmstudio.ai)
 | Variable                          | Description                                                                        | Default                                |
 | --------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------- |
 | `MODEL`                           | Fallback model (prefix format: `provider/model/name`; invalid prefix causes error) | `nvidia_nim/stepfun-ai/step-3.5-flash` |
-| `MODEL_OPUS`                      | Model for Claude Opus tier requests (optional, falls back to `MODEL`)              | —                                      |
-| `MODEL_SONNET`                    | Model for Claude Sonnet tier requests (optional, falls back to `MODEL`)            | —                                      |
-| `MODEL_HAIKU`                     | Model for Claude Haiku tier requests (optional, falls back to `MODEL`)             | —                                      |
+| `MODEL_OPUS`                      | Model for Claude Opus requests (optional, falls back to `MODEL`)                   | —                                      |
+| `MODEL_SONNET`                    | Model for Claude Sonnet requests (optional, falls back to `MODEL`)                 | —                                      |
+| `MODEL_HAIKU`                     | Model for Claude Haiku requests (optional, falls back to `MODEL`)                  | —                                      |
 | `NVIDIA_NIM_API_KEY`              | NVIDIA API key (NIM provider)                                                      | required                               |
 | `OPENROUTER_API_KEY`              | OpenRouter API key (OpenRouter provider)                                           | required                               |
 | `LM_STUDIO_BASE_URL`              | LM Studio server URL                                                               | `http://localhost:1234/v1`             |

@@ -10,6 +10,9 @@ from config.settings import Settings
 def mock_settings():
     settings = Settings()
     settings.model = "nvidia_nim/target-model-from-settings"
+    settings.model_opus = None
+    settings.model_sonnet = None
+    settings.model_haiku = None
     return settings
 
 
@@ -76,7 +79,7 @@ def test_messages_request_resolved_provider_model_default(mock_settings):
         )
 
 
-def test_messages_request_tier_aware_opus_override():
+def test_messages_request_model_aware_opus_override():
     """Opus model routes to MODEL_OPUS when set."""
     settings = Settings()
     settings.model = "nvidia_nim/fallback-model"
@@ -93,7 +96,7 @@ def test_messages_request_tier_aware_opus_override():
         assert request.original_model == "claude-opus-4-20250514"
 
 
-def test_messages_request_tier_aware_haiku_override():
+def test_messages_request_model_aware_haiku_override():
     """Haiku model routes to MODEL_HAIKU when set."""
     settings = Settings()
     settings.model = "nvidia_nim/fallback-model"
@@ -109,7 +112,7 @@ def test_messages_request_tier_aware_haiku_override():
         assert request.resolved_provider_model == "lmstudio/qwen2.5-7b"
 
 
-def test_messages_request_tier_aware_sonnet_override():
+def test_messages_request_model_aware_sonnet_override():
     """Sonnet model routes to MODEL_SONNET when set."""
     settings = Settings()
     settings.model = "nvidia_nim/fallback-model"
@@ -127,10 +130,13 @@ def test_messages_request_tier_aware_sonnet_override():
         )
 
 
-def test_messages_request_tier_fallback_when_not_set():
-    """When tier override is None, falls back to MODEL."""
+def test_messages_request_model_fallback_when_not_set():
+    """When model override is None, falls back to MODEL."""
     settings = Settings()
     settings.model = "nvidia_nim/fallback-model"
+    settings.model_opus = None
+    settings.model_sonnet = None
+    settings.model_haiku = None
     # model_opus is None
 
     with patch("api.models.anthropic.get_settings", return_value=settings):
@@ -143,8 +149,8 @@ def test_messages_request_tier_fallback_when_not_set():
         assert request.resolved_provider_model == "nvidia_nim/fallback-model"
 
 
-def test_token_count_request_tier_aware():
-    """TokenCountRequest also uses tier-aware resolution."""
+def test_token_count_request_model_aware():
+    """TokenCountRequest also uses model-aware resolution."""
     settings = Settings()
     settings.model = "nvidia_nim/fallback-model"
     settings.model_haiku = "lmstudio/qwen2.5-7b"

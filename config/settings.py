@@ -2,13 +2,10 @@
 
 from functools import lru_cache
 
-from dotenv import load_dotenv
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .nim import NimSettings
-
-load_dotenv()
 
 
 class Settings(BaseSettings):
@@ -37,7 +34,7 @@ class Settings(BaseSettings):
     # Format: provider_type/model/name
     model: str = "nvidia_nim/meta/llama3-70b-instruct"
 
-    # Per-tier model overrides (optional, falls back to MODEL)
+    # Per-model overrides (optional, falls back to MODEL)
     # Each can use a different provider
     model_opus: str | None = Field(default=None, validation_alias="MODEL_OPUS")
     model_sonnet: str | None = Field(default=None, validation_alias="MODEL_SONNET")
@@ -176,8 +173,8 @@ class Settings(BaseSettings):
     def resolve_model(self, claude_model_name: str) -> str:
         """Resolve a Claude model name to the configured provider/model string.
 
-        Classifies the incoming model into a tier (opus/sonnet/haiku) and
-        returns the tier-specific model if configured, otherwise the fallback MODEL.
+        Classifies the incoming Claude model (opus/sonnet/haiku) and
+        returns the model-specific override if configured, otherwise the fallback MODEL.
         """
         name_lower = claude_model_name.lower()
         if "opus" in name_lower and self.model_opus is not None:

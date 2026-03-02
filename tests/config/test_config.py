@@ -310,11 +310,11 @@ class TestSettingsOptionalStr:
         assert s.whisper_device == device
 
 
-class TestPerTierModelMapping:
-    """Test per-tier model fields and resolve_model()."""
+class TestPerModelMapping:
+    """Test per-model fields and resolve_model()."""
 
-    def test_tier_fields_default_none(self):
-        """Per-tier model fields default to None."""
+    def test_model_fields_default_none(self):
+        """Per-model fields default to None."""
         from config.settings import Settings
 
         s = Settings()
@@ -411,20 +411,20 @@ class TestPerTierModelMapping:
         assert s.resolve_model("claude-3-5-haiku-20241022") == "lmstudio/qwen2.5-7b"
         assert s.resolve_model("claude-haiku-4-20250514") == "lmstudio/qwen2.5-7b"
 
-    def test_resolve_model_fallback_when_tier_not_set(self):
-        """resolve_model falls back to MODEL when tier override is None."""
+    def test_resolve_model_fallback_when_override_not_set(self):
+        """resolve_model falls back to MODEL when model override is None."""
         from config.settings import Settings
 
         s = Settings()
         s.model = "nvidia_nim/fallback-model"
-        # No tier overrides set
+        # No model overrides set
         assert s.resolve_model("claude-opus-4-20250514") == "nvidia_nim/fallback-model"
         assert (
             s.resolve_model("claude-sonnet-4-20250514") == "nvidia_nim/fallback-model"
         )
         assert s.resolve_model("claude-3-haiku-20240307") == "nvidia_nim/fallback-model"
 
-    def test_resolve_model_unknown_tier_falls_back(self):
+    def test_resolve_model_unknown_model_falls_back(self):
         """resolve_model falls back to MODEL for unrecognized model names."""
         from config.settings import Settings
 
@@ -435,7 +435,7 @@ class TestPerTierModelMapping:
         assert s.resolve_model("some-unknown-model") == "nvidia_nim/fallback-model"
 
     def test_resolve_model_case_insensitive(self):
-        """Tier classification is case-insensitive."""
+        """Model classification is case-insensitive."""
         from config.settings import Settings
 
         s = Settings()

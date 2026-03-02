@@ -102,7 +102,7 @@ class MessagesRequest(BaseModel):
 
     @model_validator(mode="after")
     def map_model(self) -> MessagesRequest:
-        """Map any Claude model name to the configured model (tier-aware)."""
+        """Map any Claude model name to the configured model (model-aware)."""
         settings = get_settings()
         if self.original_model is None:
             self.original_model = self.model
@@ -128,7 +128,7 @@ class TokenCountRequest(BaseModel):
     @field_validator("model")
     @classmethod
     def validate_model_field(cls, v: str, info) -> str:
-        """Map any Claude model name to the configured model (tier-aware)."""
+        """Map any Claude model name to the configured model (model-aware)."""
         settings = get_settings()
         resolved_full = settings.resolve_model(v)
         return Settings.parse_model_name(resolved_full)
