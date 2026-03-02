@@ -69,8 +69,8 @@ Choose your provider and edit `.env`:
 ```dotenv
 NVIDIA_NIM_API_KEY="nvapi-your-key-here"
 
-MODEL_OPUS="nvidia_nim/moonshotai/kimi-k2.5"
-MODEL_SONNET="nvidia_nim/z-ai/glm5"
+MODEL_OPUS="nvidia_nim/z-ai/glm4.7"
+MODEL_SONNET="nvidia_nim/moonshotai/kimi-k2-thinking"
 MODEL_HAIKU="nvidia_nim/stepfun-ai/step-3.5-flash"
 MODEL="nvidia_nim/z-ai/glm4.7"                     # fallback
 ```
