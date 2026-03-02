@@ -398,38 +398,38 @@ Browse: [model.lmstudio.ai](https://model.lmstudio.ai)
 
 ## Configuration
 
-| Variable                          | Description                                                                        | Default                                |
-| --------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------- |
-| `MODEL`                           | Fallback model (prefix format: `provider/model/name`; invalid prefix causes error) | `nvidia_nim/stepfun-ai/step-3.5-flash` |
-| `MODEL_OPUS`                      | Model for Claude Opus requests (optional, falls back to `MODEL`)                   | —                                      |
-| `MODEL_SONNET`                    | Model for Claude Sonnet requests (optional, falls back to `MODEL`)                 | —                                      |
-| `MODEL_HAIKU`                     | Model for Claude Haiku requests (optional, falls back to `MODEL`)                  | —                                      |
-| `NVIDIA_NIM_API_KEY`              | NVIDIA API key (NIM provider)                                                      | required                               |
-| `OPENROUTER_API_KEY`              | OpenRouter API key (OpenRouter provider)                                           | required                               |
-| `LM_STUDIO_BASE_URL`              | LM Studio server URL                                                               | `http://localhost:1234/v1`             |
-| `PROVIDER_RATE_LIMIT`             | LLM API requests per window                                                        | `40`                                   |
-| `PROVIDER_RATE_WINDOW`            | Rate limit window (seconds)                                                        | `60`                                   |
-| `PROVIDER_MAX_CONCURRENCY`        | Max simultaneous open provider streams                                             | `5`                                    |
-| `HTTP_READ_TIMEOUT`               | Read timeout for provider API requests (seconds)                                   | `120`                                  |
-| `HTTP_WRITE_TIMEOUT`              | Write timeout for provider API requests (seconds)                                  | `10`                                   |
-| `HTTP_CONNECT_TIMEOUT`            | Connect timeout for provider API requests (seconds)                                | `2`                                    |
-| `FAST_PREFIX_DETECTION`           | Enable fast prefix detection                                                       | `true`                                 |
-| `ENABLE_NETWORK_PROBE_MOCK`       | Enable network probe mock                                                          | `true`                                 |
-| `ENABLE_TITLE_GENERATION_SKIP`    | Skip title generation                                                              | `true`                                 |
-| `ENABLE_SUGGESTION_MODE_SKIP`     | Skip suggestion mode                                                               | `true`                                 |
-| `ENABLE_FILEPATH_EXTRACTION_MOCK` | Enable filepath extraction mock                                                    | `true`                                 |
-| `MESSAGING_PLATFORM`              | Messaging platform: `discord` or `telegram`                                        | `discord`                              |
-| `DISCORD_BOT_TOKEN`               | Discord Bot Token                                                                  | `""`                                   |
-| `ALLOWED_DISCORD_CHANNELS`        | Comma-separated channel IDs (empty = none allowed)                                 | `""`                                   |
-| `TELEGRAM_BOT_TOKEN`              | Telegram Bot Token                                                                 | `""`                                   |
-| `ALLOWED_TELEGRAM_USER_ID`        | Allowed Telegram User ID                                                           | `""`                                   |
-| `VOICE_NOTE_ENABLED`              | Enable voice note handling                                                         | `true`                                 |
-| `WHISPER_MODEL`                   | Local Whisper model size                                                           | `base`                                 |
-| `WHISPER_DEVICE`                  | `cpu` \| `cuda`                                                                    | `cpu`                                  |
-| `MESSAGING_RATE_LIMIT`            | Messaging messages per window                                                      | `1`                                    |
-| `MESSAGING_RATE_WINDOW`           | Messaging window (seconds)                                                         | `1`                                    |
-| `CLAUDE_WORKSPACE`                | Directory for agent workspace                                                      | `./agent_workspace`                    |
-| `ALLOWED_DIR`                     | Allowed directories for agent                                                      | `""`                                   |
+| Variable                          | Description                                                                        | Default                                           |
+| --------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `MODEL`                           | Fallback model (prefix format: `provider/model/name`; invalid prefix causes error) | `nvidia_nim/stepfun-ai/step-3.5-flash`            |
+| `MODEL_OPUS`                      | Model for Claude Opus requests (optional, falls back to `MODEL`)                   | `nvidia_nim/z-ai/glm4.7`                          |
+| `MODEL_SONNET`                    | Model for Claude Sonnet requests (optional, falls back to `MODEL`)                 | `open_router/arcee-ai/trinity-large-preview:free` |
+| `MODEL_HAIKU`                     | Model for Claude Haiku requests (optional, falls back to `MODEL`)                  | `open_router/stepfun/step-3.5-flash:free`         |
+| `NVIDIA_NIM_API_KEY`              | NVIDIA API key (NIM provider)                                                      | required                                          |
+| `OPENROUTER_API_KEY`              | OpenRouter API key (OpenRouter provider)                                           | required                                          |
+| `LM_STUDIO_BASE_URL`              | LM Studio server URL                                                               | `http://localhost:1234/v1`                        |
+| `PROVIDER_RATE_LIMIT`             | LLM API requests per window                                                        | `40`                                              |
+| `PROVIDER_RATE_WINDOW`            | Rate limit window (seconds)                                                        | `60`                                              |
+| `PROVIDER_MAX_CONCURRENCY`        | Max simultaneous open provider streams                                             | `5`                                               |
+| `HTTP_READ_TIMEOUT`               | Read timeout for provider API requests (seconds)                                   | `120`                                             |
+| `HTTP_WRITE_TIMEOUT`              | Write timeout for provider API requests (seconds)                                  | `10`                                              |
+| `HTTP_CONNECT_TIMEOUT`            | Connect timeout for provider API requests (seconds)                                | `2`                                               |
+| `FAST_PREFIX_DETECTION`           | Enable fast prefix detection                                                       | `true`                                            |
+| `ENABLE_NETWORK_PROBE_MOCK`       | Enable network probe mock                                                          | `true`                                            |
+| `ENABLE_TITLE_GENERATION_SKIP`    | Skip title generation                                                              | `true`                                            |
+| `ENABLE_SUGGESTION_MODE_SKIP`     | Skip suggestion mode                                                               | `true`                                            |
+| `ENABLE_FILEPATH_EXTRACTION_MOCK` | Enable filepath extraction mock                                                    | `true`                                            |
+| `MESSAGING_PLATFORM`              | Messaging platform: `discord` or `telegram`                                        | `discord`                                         |
+| `DISCORD_BOT_TOKEN`               | Discord Bot Token                                                                  | `""`                                              |
+| `ALLOWED_DISCORD_CHANNELS`        | Comma-separated channel IDs (empty = none allowed)                                 | `""`                                              |
+| `TELEGRAM_BOT_TOKEN`              | Telegram Bot Token                                                                 | `""`                                              |
+| `ALLOWED_TELEGRAM_USER_ID`        | Allowed Telegram User ID                                                           | `""`                                              |
+| `VOICE_NOTE_ENABLED`              | Enable voice note handling                                                         | `true`                                            |
+| `WHISPER_MODEL`                   | Local Whisper model size                                                           | `base`                                            |
+| `WHISPER_DEVICE`                  | `cpu` \| `cuda`                                                                    | `cpu`                                             |
+| `MESSAGING_RATE_LIMIT`            | Messaging messages per window                                                      | `1`                                               |
+| `MESSAGING_RATE_WINDOW`           | Messaging window (seconds)                                                         | `1`                                               |
+| `CLAUDE_WORKSPACE`                | Directory for agent workspace                                                      | `./agent_workspace`                               |
+| `ALLOWED_DIR`                     | Allowed directories for agent                                                      | `""`                                              |
 
 See [`.env.example`](.env.example) for all supported parameters.
 
