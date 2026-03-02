@@ -9,12 +9,11 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 
 from config.settings import Settings
-from providers.base import BaseProvider
 from providers.common import get_user_facing_error_message
 from providers.exceptions import InvalidRequestError, ProviderError
 from providers.logging_utils import build_request_summary, log_request_compact
 
-from .dependencies import get_provider, get_settings
+from .dependencies import get_provider_for_type, get_settings
 from .models.anthropic import MessagesRequest, TokenCountRequest
 from .models.responses import TokenCountResponse
 from .optimization_handlers import try_optimizations
@@ -26,13 +25,10 @@ router = APIRouter()
 # =============================================================================
 # Routes
 # =============================================================================
-
-
 @router.post("/v1/messages")
 async def create_message(
     request_data: MessagesRequest,
     raw_request: Request,
-    provider: BaseProvider = Depends(get_provider),
     settings: Settings = Depends(get_settings),
 ):
     """Create a message (always streaming)."""
@@ -44,6 +40,12 @@ async def create_message(
         optimized = try_optimizations(request_data, settings)
         if optimized is not None:
             return optimized
+
+        # Resolve provider from the tier-aware model mapping
+        provider_type = Settings.parse_provider_type(
+            request_data.resolved_provider_model or settings.model
+        )
+        provider = get_provider_for_type(provider_type)
 
         request_id = f"req_{uuid.uuid4().hex[:12]}"
         log_request_compact(logger, request_id, request_data)

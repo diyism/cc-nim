@@ -1,9 +1,8 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
 from api.app import app
-from api.dependencies import get_provider
 from providers.nvidia_nim import NvidiaNimProvider
 
 # Mock provider
@@ -22,12 +21,10 @@ async def _mock_stream_response(*args, **kwargs):
 
 mock_provider.stream_response = _mock_stream_response
 
+# Patch get_provider_for_type to always return mock_provider
+_patcher = patch("api.routes.get_provider_for_type", return_value=mock_provider)
+_patcher.start()
 
-def override_get_provider():
-    return mock_provider
-
-
-app.dependency_overrides[get_provider] = override_get_provider
 client = TestClient(app)
 
 
