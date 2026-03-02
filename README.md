@@ -531,6 +531,7 @@ class MyPlatform(MessagingPlatform):
 - Add new messaging platforms (Slack, etc.)
 - Improve test coverage
 - Not accepting Docker Integration for now
+- New and interesting features
 
 ```bash
 # Fork the repo, then:
