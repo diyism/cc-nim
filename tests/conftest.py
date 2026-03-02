@@ -2,7 +2,6 @@ import asyncio
 import contextlib
 import logging
 import os
-import sys
 
 import pytest
 
@@ -10,9 +9,6 @@ import pytest
 os.environ.setdefault("NVIDIA_NIM_API_KEY", "test_key")
 os.environ.setdefault("MODEL", "nvidia_nim/test-model")
 os.environ["PTB_TIMEDELTA"] = "1"
-
-# Add project root to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock

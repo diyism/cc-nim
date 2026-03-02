@@ -81,6 +81,9 @@ indent-style = "space"
 line-ending = "auto"
 skip-magic-trailing-comma = false
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [tool.ty.environment]
 python-version = "3.14"
 
