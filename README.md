@@ -52,7 +52,6 @@ A lightweight proxy that routes Claude Code's Anthropic API calls to **NVIDIA NI
 2. Install [Claude Code](https://github.com/anthropics/claude-code)
 3. Install [uv](https://github.com/astral-sh/uv)
 4. Update uv if already installed: `uv self update`
-5. Install Python 3.14: `uv python install 3.14`
 
 ### Clone & Configure
 
