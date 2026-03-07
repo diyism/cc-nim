@@ -384,6 +384,7 @@ Hundreds of models from StepFun, OpenAI, Anthropic, Google, and more.
 
 Popular models:
 
+- `open_router/arcee-ai/trinity-large-preview:free`
 - `open_router/stepfun/step-3.5-flash:free`
 - `open_router/deepseek/deepseek-r1-0528:free`
 - `open_router/openai/gpt-oss-120b:free`
