@@ -14,7 +14,7 @@
 
 A lightweight proxy that routes Claude Code's Anthropic API calls to **NVIDIA NIM** (40 req/min free), **OpenRouter** (hundreds of models), or **LM Studio** (fully local).
 
-[Features](#features) · [Quick Start](#quick-start) · [How It Works](#how-it-works) · [Discord Bot](#discord-bot) · [Configuration](#configuration)
+[Features](#features) · [Quick Start](#quick-start) · [How It Works](#how-it-works) · [Discord Bot](#discord-bot) · [Configuration](#configuration) · [Development](#development)
 
 ---
 
@@ -186,6 +186,23 @@ alias claude-kimi='ANTHROPIC_BASE_URL="http://localhost:8082" ANTHROPIC_AUTH_TOK
 ```
 
 </details>
+
+### Install as a Package (no clone needed)
+
+If you just want to use the proxy without cloning the repo, install it as a `uv` tool:
+
+```bash
+uv tool install git+https://github.com/Alishahryar1/free-claude-code.git
+fcc-init        # creates ~/.config/free-claude-code/.env from the built-in template
+```
+
+Edit `~/.config/free-claude-code/.env` with your API keys and model names, then:
+
+```bash
+free-claude-code    # starts the server
+```
+
+> To update: `uv tool upgrade free-claude-code`
 
 ---
 
