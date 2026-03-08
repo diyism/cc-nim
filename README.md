@@ -505,6 +505,7 @@ class MyProvider(OpenAICompatibleProvider):
 - Add new LLM providers (Groq, Together AI, etc.)
 - Add new messaging platforms (Slack, etc.)
 - Improve test coverage
+- Not accepting Dockee integration PRs for now
 
 ```bash
 git checkout -b my-feature
