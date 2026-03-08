@@ -62,8 +62,10 @@ def append_request_id(message: str, request_id: str | None) -> str:
 
 
 def map_error(e: Exception) -> Exception:
-    """Map OpenAI exception to specific ProviderError."""
+    """Map OpenAI or HTTPX exception to specific ProviderError."""
     message = get_user_facing_error_message(e)
+
+    # Map OpenAI Specific Errors
     if isinstance(e, openai.AuthenticationError):
         return AuthenticationError(message, raw_error=str(e))
     if isinstance(e, openai.RateLimitError):
@@ -81,5 +83,21 @@ def map_error(e: Exception) -> Exception:
         return APIError(
             message, status_code=getattr(e, "status_code", 500), raw_error=str(e)
         )
+
+    # Map raw HTTPX Errors
+    if isinstance(e, httpx.HTTPStatusError):
+        status = e.response.status_code
+        if status in (401, 403):
+            return AuthenticationError(message, raw_error=str(e))
+        if status == 429:
+            GlobalRateLimiter.get_instance().set_blocked(60)
+            return RateLimitError(message, raw_error=str(e))
+        if status == 400:
+            return InvalidRequestError(message, raw_error=str(e))
+        if status >= 500:
+            if status in (502, 503, 504):
+                return OverloadedError(message, raw_error=str(e))
+            return APIError(message, status_code=status, raw_error=str(e))
+        return APIError(message, status_code=status, raw_error=str(e))
 
     return e

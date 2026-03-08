@@ -104,10 +104,18 @@ class LMStudioProvider(BaseProvider):
                 )
 
                 if response.status_code != 200:
-                    text = await response.aread()
-                    error_msg = f"HTTP {response.status_code}: {text.decode('utf-8', errors='replace')}"
-                    logger.error("{}_ERROR:{} {}", tag, req_tag, error_msg)
-                    raise RuntimeError(f"LMStudio natively returned error: {error_msg}")
+                    try:
+                        response.raise_for_status()
+                    except httpx.HTTPStatusError as e:
+                        text = await response.aread()
+                        logger.error(
+                            "{}_ERROR:{} HTTP {}: {}",
+                            tag,
+                            req_tag,
+                            response.status_code,
+                            text.decode("utf-8", errors="replace"),
+                        )
+                        raise e
 
                 async for line in response.aiter_lines():
                     if line:

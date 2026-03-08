@@ -167,8 +167,6 @@ async def test_stream_response(lmstudio_provider):
 async def test_stream_response_adds_max_tokens_if_missing(lmstudio_provider):
     """Fallback max_tokens to 81920 if not present."""
     req = MockRequest()
-    # Replace the existing method completely to avoid proxy mapping errors from type checkers
-    req.model_dump = lambda **kwargs: {"model": "test"}  # type: ignore
     mock_response = MagicMock()
     mock_response.status_code = 200
 
@@ -179,6 +177,7 @@ async def test_stream_response_adds_max_tokens_if_missing(lmstudio_provider):
     mock_response.aiter_lines = empty_aiter
 
     with (
+        patch.object(req, "model_dump", return_value={"model": "test"}),
         patch.object(lmstudio_provider._client, "build_request") as mock_build,
         patch.object(
             lmstudio_provider._client,
@@ -202,6 +201,11 @@ async def test_stream_error_status_code(lmstudio_provider):
     mock_response = MagicMock()
     mock_response.status_code = 500
     mock_response.aread = AsyncMock(return_value=b"Internal Server Error")
+    mock_response.raise_for_status = MagicMock(
+        side_effect=httpx.HTTPStatusError(
+            "Internal Server Error", request=MagicMock(), response=mock_response
+        )
+    )
 
     with (
         patch.object(
