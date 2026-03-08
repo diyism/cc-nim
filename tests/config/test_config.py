@@ -330,6 +330,39 @@ class TestPerModelMapping:
         s = Settings()
         assert s.model_opus == "open_router/deepseek/deepseek-r1"
 
+    @pytest.mark.parametrize(
+        "env_vars,expected_model,expected_haiku",
+        [
+            (
+                {"MODEL": "nvidia_nim/meta/llama3-70b-instruct"},
+                "nvidia_nim/meta/llama3-70b-instruct",
+                None,
+            ),
+            (
+                {
+                    "MODEL": "open_router/anthropic/claude-3-opus",
+                    "MODEL_HAIKU": "open_router/anthropic/claude-3-haiku",
+                },
+                "open_router/anthropic/claude-3-opus",
+                "open_router/anthropic/claude-3-haiku",
+            ),
+            ({"MODEL": "lmstudio/qwen2.5-7b"}, "lmstudio/qwen2.5-7b", None),
+            ({"MODEL": "llamacpp/local-model"}, "llamacpp/local-model", None),
+        ],
+    )
+    def test_settings_models_from_env(
+        self, env_vars, expected_model, expected_haiku, monkeypatch
+    ):
+        """Test environment variables override model defaults."""
+        from config.settings import Settings
+
+        for k, v in env_vars.items():
+            monkeypatch.setenv(k, v)
+
+        s = Settings()
+        assert s.model == expected_model
+        assert s.model_haiku == expected_haiku
+
     def test_model_sonnet_from_env(self, monkeypatch):
         """MODEL_SONNET env var is loaded."""
         from config.settings import Settings
@@ -449,6 +482,7 @@ class TestPerModelMapping:
         assert Settings.parse_provider_type("nvidia_nim/meta/llama") == "nvidia_nim"
         assert Settings.parse_provider_type("open_router/deepseek/r1") == "open_router"
         assert Settings.parse_provider_type("lmstudio/qwen") == "lmstudio"
+        assert Settings.parse_provider_type("llamacpp/model") == "llamacpp"
 
     def test_parse_model_name(self):
         """parse_model_name extracts model name from model string."""
@@ -456,3 +490,4 @@ class TestPerModelMapping:
 
         assert Settings.parse_model_name("nvidia_nim/meta/llama") == "meta/llama"
         assert Settings.parse_model_name("lmstudio/qwen") == "qwen"
+        assert Settings.parse_model_name("llamacpp/model") == "model"

@@ -42,6 +42,12 @@ class Settings(BaseSettings):
         validation_alias="LM_STUDIO_BASE_URL",
     )
 
+    # ==================== Llama.cpp Config ====================
+    llamacpp_base_url: str = Field(
+        default="http://localhost:8080/v1",
+        validation_alias="LLAMACPP_BASE_URL",
+    )
+
     # ==================== Model ====================
     # All Claude model requests are mapped to this single model (fallback)
     # Format: provider_type/model/name
@@ -145,7 +151,7 @@ class Settings(BaseSettings):
     def validate_model_format(cls, v: str | None) -> str | None:
         if v is None:
             return None
-        valid_providers = ("nvidia_nim", "open_router", "lmstudio")
+        valid_providers = ("nvidia_nim", "open_router", "lmstudio", "llamacpp")
         if "/" not in v:
             raise ValueError(
                 f"Model must be prefixed with provider type. "
@@ -156,7 +162,7 @@ class Settings(BaseSettings):
         if provider not in valid_providers:
             raise ValueError(
                 f"Invalid provider: '{provider}'. "
-                f"Supported: 'nvidia_nim', 'open_router', 'lmstudio'"
+                f"Supported: 'nvidia_nim', 'open_router', 'lmstudio', 'llamacpp'"
             )
         return v
 

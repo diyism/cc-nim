@@ -11,6 +11,7 @@ PORT="${CLAUDE_PICK_PORT:-8082}"
 BASE_URL="http://localhost:$PORT"
 OPENROUTER_MODELS_URL="https://openrouter.ai/api/v1/models"
 DEFAULT_LM_STUDIO_BASE_URL="http://localhost:1234/v1"
+DEFAULT_LLAMACPP_BASE_URL="http://localhost:8080/v1"
 
 if ! command -v python3 >/dev/null 2>&1; then
     echo "Error: python3 is required." >&2
@@ -140,9 +141,16 @@ case "$provider" in
         models="$(get_lmstudio_models)"
         prompt="Select an LM Studio model> "
         ;;
+    llamacpp|llama.cpp)
+        # llama.cpp doesn't have a standardized /models endpoint that returns all loaded models reliably 
+        # in the same way, but it does support Anthropic routing. We can use a stub model or query if available.
+        # For simple picker, we'll just allow passing a default or typing it in, but to match fzf we offer a stub.
+        models="local-model\nllama-server"
+        prompt="Select a llama.cpp model> "
+        ;;
     *)
         echo "Error: Unsupported PROVIDER_TYPE='$provider'." >&2
-        echo "Expected one of: nvidia_nim, open_router, lmstudio" >&2
+        echo "Expected one of: nvidia_nim, open_router, lmstudio, llamacpp" >&2
         exit 1
         ;;
 esac

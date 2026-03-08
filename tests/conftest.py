@@ -71,6 +71,19 @@ def lmstudio_provider(provider_config):
 
 
 @pytest.fixture
+def llamacpp_provider(provider_config):
+    from providers.llamacpp import LlamaCppProvider
+
+    llamacpp_config = ProviderConfig(
+        api_key="llamacpp",
+        base_url="http://localhost:8080/v1",
+        rate_limit=10,
+        rate_window=60,
+    )
+    return LlamaCppProvider(llamacpp_config)
+
+
+@pytest.fixture
 def mock_cli_session():
     session = MagicMock(spec=CLISession)
     session.start_task = MagicMock()  # This will return an async generator

@@ -9,3 +9,4 @@ agent_workspace
 .env
 server.log
 .coverage
+llama_cache
