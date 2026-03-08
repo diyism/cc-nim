@@ -46,6 +46,7 @@ class CLISessionManager:
         self._sessions: dict[str, CLISession] = {}
         self._pending_sessions: dict[str, CLISession] = {}
         self._temp_to_real: dict[str, str] = {}
+        self._real_to_temp: dict[str, str] = {}
         self._lock = asyncio.Lock()
 
         logger.info("CLISessionManager initialized")
@@ -93,6 +94,7 @@ class CLISessionManager:
             session = self._pending_sessions.pop(temp_id)
             self._sessions[real_session_id] = session
             self._temp_to_real[temp_id] = real_session_id
+            self._real_to_temp[real_session_id] = temp_id
 
             logger.info(f"Registered session: {temp_id} -> {real_session_id}")
             return True
@@ -108,9 +110,9 @@ class CLISessionManager:
             if session_id in self._sessions:
                 session = self._sessions.pop(session_id)
                 await session.stop()
-                for temp, real in list(self._temp_to_real.items()):
-                    if real == session_id:
-                        del self._temp_to_real[temp]
+                temp_id = self._real_to_temp.pop(session_id, None)
+                if temp_id is not None:
+                    self._temp_to_real.pop(temp_id, None)
                 return True
 
             return False
@@ -130,6 +132,7 @@ class CLISessionManager:
             self._sessions.clear()
             self._pending_sessions.clear()
             self._temp_to_real.clear()
+            self._real_to_temp.clear()
             logger.info("All sessions stopped")
 
     def get_stats(self) -> dict:
