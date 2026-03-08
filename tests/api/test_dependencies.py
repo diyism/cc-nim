@@ -118,7 +118,6 @@ async def test_get_provider_lmstudio():
 
         assert isinstance(provider, LMStudioProvider)
         assert provider._base_url == "http://localhost:1234/v1"
-        assert provider._api_key == "lm-studio"
 
 
 @pytest.mark.asyncio
