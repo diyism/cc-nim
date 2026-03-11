@@ -38,6 +38,7 @@ async def create_message(
         optimized = try_optimizations(request_data, settings)
         if optimized is not None:
             return optimized
+        logger.debug("No optimization matched, routing to provider")
 
         # Resolve provider from the model-aware mapping
         provider_type = Settings.parse_provider_type(
