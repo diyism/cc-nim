@@ -1,6 +1,5 @@
 """FastAPI route handlers."""
 
-import json
 import traceback
 import uuid
 
@@ -11,7 +10,6 @@ from loguru import logger
 from config.settings import Settings
 from providers.common import get_user_facing_error_message
 from providers.exceptions import InvalidRequestError, ProviderError
-from providers.logging_utils import build_request_summary, log_request_compact
 
 from .dependencies import get_provider_for_type, get_settings
 from .models.anthropic import MessagesRequest, TokenCountRequest
@@ -48,7 +46,13 @@ async def create_message(
         provider = get_provider_for_type(provider_type)
 
         request_id = f"req_{uuid.uuid4().hex[:12]}"
-        log_request_compact(logger, request_id, request_data)
+        logger.info(
+            "API_REQUEST: request_id={} model={} messages={}",
+            request_id,
+            request_data.model,
+            len(request_data.messages),
+        )
+        logger.debug("FULL_PAYLOAD [{}]: {}", request_id, request_data.model_dump())
 
         input_tokens = get_token_count(
             request_data.messages, request_data.system, request_data.tools
@@ -86,10 +90,13 @@ async def count_tokens(request_data: TokenCountRequest):
             tokens = get_token_count(
                 request_data.messages, request_data.system, request_data.tools
             )
-            summary = build_request_summary(request_data)
-            summary["request_id"] = request_id
-            summary["input_tokens"] = tokens
-            logger.info("COUNT_TOKENS: {}", json.dumps(summary))
+            logger.info(
+                "COUNT_TOKENS: request_id={} model={} messages={} input_tokens={}",
+                request_id,
+                getattr(request_data, "model", "unknown"),
+                len(request_data.messages),
+                tokens,
+            )
             return TokenCountResponse(input_tokens=tokens)
         except Exception as e:
             logger.error(
