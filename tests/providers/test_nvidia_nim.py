@@ -100,6 +100,7 @@ async def test_build_request_body(nim_provider):
 
     assert "extra_body" in body
     ctk = body["extra_body"]["chat_template_kwargs"]
+    assert ctk["thinking"] is True
     assert ctk["enable_thinking"] is True
     assert body["extra_body"]["reasoning_budget"] == body["max_tokens"]
 

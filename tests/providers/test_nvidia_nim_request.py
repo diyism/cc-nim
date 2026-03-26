@@ -101,7 +101,10 @@ class TestBuildRequestBody:
         nim = NimSettings()
         body = build_request_body(req, nim)
         extra = body["extra_body"]
-        assert extra["chat_template_kwargs"] == {"enable_thinking": True}
+        assert extra["chat_template_kwargs"] == {
+            "thinking": True,
+            "enable_thinking": True,
+        }
         assert extra["reasoning_budget"] == body["max_tokens"]
 
     def test_no_reasoning_params_in_extra_body(self):
