@@ -63,18 +63,8 @@ def build_request_body(request_data: Any, nim: NimSettings) -> dict:
     if request_extra:
         extra_body.update(request_extra)
 
-    # Handle thinking/reasoning mode
-    extra_body.setdefault("thinking", {"type": "enabled"})
-    extra_body.setdefault("reasoning_split", True)
-    extra_body.setdefault(
-        "chat_template_kwargs",
-        {
-            "thinking": True,
-            "enable_thinking": True,
-            "reasoning_split": True,
-            "clear_thinking": False,
-        },
-    )
+    extra_body.setdefault("chat_template_kwargs", {"enable_thinking": True})
+    _set_extra(extra_body, "reasoning_budget", max_tokens)
 
     req_top_k = getattr(request_data, "top_k", None)
     top_k = req_top_k if req_top_k is not None else nim.top_k
@@ -86,10 +76,7 @@ def build_request_body(request_data: Any, nim: NimSettings) -> dict:
     _set_extra(extra_body, "min_tokens", nim.min_tokens, ignore_value=0)
     _set_extra(extra_body, "chat_template", nim.chat_template)
     _set_extra(extra_body, "request_id", nim.request_id)
-    _set_extra(extra_body, "return_tokens_as_token_ids", nim.return_tokens_as_token_ids)
     _set_extra(extra_body, "ignore_eos", nim.ignore_eos)
-    _set_extra(extra_body, "reasoning_effort", nim.reasoning_effort)
-    _set_extra(extra_body, "include_reasoning", nim.include_reasoning)
 
     if extra_body:
         body["extra_body"] = extra_body

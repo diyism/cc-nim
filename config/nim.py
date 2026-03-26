@@ -1,7 +1,5 @@
 """NVIDIA NIM settings (fixed values, no env config)."""
 
-from typing import Literal
-
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -22,15 +20,11 @@ class NimSettings(BaseModel):
     stop: str | None = None
 
     parallel_tool_calls: bool = True
-    return_tokens_as_token_ids: bool = False
     ignore_eos: bool = False
 
     min_tokens: int = Field(0, ge=0)
     chat_template: str | None = None
     request_id: str | None = None
-
-    reasoning_effort: Literal["low", "medium", "high"] = "high"
-    include_reasoning: bool = True
 
     model_config = ConfigDict(extra="forbid")
 

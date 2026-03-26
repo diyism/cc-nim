@@ -99,14 +99,9 @@ async def test_build_request_body(nim_provider):
     assert body["messages"][0]["content"] == "System prompt"
 
     assert "extra_body" in body
-    assert "thinking" in body["extra_body"]
-    assert body["extra_body"]["thinking"]["type"] == "enabled"
-
-    # Verify chat_template_kwargs includes both thinking keys for model compatibility
     ctk = body["extra_body"]["chat_template_kwargs"]
-    assert ctk["thinking"] is True
     assert ctk["enable_thinking"] is True
-    assert ctk["clear_thinking"] is False
+    assert body["extra_body"]["reasoning_budget"] == body["max_tokens"]
 
 
 @pytest.mark.asyncio

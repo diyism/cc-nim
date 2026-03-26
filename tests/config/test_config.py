@@ -125,11 +125,6 @@ class TestNimSettingsValidBounds:
         s = NimSettings(top_p=top_p)
         assert s.top_p == top_p
 
-    @pytest.mark.parametrize("effort", ["low", "medium", "high"])
-    def test_reasoning_effort_valid(self, effort):
-        s = NimSettings(reasoning_effort=effort)
-        assert s.reasoning_effort == effort
-
     def test_max_tokens_valid(self):
         s = NimSettings(max_tokens=1)
         assert s.max_tokens == 1
@@ -194,12 +189,6 @@ class TestNimSettingsInvalidBounds:
     def test_min_tokens_negative(self):
         with pytest.raises(ValidationError):
             NimSettings(min_tokens=-1)
-
-    def test_reasoning_effort_invalid(self):
-        from typing import Any, cast
-
-        with pytest.raises(ValidationError):
-            NimSettings(reasoning_effort=cast(Any, "invalid"))
 
 
 class TestNimSettingsValidators:
