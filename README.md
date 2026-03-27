@@ -144,6 +144,11 @@ uv run uvicorn server:app --host 0.0.0.0 --port 8082
 
 **Terminal 2:** Run Claude Code:
 
+#### Powershell
+```powershell
+$env:ANTHROPIC_AUTH_TOKEN="freecc"; $env:ANTHROPIC_BASE_URL="http://localhost:8082"; claude
+```
+#### Bash
 ```bash
 ANTHROPIC_AUTH_TOKEN="freecc" ANTHROPIC_BASE_URL="http://localhost:8082" claude
 ```
