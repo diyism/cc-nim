@@ -87,10 +87,13 @@ async def test_init_uses_configurable_timeouts():
 
 
 @pytest.mark.asyncio
-async def test_build_request_body(nim_provider):
+async def test_build_request_body(provider_config):
     """Test request body construction."""
+    from config.nim import NimSettings
+
+    provider = NvidiaNimProvider(provider_config, nim_settings=NimSettings(enable_thinking=True))
     req = MockRequest()
-    body = nim_provider._build_request_body(req)
+    body = provider._build_request_body(req)
 
     assert body["model"] == "test-model"
     assert body["temperature"] == 0.5
