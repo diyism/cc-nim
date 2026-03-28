@@ -91,7 +91,9 @@ async def test_build_request_body(provider_config):
     """Test request body construction."""
     from config.nim import NimSettings
 
-    provider = NvidiaNimProvider(provider_config, nim_settings=NimSettings(enable_thinking=True))
+    provider = NvidiaNimProvider(
+        provider_config, nim_settings=NimSettings(enable_thinking=True)
+    )
     req = MockRequest()
     body = provider._build_request_body(req)
 
