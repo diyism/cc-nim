@@ -63,10 +63,11 @@ def build_request_body(request_data: Any, nim: NimSettings) -> dict:
     if request_extra:
         extra_body.update(request_extra)
 
-    extra_body.setdefault(
-        "chat_template_kwargs", {"thinking": True, "enable_thinking": True}
-    )
-    _set_extra(extra_body, "reasoning_budget", max_tokens)
+    if nim.enable_thinking:
+        extra_body.setdefault(
+            "chat_template_kwargs", {"thinking": True, "enable_thinking": True}
+        )
+        _set_extra(extra_body, "reasoning_budget", max_tokens)
 
     req_top_k = getattr(request_data, "top_k", None)
     top_k = req_top_k if req_top_k is not None else nim.top_k

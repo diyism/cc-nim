@@ -73,6 +73,9 @@ MODEL_OPUS="nvidia_nim/z-ai/glm4.7"
 MODEL_SONNET="nvidia_nim/moonshotai/kimi-k2-thinking"
 MODEL_HAIKU="nvidia_nim/stepfun-ai/step-3.5-flash"
 MODEL="nvidia_nim/z-ai/glm4.7"                     # fallback
+
+# Enable for thinking models (kimi, nemotron). Leave false for others (e.g. Mistral).
+NIM_ENABLE_THINKING=true
 ```
 
 </details>
@@ -437,7 +440,8 @@ Configure via `WHISPER_DEVICE` (`cpu` | `cuda` | `nvidia_nim`) and `WHISPER_MODE
 | `MODEL_OPUS`         | Model for Claude Opus requests (falls back to `MODEL`)                | `nvidia_nim/z-ai/glm4.7`                          |
 | `MODEL_SONNET`       | Model for Claude Sonnet requests (falls back to `MODEL`)              | `open_router/arcee-ai/trinity-large-preview:free` |
 | `MODEL_HAIKU`        | Model for Claude Haiku requests (falls back to `MODEL`)               | `open_router/stepfun/step-3.5-flash:free`         |
-| `NVIDIA_NIM_API_KEY` | NVIDIA API key                                                        | required for NIM                                  |
+| `NVIDIA_NIM_API_KEY`    | NVIDIA API key                                                        | required for NIM                                  |
+| `NIM_ENABLE_THINKING`   | Send `chat_template_kwargs` + `reasoning_budget` on NIM requests. Enable for thinking models (kimi, nemotron); leave `false` for others (e.g. Mistral) | `false` |
 | `OPENROUTER_API_KEY` | OpenRouter API key                                                    | required for OpenRouter                           |
 | `LM_STUDIO_BASE_URL` | LM Studio server URL                                                  | `http://localhost:1234/v1`                        |
 | `LLAMACPP_BASE_URL`  | llama.cpp server URL                                                  | `http://localhost:8080/v1`                        |

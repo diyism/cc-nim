@@ -90,6 +90,9 @@ class Settings(BaseSettings):
 
     # ==================== NIM Settings ====================
     nim: NimSettings = Field(default_factory=NimSettings)
+    nim_enable_thinking: bool = Field(
+        default=False, validation_alias="NIM_ENABLE_THINKING"
+    )
 
     # ==================== Voice Note Transcription ====================
     voice_note_enabled: bool = Field(
@@ -170,6 +173,13 @@ class Settings(BaseSettings):
                 f"Supported: 'nvidia_nim', 'open_router', 'lmstudio', 'llamacpp'"
             )
         return v
+
+    @model_validator(mode="after")
+    def _inject_nim_thinking(self) -> Settings:
+        self.nim = self.nim.model_copy(
+            update={"enable_thinking": self.nim_enable_thinking}
+        )
+        return self
 
     @model_validator(mode="after")
     def check_nvidia_nim_api_key(self) -> Settings:

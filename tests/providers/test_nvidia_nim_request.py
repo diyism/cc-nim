@@ -98,7 +98,7 @@ class TestBuildRequestBody:
         req.extra_body = None
         req.top_k = None
 
-        nim = NimSettings()
+        nim = NimSettings(enable_thinking=True)
         body = build_request_body(req, nim)
         extra = body["extra_body"]
         assert extra["chat_template_kwargs"] == {
@@ -106,6 +106,26 @@ class TestBuildRequestBody:
             "enable_thinking": True,
         }
         assert extra["reasoning_budget"] == body["max_tokens"]
+
+    def test_no_chat_template_kwargs_when_thinking_disabled(self):
+        req = MagicMock()
+        req.model = "test"
+        req.messages = [MagicMock(role="user", content="hi")]
+        req.max_tokens = 100
+        req.system = None
+        req.temperature = None
+        req.top_p = None
+        req.stop_sequences = None
+        req.tools = None
+        req.tool_choice = None
+        req.extra_body = None
+        req.top_k = None
+
+        nim = NimSettings(enable_thinking=False)
+        body = build_request_body(req, nim)
+        extra = body.get("extra_body", {})
+        assert "chat_template_kwargs" not in extra
+        assert "reasoning_budget" not in extra
 
     def test_no_reasoning_params_in_extra_body(self):
         req = MagicMock()
