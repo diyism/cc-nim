@@ -1,9 +1,9 @@
 """Centralized configuration using Pydantic Settings."""
 
 import os
+from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
-from collections.abc import Mapping
 from typing import Any
 
 from pydantic import Field, field_validator, model_validator
