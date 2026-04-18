@@ -39,6 +39,7 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
             http_read_timeout=settings.http_read_timeout,
             http_write_timeout=settings.http_write_timeout,
             http_connect_timeout=settings.http_connect_timeout,
+            enable_thinking=settings.enable_thinking,
         )
         return NvidiaNimProvider(config, nim_settings=settings.nim)
     if provider_type == "open_router":
@@ -56,6 +57,7 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
             http_read_timeout=settings.http_read_timeout,
             http_write_timeout=settings.http_write_timeout,
             http_connect_timeout=settings.http_connect_timeout,
+            enable_thinking=settings.enable_thinking,
         )
         return OpenRouterProvider(config)
     if provider_type == "lmstudio":
@@ -68,6 +70,7 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
             http_read_timeout=settings.http_read_timeout,
             http_write_timeout=settings.http_write_timeout,
             http_connect_timeout=settings.http_connect_timeout,
+            enable_thinking=settings.enable_thinking,
         )
         return LMStudioProvider(config)
     if provider_type == "llamacpp":
@@ -80,6 +83,7 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
             http_read_timeout=settings.http_read_timeout,
             http_write_timeout=settings.http_write_timeout,
             http_connect_timeout=settings.http_connect_timeout,
+            enable_thinking=settings.enable_thinking,
         )
         return LlamaCppProvider(config)
     logger.error(
