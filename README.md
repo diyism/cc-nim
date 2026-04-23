@@ -235,6 +235,31 @@ To switch back to Anthropic models, comment out the added block and reload exten
 
 </details>
 
+
+<details>
+<summary><b>IntelliJ Extension Setup</b></summary>
+
+1. Open the configuration file:
+   - **Windows**: `C:\Users\%USERNAME%\AppData\Roaming\JetBrains\acp-agents\installed.json`
+   - **Linux/macOS**: `~/.jetbrains/acp.json`
+2. Inside acp.registry.claude-acp, change:
+
+   ```
+   "env": {}
+   ```
+   to
+
+   ```
+   "env": {
+   "ANTHROPIC_AUTH_TOKEN": "freecc",
+   "ANTHROPIC_BASE_URL": "http://localhost:8082"
+   }
+   ```
+3. Start the proxy server
+4. Restart IDE
+
+</details>
+
 <details>
 <summary><b>Multi-Model Support (Model Picker)</b></summary>
 
