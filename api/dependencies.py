@@ -23,8 +23,22 @@ def get_settings() -> Settings:
     return _get_settings()
 
 
+def _get_proxy_value(settings: Settings, attr_name: str) -> str:
+    """Return a provider proxy only when configured as a string."""
+    value = getattr(settings, attr_name, "")
+    return value if isinstance(value, str) else ""
+
+
 def _create_provider_for_type(provider_type: str, settings: Settings) -> BaseProvider:
     """Construct and return a new provider instance for the given provider type."""
+    _proxy_map = {
+        "nvidia_nim": _get_proxy_value(settings, "nvidia_nim_proxy"),
+        "open_router": _get_proxy_value(settings, "open_router_proxy"),
+        "lmstudio": _get_proxy_value(settings, "lmstudio_proxy"),
+        "llamacpp": _get_proxy_value(settings, "llamacpp_proxy"),
+    }
+    proxy = _proxy_map.get(provider_type, "")
+
     if provider_type == "nvidia_nim":
         if not settings.nvidia_nim_api_key or not settings.nvidia_nim_api_key.strip():
             raise AuthenticationError(
@@ -41,6 +55,7 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
             http_write_timeout=settings.http_write_timeout,
             http_connect_timeout=settings.http_connect_timeout,
             enable_thinking=settings.enable_thinking,
+            proxy=proxy,
         )
         return NvidiaNimProvider(config, nim_settings=settings.nim)
     if provider_type == "open_router":
@@ -59,6 +74,7 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
             http_write_timeout=settings.http_write_timeout,
             http_connect_timeout=settings.http_connect_timeout,
             enable_thinking=settings.enable_thinking,
+            proxy=proxy,
         )
         return OpenRouterProvider(config)
     if provider_type == "deepseek":
@@ -90,6 +106,7 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
             http_write_timeout=settings.http_write_timeout,
             http_connect_timeout=settings.http_connect_timeout,
             enable_thinking=settings.enable_thinking,
+            proxy=proxy,
         )
         return LMStudioProvider(config)
     if provider_type == "llamacpp":
@@ -103,6 +120,7 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
             http_write_timeout=settings.http_write_timeout,
             http_connect_timeout=settings.http_connect_timeout,
             enable_thinking=settings.enable_thinking,
+            proxy=proxy,
         )
         return LlamaCppProvider(config)
     logger.error(
