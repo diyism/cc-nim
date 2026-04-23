@@ -27,11 +27,12 @@ class AnthropicToOpenAIConverter:
         *,
         include_thinking: bool = True,
         include_reasoning_for_openrouter: bool = False,
+        include_reasoning_content: bool = False,
     ) -> list[dict[str, Any]]:
         """Convert a list of Anthropic messages to OpenAI format.
 
-        When include_reasoning_for_openrouter is True, assistant messages with
-        thinking blocks get reasoning_content added for OpenRouter multi-turn
+        When reasoning_content preservation is enabled, assistant messages with
+        thinking blocks get reasoning_content added for provider multi-turn
         reasoning continuation.
         """
         result = []
@@ -49,6 +50,7 @@ class AnthropicToOpenAIConverter:
                             content,
                             include_thinking=include_thinking,
                             include_reasoning_for_openrouter=include_reasoning_for_openrouter,
+                            include_reasoning_content=include_reasoning_content,
                         )
                     )
                 elif role == "user":
@@ -66,11 +68,15 @@ class AnthropicToOpenAIConverter:
         *,
         include_thinking: bool = True,
         include_reasoning_for_openrouter: bool = False,
+        include_reasoning_content: bool = False,
     ) -> list[dict[str, Any]]:
         """Convert assistant message blocks, preserving interleaved thinking+text order."""
         content_parts: list[str] = []
         thinking_parts: list[str] = []
         tool_calls: list[dict[str, Any]] = []
+        emit_reasoning_content = (
+            include_reasoning_for_openrouter or include_reasoning_content
+        )
 
         for block in content:
             block_type = get_block_type(block)
@@ -82,7 +88,7 @@ class AnthropicToOpenAIConverter:
                     continue
                 thinking = get_block_attr(block, "thinking", "")
                 content_parts.append(f"<think>\n{thinking}\n</think>")
-                if include_reasoning_for_openrouter:
+                if emit_reasoning_content:
                     thinking_parts.append(thinking)
             elif block_type == "tool_use":
                 tool_input = get_block_attr(block, "input", {})
@@ -112,7 +118,7 @@ class AnthropicToOpenAIConverter:
         }
         if tool_calls:
             msg["tool_calls"] = tool_calls
-        if include_reasoning_for_openrouter and thinking_parts:
+        if emit_reasoning_content and thinking_parts:
             msg["reasoning_content"] = "\n".join(thinking_parts)
 
         return [msg]
@@ -191,6 +197,7 @@ def build_base_request_body(
     default_max_tokens: int | None = None,
     include_thinking: bool = True,
     include_reasoning_for_openrouter: bool = False,
+    include_reasoning_content: bool = False,
 ) -> dict[str, Any]:
     """Build the common parts of an OpenAI-format request body.
 
@@ -204,6 +211,7 @@ def build_base_request_body(
         request_data.messages,
         include_thinking=include_thinking,
         include_reasoning_for_openrouter=include_reasoning_for_openrouter,
+        include_reasoning_content=include_reasoning_content,
     )
 
     system = getattr(request_data, "system", None)

@@ -10,6 +10,7 @@ from api.dependencies import (
     get_settings,
 )
 from config.nim import NimSettings
+from providers.deepseek import DeepSeekProvider
 from providers.lmstudio import LMStudioProvider
 from providers.nvidia_nim import NvidiaNimProvider
 from providers.open_router import OpenRouterProvider
@@ -25,11 +26,13 @@ def _make_mock_settings(**overrides):
     mock.provider_rate_window = 60
     mock.provider_max_concurrency = 5
     mock.open_router_api_key = "test_openrouter_key"
+    mock.deepseek_api_key = "test_deepseek_key"
     mock.lm_studio_base_url = "http://localhost:1234/v1"
     mock.nim = NimSettings()
     mock.http_read_timeout = 300.0
     mock.http_write_timeout = 10.0
     mock.http_connect_timeout = 2.0
+    mock.enable_thinking = True
     for key, value in overrides.items():
         setattr(mock, key, value)
     return mock
@@ -121,6 +124,49 @@ async def test_get_provider_lmstudio():
 
 
 @pytest.mark.asyncio
+async def test_get_provider_deepseek():
+    """Test that provider_type=deepseek returns DeepSeekProvider."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings(provider_type="deepseek")
+
+        provider = get_provider()
+
+        assert isinstance(provider, DeepSeekProvider)
+        assert provider._base_url == "https://api.deepseek.com"
+        assert provider._api_key == "test_deepseek_key"
+        assert provider._config.enable_thinking is True
+
+
+@pytest.mark.asyncio
+async def test_get_provider_deepseek_uses_fixed_base_url():
+    """DeepSeek provider always uses the fixed provider base URL."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings(
+            provider_type="deepseek",
+        )
+
+        provider = get_provider()
+
+        assert isinstance(provider, DeepSeekProvider)
+        assert provider._base_url == "https://api.deepseek.com"
+
+
+@pytest.mark.asyncio
+async def test_get_provider_deepseek_passes_enable_thinking():
+    """DeepSeek provider receives the global thinking toggle."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings(
+            provider_type="deepseek",
+            enable_thinking=False,
+        )
+
+        provider = get_provider()
+
+        assert isinstance(provider, DeepSeekProvider)
+        assert provider._config.enable_thinking is False
+
+
+@pytest.mark.asyncio
 async def test_get_provider_lmstudio_uses_lm_studio_base_url():
     """LM Studio provider uses lm_studio_base_url from settings."""
     with patch("api.dependencies.get_settings") as mock_settings:
@@ -198,6 +244,23 @@ async def test_get_provider_open_router_missing_api_key():
         assert exc_info.value.status_code == 503
         assert "OPENROUTER_API_KEY" in exc_info.value.detail
         assert "openrouter.ai" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_get_provider_deepseek_missing_api_key():
+    """DeepSeek with empty API key raises HTTPException 503."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings(
+            provider_type="deepseek",
+            deepseek_api_key="",
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            get_provider()
+
+        assert exc_info.value.status_code == 503
+        assert "DEEPSEEK_API_KEY" in exc_info.value.detail
+        assert "platform.deepseek.com" in exc_info.value.detail
 
 
 @pytest.mark.asyncio
