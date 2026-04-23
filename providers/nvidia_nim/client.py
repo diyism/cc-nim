@@ -10,7 +10,11 @@ from config.nim import NimSettings
 from providers.base import ProviderConfig
 from providers.openai_compat import OpenAICompatibleProvider
 
-from .request import build_request_body, clone_body_without_reasoning_budget
+from .request import (
+    build_request_body,
+    clone_body_without_chat_template,
+    clone_body_without_reasoning_budget,
+)
 
 NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
@@ -36,7 +40,7 @@ class NvidiaNimProvider(OpenAICompatibleProvider):
         )
 
     def _get_retry_request_body(self, error: Exception, body: dict) -> dict | None:
-        """Retry once without reasoning_budget when NIM rejects that field."""
+        """Retry once with a downgraded body when NIM rejects a known field."""
         status_code = getattr(error, "status_code", None)
         if not isinstance(error, openai.BadRequestError) and status_code != 400:
             return None
@@ -45,12 +49,22 @@ class NvidiaNimProvider(OpenAICompatibleProvider):
         error_body = getattr(error, "body", None)
         if error_body is not None:
             error_text = f"{error_text} {json.dumps(error_body, default=str)}"
-        if "reasoning_budget" not in error_text.lower():
-            return None
+        error_text = error_text.lower()
 
-        retry_body = clone_body_without_reasoning_budget(body)
-        if retry_body is None:
-            return None
+        if "reasoning_budget" in error_text:
+            retry_body = clone_body_without_reasoning_budget(body)
+            if retry_body is None:
+                return None
+            logger.warning(
+                "NIM_STREAM: retrying without reasoning_budget after 400 error"
+            )
+            return retry_body
 
-        logger.warning("NIM_STREAM: retrying without reasoning_budget after 400 error")
-        return retry_body
+        if "chat_template" in error_text:
+            retry_body = clone_body_without_chat_template(body)
+            if retry_body is None:
+                return None
+            logger.warning("NIM_STREAM: retrying without chat_template after 400 error")
+            return retry_body
+
+        return None

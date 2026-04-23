@@ -39,6 +39,15 @@ class MockRequest:
             setattr(self, k, v)
 
 
+def _make_bad_request_error(message: str) -> openai.BadRequestError:
+    response = Response(
+        status_code=400,
+        request=Request("POST", "https://integrate.api.nvidia.com/v1/chat/completions"),
+    )
+    body = {"error": {"message": message, "type": "BadRequestError", "code": 400}}
+    return openai.BadRequestError(message, response=response, body=body)
+
+
 @pytest.fixture(autouse=True)
 def mock_rate_limiter():
     """Mock the global rate limiter to prevent waiting."""
@@ -268,10 +277,86 @@ async def test_stream_response_suppresses_thinking_when_disabled(provider_config
     assert "Answer" in event_text
 
 
-def _make_bad_request_error(message: str) -> openai.BadRequestError:
-    response = Response(status_code=400, request=Request("POST", "http://test"))
-    body = {"error": {"message": message}}
-    return openai.BadRequestError(message, response=response, body=body)
+@pytest.mark.asyncio
+async def test_stream_response_retries_without_chat_template(provider_config):
+    from config.nim import NimSettings
+
+    provider = NvidiaNimProvider(
+        provider_config,
+        nim_settings=NimSettings(chat_template="custom_template"),
+    )
+    req = MockRequest(model="mistralai/mixtral-8x7b-instruct-v0.1")
+
+    mock_chunk = MagicMock()
+    mock_chunk.choices = [
+        MagicMock(
+            delta=MagicMock(content="OK", reasoning_content=""),
+            finish_reason="stop",
+        )
+    ]
+    mock_chunk.usage = MagicMock(completion_tokens=2)
+
+    async def mock_stream():
+        yield mock_chunk
+
+    first_error = _make_bad_request_error(
+        "chat_template is not supported for Mistral tokenizers."
+    )
+
+    with patch.object(
+        provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.side_effect = [first_error, mock_stream()]
+
+        events = [e async for e in provider.stream_response(req)]
+
+    assert mock_create.await_count == 2
+
+    first_extra = mock_create.call_args_list[0].kwargs["extra_body"]
+    second_extra = mock_create.call_args_list[1].kwargs["extra_body"]
+
+    assert first_extra["chat_template"] == "custom_template"
+    assert first_extra["chat_template_kwargs"] == {
+        "thinking": True,
+        "enable_thinking": True,
+        "reasoning_budget": 100,
+    }
+    assert "reasoning_budget" not in first_extra
+
+    assert "chat_template" not in second_extra
+    assert second_extra["chat_template_kwargs"] == {
+        "thinking": True,
+        "enable_thinking": True,
+        "reasoning_budget": 100,
+    }
+    assert "reasoning_budget" not in second_extra
+
+    event_text = "".join(events)
+    assert "event: error" not in event_text
+    assert "OK" in event_text
+
+
+@pytest.mark.asyncio
+async def test_stream_response_does_not_retry_unrelated_bad_request(provider_config):
+    from config.nim import NimSettings
+
+    provider = NvidiaNimProvider(
+        provider_config,
+        nim_settings=NimSettings(chat_template="custom_template"),
+    )
+    req = MockRequest(model="mistralai/mixtral-8x7b-instruct-v0.1")
+
+    with patch.object(
+        provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.side_effect = _make_bad_request_error("unrelated bad request")
+
+        events = [e async for e in provider.stream_response(req)]
+
+    assert mock_create.await_count == 1
+    event_text = "".join(events)
+    assert "unrelated bad request" in event_text
+    assert "event: message_stop" in event_text
 
 
 @pytest.mark.asyncio

@@ -6,7 +6,11 @@ import pytest
 
 from config.nim import NimSettings
 from providers.common.utils import set_if_not_none
-from providers.nvidia_nim.request import _set_extra, build_request_body
+from providers.nvidia_nim.request import (
+    _set_extra,
+    build_request_body,
+    clone_body_without_chat_template,
+)
 
 
 @pytest.fixture
@@ -105,6 +109,32 @@ class TestBuildRequestBody:
         }
         assert "reasoning_budget" not in extra
 
+    def test_clone_body_without_chat_template(self):
+        body = {
+            "model": "test",
+            "extra_body": {
+                "chat_template": "custom_template",
+                "chat_template_kwargs": {
+                    "thinking": True,
+                    "enable_thinking": True,
+                    "reasoning_budget": 100,
+                },
+                "ignore_eos": False,
+            },
+        }
+
+        cloned = clone_body_without_chat_template(body)
+
+        assert cloned is not None
+        assert "chat_template" not in cloned["extra_body"]
+        assert cloned["extra_body"]["chat_template_kwargs"] == {
+            "thinking": True,
+            "enable_thinking": True,
+            "reasoning_budget": 100,
+        }
+        assert cloned["extra_body"]["ignore_eos"] is False
+        assert body["extra_body"]["chat_template"] == "custom_template"
+
     def test_no_chat_template_kwargs_when_thinking_disabled(self):
         req = MagicMock()
         req.model = "test"
@@ -147,6 +177,30 @@ class TestBuildRequestBody:
             "custom": "value",
             "reasoning_budget": body["max_tokens"],
         }
+
+    def test_chat_template_fields_present_for_mistral_model(self):
+        req = MagicMock()
+        req.model = "mistralai/mixtral-8x7b-instruct-v0.1"
+        req.messages = [MagicMock(role="user", content="hi")]
+        req.max_tokens = 100
+        req.system = None
+        req.temperature = None
+        req.top_p = None
+        req.stop_sequences = None
+        req.tools = None
+        req.tool_choice = None
+        req.extra_body = None
+        req.top_k = None
+
+        nim = NimSettings(chat_template="custom_template")
+        body = build_request_body(req, nim, thinking_enabled=True)
+        extra = body.get("extra_body", {})
+        assert extra["chat_template_kwargs"] == {
+            "thinking": True,
+            "enable_thinking": True,
+            "reasoning_budget": body["max_tokens"],
+        }
+        assert extra["chat_template"] == "custom_template"
 
     def test_no_reasoning_params_in_extra_body(self):
         req = MagicMock()

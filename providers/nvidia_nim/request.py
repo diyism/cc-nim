@@ -47,6 +47,22 @@ def clone_body_without_reasoning_budget(body: dict[str, Any]) -> dict[str, Any] 
     return cloned_body
 
 
+def clone_body_without_chat_template(body: dict[str, Any]) -> dict[str, Any] | None:
+    """Clone a request body and strip only chat_template."""
+    cloned_body = deepcopy(body)
+    extra_body = cloned_body.get("extra_body")
+    if not isinstance(extra_body, dict):
+        return None
+
+    if extra_body.pop("chat_template", None) is None:
+        return None
+
+    if not extra_body:
+        cloned_body.pop("extra_body", None)
+
+    return cloned_body
+
+
 def build_request_body(
     request_data: Any, nim: NimSettings, *, thinking_enabled: bool
 ) -> dict:
