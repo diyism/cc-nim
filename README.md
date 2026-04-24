@@ -76,9 +76,9 @@ Choose your provider and edit `.env`:
 ```dotenv
 NVIDIA_NIM_API_KEY="nvapi-your-key-here"
 
-MODEL_OPUS="nvidia_nim/z-ai/glm4.7"
-MODEL_SONNET="nvidia_nim/moonshotai/kimi-k2-thinking"
-MODEL_HAIKU="nvidia_nim/stepfun-ai/step-3.5-flash"
+MODEL_OPUS=
+MODEL_SONNET=
+MODEL_HAIKU=
 MODEL="nvidia_nim/z-ai/glm4.7"                     # fallback
 
 # Global switch for provider reasoning requests and Claude thinking blocks.
@@ -502,10 +502,10 @@ Configure via `WHISPER_DEVICE` (`cpu` | `cuda` | `nvidia_nim`) and `WHISPER_MODE
 
 | Variable             | Description                                                           | Default                                           |
 | -------------------- | --------------------------------------------------------------------- | ------------------------------------------------- |
-| `MODEL`              | Fallback model (`provider/model/name` format; invalid prefix → error) | `nvidia_nim/stepfun-ai/step-3.5-flash`            |
-| `MODEL_OPUS`         | Model for Claude Opus requests (falls back to `MODEL`)                | `nvidia_nim/z-ai/glm4.7`                          |
-| `MODEL_SONNET`       | Model for Claude Sonnet requests (falls back to `MODEL`)              | `open_router/arcee-ai/trinity-large-preview:free` |
-| `MODEL_HAIKU`        | Model for Claude Haiku requests (falls back to `MODEL`)               | `open_router/stepfun/step-3.5-flash:free`         |
+| `MODEL`              | Fallback model (`provider/model/name` format; invalid prefix → error) | `nvidia_nim/z-ai/glm4.7`                          |
+| `MODEL_OPUS`         | Model for Claude Opus requests; empty falls back to `MODEL`           | empty                                             |
+| `MODEL_SONNET`       | Model for Claude Sonnet requests; empty falls back to `MODEL`         | empty                                             |
+| `MODEL_HAIKU`        | Model for Claude Haiku requests; empty falls back to `MODEL`          | empty                                             |
 | `NVIDIA_NIM_API_KEY`    | NVIDIA API key                                                        | required for NIM                                  |
 | `ENABLE_THINKING`    | Global switch for provider reasoning requests and Claude thinking blocks. Set `false` to hide thinking across all providers. | `true` |
 | `OPENROUTER_API_KEY` | OpenRouter API key                                                    | required for OpenRouter                           |

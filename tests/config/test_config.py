@@ -24,7 +24,7 @@ class TestSettings:
         monkeypatch.delenv("HTTP_READ_TIMEOUT", raising=False)
         monkeypatch.setitem(Settings.model_config, "env_file", ())
         settings = Settings()
-        assert settings.model == "nvidia_nim/stepfun-ai/step-3.5-flash"
+        assert settings.model == "nvidia_nim/z-ai/glm4.7"
         assert isinstance(settings.provider_rate_limit, int)
         assert isinstance(settings.provider_rate_window, int)
         assert isinstance(settings.nim.temperature, float)
@@ -390,6 +390,19 @@ class TestPerModelMapping:
         monkeypatch.setenv("MODEL_OPUS", "open_router/deepseek/deepseek-r1")
         s = Settings()
         assert s.model_opus == "open_router/deepseek/deepseek-r1"
+
+    @pytest.mark.parametrize("env_var", ["MODEL_OPUS", "MODEL_SONNET", "MODEL_HAIKU"])
+    def test_empty_model_override_env_is_unset(self, monkeypatch, env_var):
+        """Empty per-model override env vars are treated as unset."""
+        from config.settings import Settings
+
+        monkeypatch.setenv(env_var, "")
+        s = Settings()
+        assert getattr(s, env_var.lower()) is None
+        assert (
+            s.resolve_model(f"claude-{env_var.removeprefix('MODEL_').lower()}-4")
+            == s.model
+        )
 
     @pytest.mark.parametrize(
         "env_vars,expected_model,expected_haiku",

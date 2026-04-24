@@ -119,7 +119,7 @@ class Settings(BaseSettings):
     # ==================== Model ====================
     # All Claude model requests are mapped to this single model (fallback)
     # Format: provider_type/model/name
-    model: str = "nvidia_nim/stepfun-ai/step-3.5-flash"
+    model: str = "nvidia_nim/z-ai/glm4.7"
 
     # Per-model overrides (optional, falls back to MODEL)
     # Each can use a different provider
@@ -217,6 +217,9 @@ class Settings(BaseSettings):
         "allowed_telegram_user_id",
         "discord_bot_token",
         "allowed_discord_channels",
+        "model_opus",
+        "model_sonnet",
+        "model_haiku",
         mode="before",
     )
     @classmethod
