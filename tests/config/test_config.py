@@ -127,6 +127,46 @@ class TestSettings:
         assert settings.haiku_enable_thinking is False
         assert settings.model_enable_thinking is True
 
+    def test_anthropic_auth_token_from_env_without_dotenv_key(self, monkeypatch):
+        """ANTHROPIC_AUTH_TOKEN env var is loaded when dotenv does not define it."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "process-token")
+        monkeypatch.setitem(Settings.model_config, "env_file", ())
+        settings = Settings()
+        assert settings.anthropic_auth_token == "process-token"
+
+    def test_empty_dotenv_anthropic_auth_token_overrides_process_env(
+        self, monkeypatch, tmp_path
+    ):
+        """An explicit empty .env token disables auth despite stale shell tokens."""
+        from config.settings import Settings
+
+        env_file = tmp_path / ".env"
+        env_file.write_text("ANTHROPIC_AUTH_TOKEN=\n", encoding="utf-8")
+        monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "stale-client-token")
+        monkeypatch.setitem(Settings.model_config, "env_file", (env_file,))
+
+        settings = Settings()
+        assert settings.anthropic_auth_token == ""
+
+    def test_dotenv_anthropic_auth_token_overrides_process_env(
+        self, monkeypatch, tmp_path
+    ):
+        """A configured .env token is the server token even with a stale shell token."""
+        from config.settings import Settings
+
+        env_file = tmp_path / ".env"
+        env_file.write_text(
+            'ANTHROPIC_AUTH_TOKEN="server-token"\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "stale-client-token")
+        monkeypatch.setitem(Settings.model_config, "env_file", (env_file,))
+
+        settings = Settings()
+        assert settings.anthropic_auth_token == "server-token"
+
     def test_removed_nim_enable_thinking_raises(self, monkeypatch):
         """NIM_ENABLE_THINKING now fails fast with a migration message."""
         from config.settings import Settings
