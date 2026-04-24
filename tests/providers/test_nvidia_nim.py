@@ -121,13 +121,13 @@ async def test_build_request_body(provider_config):
 
 
 @pytest.mark.asyncio
-async def test_build_request_body_omits_reasoning_when_globally_disabled(
+async def test_build_request_body_omits_reasoning_when_model_disabled(
     provider_config,
 ):
     from config.nim import NimSettings
 
     provider = NvidiaNimProvider(
-        provider_config.model_copy(update={"enable_thinking": False}),
+        provider_config.model_copy(update={"model_enable_thinking": False}),
         nim_settings=NimSettings(),
     )
     req = MockRequest()
@@ -244,7 +244,7 @@ async def test_stream_response_suppresses_thinking_when_disabled(provider_config
     from config.nim import NimSettings
 
     provider = NvidiaNimProvider(
-        provider_config.model_copy(update={"enable_thinking": False}),
+        provider_config.model_copy(update={"model_enable_thinking": False}),
         nim_settings=NimSettings(),
     )
     req = MockRequest()

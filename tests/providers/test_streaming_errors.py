@@ -46,7 +46,7 @@ def _make_provider_with_thinking_enabled(enabled: bool):
         base_url="https://test.api.nvidia.com/v1",
         rate_limit=10,
         rate_window=60,
-        enable_thinking=enabled,
+        model_enable_thinking=enabled,
     )
     return NvidiaNimProvider(config, nim_settings=NimSettings())
 

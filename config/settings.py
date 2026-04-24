@@ -56,21 +56,29 @@ def _env_file_contains_key(path: Path, key: str) -> bool:
 
 def _removed_env_var_message(model_config: Mapping[str, Any]) -> str | None:
     """Return a migration error for removed env vars, if present."""
-    removed_key = "NIM_ENABLE_THINKING"
-    replacement = "ENABLE_THINKING"
+    removed_vars = {
+        "NIM_ENABLE_THINKING": (
+            "Use MODEL_ENABLE_THINKING for fallback behavior, or "
+            "OPUS_ENABLE_THINKING, SONNET_ENABLE_THINKING, and "
+            "HAIKU_ENABLE_THINKING for family-specific control."
+        ),
+        "ENABLE_THINKING": (
+            "Rename it to MODEL_ENABLE_THINKING for fallback behavior, or "
+            "use OPUS_ENABLE_THINKING, SONNET_ENABLE_THINKING, and "
+            "HAIKU_ENABLE_THINKING for family-specific control."
+        ),
+    }
 
-    if removed_key in os.environ:
-        return (
-            f"{removed_key} has been removed in this release. "
-            f"Rename it to {replacement}."
-        )
+    for removed_key, replacement in removed_vars.items():
+        if removed_key in os.environ:
+            return f"{removed_key} has been removed in this release. {replacement}"
 
-    for env_file in _configured_env_files(model_config):
-        if _env_file_contains_key(env_file, removed_key):
-            return (
-                f"{removed_key} has been removed in this release. "
-                f"Rename it to {replacement}. Found in {env_file}."
-            )
+        for env_file in _configured_env_files(model_config):
+            if _env_file_contains_key(env_file, removed_key):
+                return (
+                    f"{removed_key} has been removed in this release. "
+                    f"{replacement} Found in {env_file}."
+                )
 
     return None
 
@@ -130,7 +138,18 @@ class Settings(BaseSettings):
     provider_max_concurrency: int = Field(
         default=5, validation_alias="PROVIDER_MAX_CONCURRENCY"
     )
-    enable_thinking: bool = Field(default=True, validation_alias="ENABLE_THINKING")
+    opus_enable_thinking: bool = Field(
+        default=True, validation_alias="OPUS_ENABLE_THINKING"
+    )
+    sonnet_enable_thinking: bool = Field(
+        default=True, validation_alias="SONNET_ENABLE_THINKING"
+    )
+    haiku_enable_thinking: bool = Field(
+        default=True, validation_alias="HAIKU_ENABLE_THINKING"
+    )
+    model_enable_thinking: bool = Field(
+        default=True, validation_alias="MODEL_ENABLE_THINKING"
+    )
 
     # ==================== HTTP Client Timeouts ====================
     http_read_timeout: float = Field(
@@ -286,6 +305,17 @@ class Settings(BaseSettings):
         if "sonnet" in name_lower and self.model_sonnet is not None:
             return self.model_sonnet
         return self.model
+
+    def resolve_thinking_enabled(self, claude_model_name: str) -> bool:
+        """Resolve the configured thinking flag for a Claude model family."""
+        name_lower = claude_model_name.lower()
+        if "opus" in name_lower:
+            return self.opus_enable_thinking
+        if "haiku" in name_lower:
+            return self.haiku_enable_thinking
+        if "sonnet" in name_lower:
+            return self.sonnet_enable_thinking
+        return self.model_enable_thinking
 
     @staticmethod
     def parse_provider_type(model_string: str) -> str:

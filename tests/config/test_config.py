@@ -29,7 +29,10 @@ class TestSettings:
         assert isinstance(settings.provider_rate_window, int)
         assert isinstance(settings.nim.temperature, float)
         assert isinstance(settings.fast_prefix_detection, bool)
-        assert isinstance(settings.enable_thinking, bool)
+        assert isinstance(settings.opus_enable_thinking, bool)
+        assert isinstance(settings.sonnet_enable_thinking, bool)
+        assert isinstance(settings.haiku_enable_thinking, bool)
+        assert isinstance(settings.model_enable_thinking, bool)
         assert settings.http_read_timeout == 120.0
 
     def test_get_settings_cached(self):
@@ -110,20 +113,34 @@ class TestSettings:
         settings = Settings()
         assert settings.http_connect_timeout == 5.0
 
-    def test_enable_thinking_from_env(self, monkeypatch):
-        """ENABLE_THINKING env var is loaded into settings."""
+    def test_per_model_thinking_from_env(self, monkeypatch):
+        """Per-model thinking env vars are loaded into settings."""
         from config.settings import Settings
 
-        monkeypatch.setenv("ENABLE_THINKING", "false")
+        monkeypatch.setenv("OPUS_ENABLE_THINKING", "false")
+        monkeypatch.setenv("SONNET_ENABLE_THINKING", "true")
+        monkeypatch.setenv("HAIKU_ENABLE_THINKING", "false")
+        monkeypatch.setenv("MODEL_ENABLE_THINKING", "true")
         settings = Settings()
-        assert settings.enable_thinking is False
+        assert settings.opus_enable_thinking is False
+        assert settings.sonnet_enable_thinking is True
+        assert settings.haiku_enable_thinking is False
+        assert settings.model_enable_thinking is True
 
     def test_removed_nim_enable_thinking_raises(self, monkeypatch):
         """NIM_ENABLE_THINKING now fails fast with a migration message."""
         from config.settings import Settings
 
         monkeypatch.setenv("NIM_ENABLE_THINKING", "false")
-        with pytest.raises(ValidationError, match="Rename it to ENABLE_THINKING"):
+        with pytest.raises(ValidationError, match="MODEL_ENABLE_THINKING"):
+            Settings()
+
+    def test_removed_enable_thinking_raises(self, monkeypatch):
+        """ENABLE_THINKING now fails fast with a migration message."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("ENABLE_THINKING", "false")
+        with pytest.raises(ValidationError, match="MODEL_ENABLE_THINKING"):
             Settings()
 
 
@@ -493,6 +510,29 @@ class TestPerModelMapping:
         s = Settings()
         s.model_opus = "open_router/opus-model"
         assert s.resolve_model("Claude-OPUS-4") == "open_router/opus-model"
+
+    def test_resolve_thinking_enabled_per_model_family(self):
+        """resolve_thinking_enabled returns the matching model-family flag."""
+        from config.settings import Settings
+
+        s = Settings()
+        s.opus_enable_thinking = False
+        s.sonnet_enable_thinking = True
+        s.haiku_enable_thinking = False
+        s.model_enable_thinking = True
+
+        assert s.resolve_thinking_enabled("claude-opus-4-20250514") is False
+        assert s.resolve_thinking_enabled("claude-sonnet-4-20250514") is True
+        assert s.resolve_thinking_enabled("claude-haiku-4-20250514") is False
+        assert s.resolve_thinking_enabled("claude-2.1") is True
+
+    def test_resolve_thinking_enabled_case_insensitive(self):
+        """Thinking model-family classification is case-insensitive."""
+        from config.settings import Settings
+
+        s = Settings()
+        s.opus_enable_thinking = False
+        assert s.resolve_thinking_enabled("Claude-OPUS-4") is False
 
     def test_parse_provider_type(self):
         """parse_provider_type extracts provider from model string."""

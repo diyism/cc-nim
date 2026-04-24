@@ -44,7 +44,6 @@ def deepseek_config():
         base_url=DEEPSEEK_BASE_URL,
         rate_limit=10,
         rate_window=60,
-        enable_thinking=True,
     )
 
 
@@ -86,15 +85,15 @@ def test_build_request_body_enables_thinking_for_chat_model(deepseek_provider):
     assert body["messages"][0]["role"] == "system"
 
 
-def test_build_request_body_global_disable_blocks_request_thinking():
-    """Global disable suppresses provider-side thinking even if the request enables it."""
+def test_build_request_body_model_disable_blocks_request_thinking():
+    """Model disable suppresses provider-side thinking even if the request enables it."""
     provider = DeepSeekProvider(
         ProviderConfig(
             api_key="test_deepseek_key",
             base_url=DEEPSEEK_BASE_URL,
             rate_limit=10,
             rate_window=60,
-            enable_thinking=False,
+            model_enable_thinking=False,
         )
     )
     req = MockRequest(model="deepseek-chat")
@@ -103,8 +102,8 @@ def test_build_request_body_global_disable_blocks_request_thinking():
     assert "extra_body" not in body or "thinking" not in body["extra_body"]
 
 
-def test_build_request_body_request_disable_blocks_global_thinking(deepseek_provider):
-    """Request-level disable suppresses provider-side thinking when global is enabled."""
+def test_build_request_body_request_disable_blocks_model_thinking(deepseek_provider):
+    """Request-level disable suppresses provider-side thinking when model is enabled."""
     req = MockRequest(model="deepseek-chat")
     req.thinking.enabled = False
     body = deepseek_provider._build_request_body(req)

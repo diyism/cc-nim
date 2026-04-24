@@ -105,9 +105,9 @@ def test_build_request_body_has_reasoning_extra(open_router_provider):
     assert body["extra_body"]["reasoning"]["enabled"] is True
 
 
-def test_build_request_body_omits_reasoning_when_globally_disabled(open_router_config):
+def test_build_request_body_omits_reasoning_when_model_disabled(open_router_config):
     provider = OpenRouterProvider(
-        open_router_config.model_copy(update={"enable_thinking": False})
+        open_router_config.model_copy(update={"model_enable_thinking": False})
     )
     req = MockRequest()
     body = provider._build_request_body(req)
@@ -228,7 +228,7 @@ async def test_stream_response_reasoning_content(open_router_provider):
 @pytest.mark.asyncio
 async def test_stream_response_suppresses_reasoning_when_disabled(open_router_config):
     provider = OpenRouterProvider(
-        open_router_config.model_copy(update={"enable_thinking": False})
+        open_router_config.model_copy(update={"model_enable_thinking": False})
     )
     req = MockRequest()
 

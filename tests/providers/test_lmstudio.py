@@ -111,9 +111,9 @@ def test_init_base_url_strips_trailing_slash():
 
 
 @pytest.mark.asyncio
-async def test_stream_response_omits_thinking_when_globally_disabled(lmstudio_config):
+async def test_stream_response_omits_thinking_when_model_disabled(lmstudio_config):
     provider = LMStudioProvider(
-        lmstudio_config.model_copy(update={"enable_thinking": False})
+        lmstudio_config.model_copy(update={"model_enable_thinking": False})
     )
     req = MockRequest()
 
