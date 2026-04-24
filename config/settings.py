@@ -281,6 +281,12 @@ class Settings(BaseSettings):
             self.anthropic_auth_token = dotenv_value
         return self
 
+    def uses_process_anthropic_auth_token(self) -> bool:
+        """Return whether proxy auth came from process env, not dotenv config."""
+        if _env_file_override(self.model_config, "ANTHROPIC_AUTH_TOKEN") is not None:
+            return False
+        return bool(os.environ.get("ANTHROPIC_AUTH_TOKEN"))
+
     @property
     def provider_type(self) -> str:
         """Extract provider type from the default model string."""

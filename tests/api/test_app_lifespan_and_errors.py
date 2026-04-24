@@ -6,6 +6,27 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+def test_warn_if_process_auth_token_logs_warning():
+    api_app_mod = importlib.import_module("api.app")
+    settings = SimpleNamespace(uses_process_anthropic_auth_token=lambda: True)
+
+    with patch.object(api_app_mod.logger, "warning") as warning:
+        api_app_mod._warn_if_process_auth_token(settings)
+
+    warning.assert_called_once()
+    assert "ANTHROPIC_AUTH_TOKEN" in warning.call_args.args[0]
+
+
+def test_warn_if_process_auth_token_skips_explicit_dotenv_config():
+    api_app_mod = importlib.import_module("api.app")
+    settings = SimpleNamespace(uses_process_anthropic_auth_token=lambda: False)
+
+    with patch.object(api_app_mod.logger, "warning") as warning:
+        api_app_mod._warn_if_process_auth_token(settings)
+
+    warning.assert_not_called()
+
+
 def test_create_app_provider_error_handler_returns_anthropic_format():
     from api.app import create_app
     from providers.exceptions import AuthenticationError

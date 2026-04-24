@@ -126,6 +126,7 @@ class TestSettings:
         monkeypatch.setitem(Settings.model_config, "env_file", ())
         settings = Settings()
         assert settings.anthropic_auth_token == "process-token"
+        assert settings.uses_process_anthropic_auth_token() is True
 
     def test_empty_dotenv_anthropic_auth_token_overrides_process_env(
         self, monkeypatch, tmp_path
@@ -140,6 +141,7 @@ class TestSettings:
 
         settings = Settings()
         assert settings.anthropic_auth_token == ""
+        assert settings.uses_process_anthropic_auth_token() is False
 
     def test_dotenv_anthropic_auth_token_overrides_process_env(
         self, monkeypatch, tmp_path
@@ -157,6 +159,7 @@ class TestSettings:
 
         settings = Settings()
         assert settings.anthropic_auth_token == "server-token"
+        assert settings.uses_process_anthropic_auth_token() is False
 
     def test_removed_nim_enable_thinking_raises(self, monkeypatch):
         """NIM_ENABLE_THINKING now fails fast with a migration message."""

@@ -38,11 +38,24 @@ async def _best_effort(
         logger.warning(f"Shutdown step failed: {name}: {type(e).__name__}: {e}")
 
 
+def _warn_if_process_auth_token(settings) -> None:
+    """Warn when server auth was implicitly inherited from the shell."""
+    uses_process_token = getattr(settings, "uses_process_anthropic_auth_token", None)
+    if callable(uses_process_token) and uses_process_token():
+        logger.warning(
+            "ANTHROPIC_AUTH_TOKEN is set in the process environment but not in "
+            "a configured .env file. The proxy will require that token. Add "
+            "ANTHROPIC_AUTH_TOKEN= to .env to disable proxy auth, or set the "
+            "same token in .env to make server auth explicit."
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     settings = get_settings()
     logger.info("Starting Claude Code Proxy...")
+    _warn_if_process_auth_token(settings)
 
     # Initialize messaging platform if configured
     messaging_platform = None
