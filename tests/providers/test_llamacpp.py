@@ -111,9 +111,9 @@ def test_init_base_url_strips_trailing_slash():
 
 
 @pytest.mark.asyncio
-async def test_stream_response_omits_thinking_when_model_disabled(llamacpp_config):
+async def test_stream_response_omits_thinking_when_globally_disabled(llamacpp_config):
     provider = LlamaCppProvider(
-        llamacpp_config.model_copy(update={"model_enable_thinking": False})
+        llamacpp_config.model_copy(update={"enable_thinking": False})
     )
     req = MockRequest()
 

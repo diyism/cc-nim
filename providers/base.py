@@ -22,10 +22,7 @@ class ProviderConfig(BaseModel):
     http_read_timeout: float = 300.0
     http_write_timeout: float = 10.0
     http_connect_timeout: float = 2.0
-    opus_enable_thinking: bool = True
-    sonnet_enable_thinking: bool = True
-    haiku_enable_thinking: bool = True
-    model_enable_thinking: bool = True
+    enable_thinking: bool = True
     proxy: str = ""
 
 
@@ -43,22 +40,7 @@ class BaseProvider(ABC):
             if thinking is not None and hasattr(thinking, "enabled")
             else True
         )
-        request_model = getattr(request, "original_model", None) or getattr(
-            request, "model", ""
-        )
-        model_enabled = self._resolve_model_thinking_enabled(str(request_model))
-        return model_enabled and request_enabled
-
-    def _resolve_model_thinking_enabled(self, model: str) -> bool:
-        """Return the configured thinking flag for a Claude model family."""
-        model_lower = model.lower()
-        if "opus" in model_lower:
-            return self._config.opus_enable_thinking
-        if "haiku" in model_lower:
-            return self._config.haiku_enable_thinking
-        if "sonnet" in model_lower:
-            return self._config.sonnet_enable_thinking
-        return self._config.model_enable_thinking
+        return self._config.enable_thinking and request_enabled
 
     @abstractmethod
     async def cleanup(self) -> None:

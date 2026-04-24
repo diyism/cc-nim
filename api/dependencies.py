@@ -29,22 +29,6 @@ def _get_proxy_value(settings: Settings, attr_name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
-def _provider_config_kwargs(settings: Settings) -> dict:
-    """Return settings shared by all provider configs."""
-    return {
-        "rate_limit": settings.provider_rate_limit,
-        "rate_window": settings.provider_rate_window,
-        "max_concurrency": settings.provider_max_concurrency,
-        "http_read_timeout": settings.http_read_timeout,
-        "http_write_timeout": settings.http_write_timeout,
-        "http_connect_timeout": settings.http_connect_timeout,
-        "opus_enable_thinking": settings.opus_enable_thinking,
-        "sonnet_enable_thinking": settings.sonnet_enable_thinking,
-        "haiku_enable_thinking": settings.haiku_enable_thinking,
-        "model_enable_thinking": settings.model_enable_thinking,
-    }
-
-
 def _create_provider_for_type(provider_type: str, settings: Settings) -> BaseProvider:
     """Construct and return a new provider instance for the given provider type."""
     _proxy_map = {
@@ -64,8 +48,14 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
         config = ProviderConfig(
             api_key=settings.nvidia_nim_api_key,
             base_url=NVIDIA_NIM_BASE_URL,
+            rate_limit=settings.provider_rate_limit,
+            rate_window=settings.provider_rate_window,
+            max_concurrency=settings.provider_max_concurrency,
+            http_read_timeout=settings.http_read_timeout,
+            http_write_timeout=settings.http_write_timeout,
+            http_connect_timeout=settings.http_connect_timeout,
+            enable_thinking=settings.enable_thinking,
             proxy=proxy,
-            **_provider_config_kwargs(settings),
         )
         return NvidiaNimProvider(config, nim_settings=settings.nim)
     if provider_type == "open_router":
@@ -77,8 +67,14 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
         config = ProviderConfig(
             api_key=settings.open_router_api_key,
             base_url=OPENROUTER_BASE_URL,
+            rate_limit=settings.provider_rate_limit,
+            rate_window=settings.provider_rate_window,
+            max_concurrency=settings.provider_max_concurrency,
+            http_read_timeout=settings.http_read_timeout,
+            http_write_timeout=settings.http_write_timeout,
+            http_connect_timeout=settings.http_connect_timeout,
+            enable_thinking=settings.enable_thinking,
             proxy=proxy,
-            **_provider_config_kwargs(settings),
         )
         return OpenRouterProvider(config)
     if provider_type == "deepseek":
@@ -90,23 +86,41 @@ def _create_provider_for_type(provider_type: str, settings: Settings) -> BasePro
         config = ProviderConfig(
             api_key=settings.deepseek_api_key,
             base_url=DEEPSEEK_BASE_URL,
-            **_provider_config_kwargs(settings),
+            rate_limit=settings.provider_rate_limit,
+            rate_window=settings.provider_rate_window,
+            max_concurrency=settings.provider_max_concurrency,
+            http_read_timeout=settings.http_read_timeout,
+            http_write_timeout=settings.http_write_timeout,
+            http_connect_timeout=settings.http_connect_timeout,
+            enable_thinking=settings.enable_thinking,
         )
         return DeepSeekProvider(config)
     if provider_type == "lmstudio":
         config = ProviderConfig(
             api_key="lm-studio",
             base_url=settings.lm_studio_base_url,
+            rate_limit=settings.provider_rate_limit,
+            rate_window=settings.provider_rate_window,
+            max_concurrency=settings.provider_max_concurrency,
+            http_read_timeout=settings.http_read_timeout,
+            http_write_timeout=settings.http_write_timeout,
+            http_connect_timeout=settings.http_connect_timeout,
+            enable_thinking=settings.enable_thinking,
             proxy=proxy,
-            **_provider_config_kwargs(settings),
         )
         return LMStudioProvider(config)
     if provider_type == "llamacpp":
         config = ProviderConfig(
             api_key="llamacpp",
             base_url=settings.llamacpp_base_url,
+            rate_limit=settings.provider_rate_limit,
+            rate_window=settings.provider_rate_window,
+            max_concurrency=settings.provider_max_concurrency,
+            http_read_timeout=settings.http_read_timeout,
+            http_write_timeout=settings.http_write_timeout,
+            http_connect_timeout=settings.http_connect_timeout,
+            enable_thinking=settings.enable_thinking,
             proxy=proxy,
-            **_provider_config_kwargs(settings),
         )
         return LlamaCppProvider(config)
     logger.error(

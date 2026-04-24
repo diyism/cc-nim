@@ -32,10 +32,7 @@ def _make_mock_settings(**overrides):
     mock.http_read_timeout = 300.0
     mock.http_write_timeout = 10.0
     mock.http_connect_timeout = 2.0
-    mock.opus_enable_thinking = True
-    mock.sonnet_enable_thinking = True
-    mock.haiku_enable_thinking = True
-    mock.model_enable_thinking = True
+    mock.enable_thinking = True
     for key, value in overrides.items():
         setattr(mock, key, value)
     return mock
@@ -137,7 +134,7 @@ async def test_get_provider_deepseek():
         assert isinstance(provider, DeepSeekProvider)
         assert provider._base_url == "https://api.deepseek.com"
         assert provider._api_key == "test_deepseek_key"
-        assert provider._config.model_enable_thinking is True
+        assert provider._config.enable_thinking is True
 
 
 @pytest.mark.asyncio
@@ -155,38 +152,18 @@ async def test_get_provider_deepseek_uses_fixed_base_url():
 
 
 @pytest.mark.asyncio
-async def test_get_provider_deepseek_passes_model_enable_thinking():
-    """DeepSeek provider receives the fallback thinking toggle."""
+async def test_get_provider_deepseek_passes_enable_thinking():
+    """DeepSeek provider receives the global thinking toggle."""
     with patch("api.dependencies.get_settings") as mock_settings:
         mock_settings.return_value = _make_mock_settings(
             provider_type="deepseek",
-            model_enable_thinking=False,
+            enable_thinking=False,
         )
 
         provider = get_provider()
 
         assert isinstance(provider, DeepSeekProvider)
-        assert provider._config.model_enable_thinking is False
-
-
-@pytest.mark.asyncio
-async def test_get_provider_passes_per_model_thinking_flags():
-    """Provider config receives every per-model thinking toggle."""
-    with patch("api.dependencies.get_settings") as mock_settings:
-        mock_settings.return_value = _make_mock_settings(
-            opus_enable_thinking=False,
-            sonnet_enable_thinking=True,
-            haiku_enable_thinking=False,
-            model_enable_thinking=True,
-        )
-
-        provider = get_provider()
-
-        assert isinstance(provider, NvidiaNimProvider)
-        assert provider._config.opus_enable_thinking is False
-        assert provider._config.sonnet_enable_thinking is True
-        assert provider._config.haiku_enable_thinking is False
-        assert provider._config.model_enable_thinking is True
+        assert provider._config.enable_thinking is False
 
 
 @pytest.mark.asyncio
