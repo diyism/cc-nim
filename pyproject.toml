@@ -9,7 +9,7 @@ description = "Middleware between Claude Code CLI (Anthropic API) and NVIDIA NIM
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi[standard]>=0.115.11",
+    "fastapi[standard]>=0.136.1",
     "uvicorn>=0.34.0",
     "httpx[socks]>=0.25.0",
     "markdown-it-py>=3.0.0",
