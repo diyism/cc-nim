@@ -563,7 +563,7 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.136.1" },
     { name = "grpcio", marker = "extra == 'voice'", specifier = ">=1.78.0" },
     { name = "grpcio-tools", marker = "extra == 'voice'", specifier = ">=1.78.0" },
-    { name = "httpx", extras = ["socks"], specifier = ">=0.25.0" },
+    { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
     { name = "librosa", marker = "extra == 'voice-local'", specifier = ">=0.10.0" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "markdown-it-py", specifier = ">=3.0.0" },
