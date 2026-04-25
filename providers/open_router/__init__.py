@@ -1,5 +1,5 @@
-"""OpenRouter provider - OpenAI-compatible API for hundreds of models."""
+"""OpenRouter provider - Anthropic-compatible and rollback transports."""
 
-from .client import OPENROUTER_BASE_URL, OpenRouterProvider
+from .client import OPENROUTER_BASE_URL, OpenRouterChatProvider, OpenRouterProvider
 
-__all__ = ["OPENROUTER_BASE_URL", "OpenRouterProvider"]
+__all__ = ["OPENROUTER_BASE_URL", "OpenRouterChatProvider", "OpenRouterProvider"]

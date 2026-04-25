@@ -35,11 +35,23 @@ class BaseProvider(ABC):
     def _is_thinking_enabled(self, request: Any) -> bool:
         """Return whether thinking should be enabled for this request."""
         thinking = getattr(request, "thinking", None)
-        request_enabled = (
-            thinking.enabled
-            if thinking is not None and hasattr(thinking, "enabled")
-            else True
-        )
+        request_enabled = True
+        if thinking is not None:
+            thinking_type = (
+                thinking.get("type")
+                if isinstance(thinking, dict)
+                else getattr(thinking, "type", None)
+            )
+            if thinking_type == "disabled":
+                request_enabled = False
+
+            enabled = (
+                thinking.get("enabled")
+                if isinstance(thinking, dict)
+                else getattr(thinking, "enabled", None)
+            )
+            if enabled is not None:
+                request_enabled = bool(enabled)
         return self._config.enable_thinking and request_enabled
 
     @abstractmethod

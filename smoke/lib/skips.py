@@ -29,6 +29,10 @@ def skip_upstream_unavailable(reason: str) -> None:
     pytest.skip(f"upstream_unavailable: {reason}")
 
 
+def fail_missing_env(reason: str) -> None:
+    pytest.fail(f"missing_env: {reason}")
+
+
 def skip_if_upstream_unavailable_exception(exc: Exception) -> None:
     if isinstance(
         exc,

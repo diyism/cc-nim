@@ -18,6 +18,7 @@ from providers.common import get_user_facing_error_message
 
 from ..models import IncomingMessage
 from ..rendering.discord_markdown import format_status_discord
+from ..voice import PendingVoiceRegistry, VoiceTranscriptionService
 from .base import MessagingPlatform
 
 AUDIO_EXTENSIONS = (".ogg", ".mp4", ".mp3", ".wav", ".m4a")
@@ -115,8 +116,8 @@ class DiscordPlatform(MessagingPlatform):
         self._connected = False
         self._limiter: Any | None = None
         self._start_task: asyncio.Task | None = None
-        self._pending_voice: dict[tuple[str, str], tuple[str, str]] = {}
-        self._pending_voice_lock = asyncio.Lock()
+        self._pending_voice = PendingVoiceRegistry()
+        self._voice_transcription = VoiceTranscriptionService()
 
     async def _handle_client_message(self, message: Any) -> None:
         """Adapter entry point used by the internal discord client."""
@@ -126,30 +127,17 @@ class DiscordPlatform(MessagingPlatform):
         self, chat_id: str, voice_msg_id: str, status_msg_id: str
     ) -> None:
         """Register a voice note as pending transcription."""
-        async with self._pending_voice_lock:
-            self._pending_voice[(chat_id, voice_msg_id)] = (voice_msg_id, status_msg_id)
-            self._pending_voice[(chat_id, status_msg_id)] = (
-                voice_msg_id,
-                status_msg_id,
-            )
+        await self._pending_voice.register(chat_id, voice_msg_id, status_msg_id)
 
     async def cancel_pending_voice(
         self, chat_id: str, reply_id: str
     ) -> tuple[str, str] | None:
         """Cancel a pending voice transcription. Returns (voice_msg_id, status_msg_id) if found."""
-        async with self._pending_voice_lock:
-            entry = self._pending_voice.pop((chat_id, reply_id), None)
-            if entry is None:
-                return None
-            voice_msg_id, status_msg_id = entry
-            self._pending_voice.pop((chat_id, voice_msg_id), None)
-            self._pending_voice.pop((chat_id, status_msg_id), None)
-            return (voice_msg_id, status_msg_id)
+        return await self._pending_voice.cancel(chat_id, reply_id)
 
     async def _is_voice_still_pending(self, chat_id: str, voice_msg_id: str) -> bool:
         """Check if a voice note is still pending (not cancelled)."""
-        async with self._pending_voice_lock:
-            return (chat_id, voice_msg_id) in self._pending_voice
+        return await self._pending_voice.is_pending(chat_id, voice_msg_id)
 
     def _get_audio_attachment(self, message: Any) -> Any | None:
         """Return first audio attachment, or None."""
@@ -210,10 +198,7 @@ class DiscordPlatform(MessagingPlatform):
         try:
             await attachment.save(str(tmp_path))
 
-            from ..transcription import transcribe_audio
-
-            transcribed = await asyncio.to_thread(
-                transcribe_audio,
+            transcribed = await self._voice_transcription.transcribe(
                 tmp_path,
                 ct,
                 whisper_model=settings.whisper_model,
@@ -224,9 +209,9 @@ class DiscordPlatform(MessagingPlatform):
                 await self.queue_delete_message(channel_id, str(status_msg_id))
                 return True
 
-            async with self._pending_voice_lock:
-                self._pending_voice.pop((channel_id, message_id), None)
-                self._pending_voice.pop((channel_id, str(status_msg_id)), None)
+            await self._pending_voice.complete(
+                channel_id, message_id, str(status_msg_id)
+            )
 
             incoming = IncomingMessage(
                 text=transcribed,

@@ -22,26 +22,7 @@ from .commands import (
 from .event_parser import parse_cli_event
 from .models import IncomingMessage
 from .platforms.base import MessagingPlatform, SessionManagerInterface
-from .rendering.discord_markdown import (
-    discord_bold,
-    discord_code_inline,
-    escape_discord,
-    escape_discord_code,
-    render_markdown_to_discord,
-)
-from .rendering.discord_markdown import (
-    format_status as format_status_discord,  # (emoji, label, suffix)
-)
-from .rendering.telegram_markdown import (
-    escape_md_v2,
-    escape_md_v2_code,
-    mdv2_bold,
-    mdv2_code_inline,
-    render_markdown_to_mdv2,
-)
-from .rendering.telegram_markdown import (
-    format_status as format_status_telegram,
-)
+from .rendering.profiles import build_rendering_profile
 from .session import SessionStore
 from .transcript import RenderCtx, TranscriptBuffer
 from .trees.queue_manager import (
@@ -124,33 +105,19 @@ class ClaudeMessageHandler:
             queue_update_callback=self.update_queue_positions,
             node_started_callback=self.mark_node_processing,
         )
-        is_discord = platform.name == "discord"
-        self._format_status_fn = (
-            format_status_discord if is_discord else format_status_telegram
-        )
-        self._parse_mode_val: str | None = None if is_discord else "MarkdownV2"
-        self._render_ctx_val = RenderCtx(
-            bold=discord_bold if is_discord else mdv2_bold,
-            code_inline=discord_code_inline if is_discord else mdv2_code_inline,
-            escape_code=escape_discord_code if is_discord else escape_md_v2_code,
-            escape_text=escape_discord if is_discord else escape_md_v2,
-            render_markdown=render_markdown_to_discord
-            if is_discord
-            else render_markdown_to_mdv2,
-        )
-        self._limit_chars = 1900 if is_discord else 3900
+        self._rendering_profile = build_rendering_profile(platform.name)
 
     def format_status(self, emoji: str, label: str, suffix: str | None = None) -> str:
-        return self._format_status_fn(emoji, label, suffix)
+        return self._rendering_profile.format_status(emoji, label, suffix)
 
     def _parse_mode(self) -> str | None:
-        return self._parse_mode_val
+        return self._rendering_profile.parse_mode
 
     def get_render_ctx(self) -> RenderCtx:
-        return self._render_ctx_val
+        return self._rendering_profile.render_ctx
 
     def _get_limit_chars(self) -> int:
-        return self._limit_chars
+        return self._rendering_profile.limit_chars
 
     @property
     def tree_queue(self) -> TreeQueueManager:

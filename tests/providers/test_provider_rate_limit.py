@@ -315,3 +315,20 @@ class TestProviderRateLimiter:
         )
         assert limiter._concurrency_sem is not None
         assert limiter._concurrency_sem._value == 3
+
+    @pytest.mark.asyncio
+    async def test_scoped_instances_are_isolated(self):
+        """Provider-scoped limiters do not share reactive block state."""
+        GlobalRateLimiter.reset_instance()
+        nim = GlobalRateLimiter.get_scoped_instance(
+            "nvidia_nim", rate_limit=10, rate_window=60
+        )
+        openrouter = GlobalRateLimiter.get_scoped_instance(
+            "open_router", rate_limit=20, rate_window=30
+        )
+
+        assert nim is not openrouter
+        nim.set_blocked(1.0)
+
+        assert nim.is_blocked() is True
+        assert openrouter.is_blocked() is False

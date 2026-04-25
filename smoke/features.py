@@ -1,8 +1,9 @@
-"""Public feature inventory for pytest contracts and live smoke checks.
+"""Public feature inventory for contract, prerequisite, and product smoke tests.
 
-The inventory is intentionally explicit. README features and exposed public
-surface area should have either hermetic pytest coverage, live smoke coverage,
-or both. Private helpers are not listed here.
+The inventory is intentionally explicit. README-advertised behavior and exposed
+public surface area must have deterministic pytest contract coverage plus a
+product E2E scenario when that behavior is a user-facing product path. Liveness
+and route probes live in ``smoke/prereq`` and do not count as product coverage.
 """
 
 from __future__ import annotations
@@ -11,7 +12,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 FeatureSource = Literal["readme", "public_surface"]
-CoverageKind = Literal["pytest", "live_smoke", "both"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,20 +19,41 @@ class FeatureCoverage:
     feature_id: str
     title: str
     source: FeatureSource
-    coverage: CoverageKind
-    pytest_tests: tuple[str, ...]
-    smoke_tests: tuple[str, ...]
+    pytest_contract_tests: tuple[str, ...]
+    live_prereq_tests: tuple[str, ...]
+    product_e2e_tests: tuple[str, ...]
     smoke_targets: tuple[str, ...]
     required_env: tuple[str, ...]
     skip_policy: str
+    product_e2e_reason: str = ""
 
     @property
     def has_pytest_coverage(self) -> bool:
-        return self.coverage in {"pytest", "both"}
+        return bool(self.pytest_contract_tests)
+
+    @property
+    def has_live_prereq_coverage(self) -> bool:
+        return bool(self.live_prereq_tests)
+
+    @property
+    def has_product_e2e_coverage(self) -> bool:
+        return bool(self.product_e2e_tests)
 
     @property
     def has_smoke_coverage(self) -> bool:
-        return self.coverage in {"live_smoke", "both"}
+        return self.has_product_e2e_coverage
+
+    @property
+    def pytest_tests(self) -> tuple[str, ...]:
+        return self.pytest_contract_tests
+
+    @property
+    def smoke_tests(self) -> tuple[str, ...]:
+        return self.product_e2e_tests
+
+    @property
+    def all_smoke_tests(self) -> tuple[str, ...]:
+        return self.live_prereq_tests + self.product_e2e_tests
 
 
 README_FEATURES: tuple[str, ...] = (
@@ -57,122 +78,124 @@ README_FEATURES: tuple[str, ...] = (
 FEATURE_INVENTORY: tuple[FeatureCoverage, ...] = (
     FeatureCoverage(
         "zero_cost_provider_access",
-        "Configured provider accepts a real prompt",
+        "Configured provider accepts real conversation turns",
         "readme",
-        "both",
-        ("tests/api/test_dependencies.py", "tests/providers/test_open_router.py"),
+        ("tests/api/test_dependencies.py", "tests/providers/"),
         ("test_configured_provider_models_stream_successfully",),
+        ("test_provider_text_multiturn_e2e",),
         ("providers",),
-        ("NVIDIA_NIM_API_KEY|OPENROUTER_API_KEY|DEEPSEEK_API_KEY|local provider",),
-        "skip when no usable provider credentials or local provider endpoint exists",
+        ("configured provider credentials or local provider endpoint",),
+        "missing providers are missing_env unless FCC_ALLOW_NO_PROVIDER_SMOKE=1",
     ),
     FeatureCoverage(
         "drop_in_claude_code_replacement",
-        "Claude-compatible routes and CLI environment work",
+        "Claude-compatible API, CLI, and editor protocol flows work",
         "readme",
-        "both",
         ("tests/api/test_api.py", "tests/cli/test_cli.py"),
+        ("test_probe_and_models_routes", "test_claude_cli_prompt_when_available"),
         (
-            "test_probe_and_models_routes",
-            "test_claude_cli_prompt_when_available",
-            "test_vscode_and_jetbrains_shaped_requests",
+            "test_api_basic_conversation_e2e",
+            "test_claude_cli_adaptive_thinking_e2e",
+            "test_vscode_protocol_e2e",
+            "test_jetbrains_protocol_e2e",
         ),
         ("api", "cli", "clients"),
-        ("FCC_SMOKE_CLAUDE_BIN", "configured provider for Claude CLI"),
-        "skip Claude CLI path when binary or provider config is unavailable",
+        ("configured provider", "FCC_SMOKE_CLAUDE_BIN for real Claude CLI"),
+        "skip real CLI when binary is absent; configured providers must pass",
     ),
     FeatureCoverage(
         "provider_matrix",
-        "All configured provider prefixes can be exercised",
+        "Every configured provider prefix can satisfy conversation scenarios",
         "readme",
-        "both",
         ("tests/api/test_dependencies.py", "tests/providers/"),
         ("test_configured_provider_models_stream_successfully",),
+        ("test_provider_matrix_presence_e2e", "test_provider_text_multiturn_e2e"),
         ("providers",),
         ("MODEL", "MODEL_OPUS", "MODEL_SONNET", "MODEL_HAIKU"),
-        "skip when no configured provider has usable credentials/base URL",
+        "selected providers missing credentials are failing missing_env",
     ),
     FeatureCoverage(
         "per_model_mapping",
-        "Opus, Sonnet, Haiku, and fallback mappings are visible",
+        "Opus, Sonnet, Haiku, and fallback mappings route explicitly",
         "readme",
-        "both",
-        ("tests/api/test_models_validators.py", "tests/config/test_config.py"),
+        ("tests/api/test_model_router.py", "tests/config/test_config.py"),
         ("test_model_mapping_configuration_is_consistent",),
+        ("test_model_mapping_matrix_e2e",),
         ("providers",),
         ("MODEL", "MODEL_OPUS", "MODEL_SONNET", "MODEL_HAIKU"),
-        "skip live provider execution when no provider config is usable",
+        "skip only when live smoke is intentionally allowed to run with no provider",
     ),
     FeatureCoverage(
         "mixed_provider_mapping",
         "Model-specific overrides can route to different providers",
         "public_surface",
-        "both",
-        ("tests/config/test_config.py",),
+        ("tests/api/test_model_router.py", "tests/config/test_config.py"),
         ("test_mixed_provider_model_mapping_when_configured",),
+        ("test_model_mapping_matrix_e2e",),
         ("providers",),
         ("MODEL", "MODEL_OPUS", "MODEL_SONNET", "MODEL_HAIKU"),
-        "skip when fewer than two configured provider prefixes are present",
+        "configured mixed-provider mappings must resolve consistently",
     ),
     FeatureCoverage(
         "thinking_token_support",
-        "Thinking streams and suppression are contract-tested",
+        "Thinking history, adaptive thinking, and redacted blocks are accepted",
         "readme",
-        "pytest",
         (
-            "test_interleaved_thinking_text_blocks_are_valid",
-            "test_split_think_tags_preserve_text_and_thinking",
-            "test_enable_thinking_false_suppresses_reasoning_only",
+            "tests/contracts/test_stream_contracts.py",
+            "tests/providers/test_open_router.py",
         ),
         (),
-        (),
-        (),
-        "hermetic contract coverage",
+        (
+            "test_provider_adaptive_thinking_history_e2e",
+            "test_claude_cli_adaptive_thinking_e2e",
+        ),
+        ("providers", "cli"),
+        ("configured provider",),
+        "configured providers must not reject adaptive thinking payloads",
     ),
     FeatureCoverage(
         "heuristic_tool_parser",
-        "Text tool calls become structured tool_use blocks",
+        "Tool use and tool result continuation survive provider/client paths",
         "readme",
-        "both",
-        (
-            "tests/providers/test_parsers.py",
-            "test_thinking_tool_text_and_transcript_order_contract",
-        ),
+        ("tests/providers/test_parsers.py", "tests/contracts/test_stream_contracts.py"),
         ("test_live_tool_use_when_configured_model_supports_tools",),
-        ("tools",),
+        (
+            "test_provider_interleaved_thinking_tool_e2e",
+            "test_provider_tool_result_continuation_e2e",
+        ),
+        ("tools", "providers"),
         ("configured tool-capable provider",),
-        "skip live tool-use when no configured provider model is available",
+        "tool-capable configured providers must emit or continue tool results",
     ),
     FeatureCoverage(
         "request_optimization",
-        "Fast-path local optimizations respond without providers",
+        "Local request optimizations return product responses without providers",
         "readme",
-        "both",
         (
             "tests/api/test_optimization_handlers.py",
             "tests/api/test_routes_optimizations.py",
         ),
         ("test_optimization_fast_paths_do_not_need_provider",),
+        ("test_api_request_optimizations_e2e",),
         ("api",),
         (),
-        "always runnable once live server starts",
+        "always runnable once the local smoke server starts",
     ),
     FeatureCoverage(
         "smart_rate_limiting",
-        "Provider limiter covers proactive throttling, 429 retry, and disconnects",
+        "Disconnect and limiter cleanup preserve follow-up requests",
         "readme",
-        "both",
         ("tests/providers/test_provider_rate_limit.py",),
         ("test_client_disconnect_mid_stream_does_not_crash_server",),
+        ("test_provider_disconnect_e2e",),
         ("rate_limit", "providers"),
         ("configured provider",),
-        "skip live disconnect path when no configured provider model is available",
+        "upstream disconnects are skips only when classified upstream_unavailable",
     ),
     FeatureCoverage(
         "discord_telegram_bot",
-        "Messaging credentials, send/edit/delete, and transcript behavior",
+        "Discord and Telegram product flows render progress and transcripts",
         "readme",
-        "both",
         (
             "tests/messaging/test_discord_platform.py",
             "tests/messaging/test_telegram.py",
@@ -180,265 +203,287 @@ FEATURE_INVENTORY: tuple[FeatureCoverage, ...] = (
         (
             "test_telegram_bot_api_permissions",
             "test_discord_bot_api_permissions",
-            "test_interactive_inbound_messaging_requires_explicit_mode",
         ),
-        ("telegram", "discord"),
         (
-            "TELEGRAM_BOT_TOKEN",
-            "ALLOWED_TELEGRAM_USER_ID|FCC_SMOKE_TELEGRAM_CHAT_ID",
-            "DISCORD_BOT_TOKEN",
-            "ALLOWED_DISCORD_CHANNELS|FCC_SMOKE_DISCORD_CHANNEL_ID",
+            "test_messaging_fake_full_flow_e2e",
+            "test_telegram_live_permissions_e2e",
+            "test_discord_live_permissions_e2e",
         ),
-        "skip when bot tokens/channels are absent; inbound checks require interactive mode",
+        ("messaging", "telegram", "discord"),
+        ("bot tokens/channels only for side-effectful live platform tests",),
+        "fake platform is required; real platforms skip without explicit env",
     ),
     FeatureCoverage(
         "subagent_control",
-        "Task tool calls do not run in the background",
+        "Task-like tool output is rendered and controlled as foreground work",
         "readme",
-        "pytest",
-        (
-            "tests/providers/test_subagent_interception.py",
-            "test_thinking_tool_text_and_transcript_order_contract",
-        ),
+        ("tests/providers/test_subagent_interception.py",),
         (),
+        ("test_messaging_subagent_control_e2e",),
+        ("messaging",),
         (),
-        (),
-        "hermetic contract coverage",
+        "fake platform exercises tool transcript behavior without spawning agents",
     ),
     FeatureCoverage(
         "extensible_provider_platform_abcs",
-        "Provider/platform registries expose expected built-ins",
+        "Provider and platform factories expose built-in extension points",
         "readme",
-        "pytest",
-        ("test_provider_and_platform_registries_include_advertised_builtins",),
+        (
+            "tests/contracts/test_feature_manifest.py",
+            "tests/providers/test_registry.py",
+        ),
         (),
+        ("test_provider_registry_e2e", "test_platform_factory_e2e"),
+        ("extensibility",),
         (),
-        (),
-        "hermetic contract coverage",
+        "always runnable with isolated settings",
     ),
     FeatureCoverage(
         "optional_authentication",
-        "Anthropic-style auth headers are accepted and enforced",
+        "Anthropic-style auth headers are enforced and accepted",
         "readme",
-        "both",
         ("tests/api/test_auth.py",),
         ("test_auth_token_is_enforced_for_all_supported_header_shapes",),
+        ("test_api_auth_header_variants_e2e",),
         ("auth",),
         ("ANTHROPIC_AUTH_TOKEN",),
-        "live test starts an isolated server with its own token",
+        "product test starts an isolated token-protected server",
     ),
     FeatureCoverage(
         "vscode_extension",
-        "VS Code-shaped beta requests work against the proxy",
+        "VS Code protocol-shaped requests work against the proxy",
         "readme",
-        "live_smoke",
-        (),
+        (
+            "tests/api/test_models_validators.py::test_messages_request_accepts_adaptive_thinking_type",
+        ),
         ("test_vscode_and_jetbrains_shaped_requests",),
+        ("test_vscode_protocol_e2e",),
         ("clients",),
-        (),
-        "always runnable once live server starts",
+        ("configured provider",),
+        "extension source is external; protocol payload is covered here",
     ),
     FeatureCoverage(
         "intellij_extension",
-        "JetBrains/ACP-shaped environment requests work against the proxy",
+        "JetBrains/ACP protocol-shaped requests work against the proxy",
         "readme",
-        "live_smoke",
-        (),
+        (
+            "tests/api/test_models_validators.py::test_messages_request_accepts_adaptive_thinking_type",
+        ),
         ("test_vscode_and_jetbrains_shaped_requests",),
+        ("test_jetbrains_protocol_e2e",),
         ("clients",),
-        (),
-        "always runnable once live server starts",
+        ("configured provider",),
+        "extension source is external; protocol payload is covered here",
     ),
     FeatureCoverage(
         "voice_notes",
-        "Configured transcription backend can process an audio fixture",
+        "Voice note intake, cancellation, and transcription backends work",
         "readme",
-        "both",
         (
             "tests/messaging/test_voice_handlers.py",
             "tests/messaging/test_transcription.py",
         ),
         ("test_voice_transcription_backend_when_explicitly_enabled",),
-        ("voice",),
+        (
+            "test_voice_platform_fake_e2e",
+            "test_voice_local_backend_e2e",
+            "test_voice_nim_backend_e2e",
+        ),
+        ("messaging", "voice"),
         ("VOICE_NOTE_ENABLED", "FCC_SMOKE_RUN_VOICE", "WHISPER_DEVICE"),
-        "skip unless voice is explicitly enabled for local smoke",
+        "fake cancellation is required; backend transcription is opt-in",
     ),
     FeatureCoverage(
         "anthropic_api_routes",
-        "Root, health, models, messages, count_tokens, and stop routes respond",
+        "Messages, count_tokens, errors, and stop use Anthropic-compatible shapes",
         "public_surface",
-        "both",
         ("tests/api/test_api.py",),
         ("test_probe_and_models_routes", "test_stop_endpoint_reports_no_messaging"),
+        (
+            "test_api_basic_conversation_e2e",
+            "test_api_count_tokens_full_payload_e2e",
+            "test_api_error_shape_e2e",
+            "test_api_stop_e2e",
+        ),
         ("api",),
-        (),
-        "always runnable once live server starts",
+        ("configured provider for streaming messages",),
+        "route pings are prereqs; product route behavior is covered by E2E cases",
     ),
     FeatureCoverage(
         "probe_routes",
-        "HEAD and OPTIONS compatibility probes return 204 and Allow headers",
+        "HEAD and OPTIONS compatibility probes are accepted",
         "public_surface",
-        "both",
         ("tests/api/test_api.py::test_probe_endpoints_return_204_with_allow_headers",),
         ("test_probe_and_models_routes",),
+        (),
         ("api",),
         (),
-        "always runnable once live server starts",
+        "always runnable once the local smoke server starts",
+        "probe routes are compatibility prerequisites, not product behavior",
     ),
     FeatureCoverage(
         "count_tokens_contract",
-        "Token counting accepts text, thinking, tools, tool results, and images",
+        "Token counting accepts full Claude content payloads",
         "public_surface",
-        "both",
         ("tests/api/test_request_utils.py",),
         ("test_count_tokens_accepts_thinking_tools_and_results",),
+        ("test_api_count_tokens_full_payload_e2e",),
         ("api",),
         (),
-        "always runnable once live server starts",
+        "always runnable once the local smoke server starts",
     ),
     FeatureCoverage(
         "provider_proxy_timeout_config",
-        "Provider proxies and HTTP timeouts are passed into clients",
+        "Provider proxies and HTTP timeout settings reach provider config",
         "public_surface",
-        "pytest",
-        ("tests/api/test_dependencies.py",),
+        ("tests/api/test_dependencies.py", "tests/providers/test_registry.py"),
         (),
+        ("test_proxy_timeout_config_e2e",),
+        ("config",),
         (),
-        (),
-        "hermetic config coverage",
+        "always runnable with isolated env files",
     ),
     FeatureCoverage(
         "lmstudio_endpoint",
-        "Configured LM Studio endpoint exposes an OpenAI-compatible models route",
+        "LM Studio native messages and local no-key operation work when running",
         "public_surface",
-        "both",
-        ("tests/providers/test_lmstudio.py",),
+        (
+            "tests/providers/test_lmstudio.py",
+            "tests/providers/test_anthropic_messages.py",
+        ),
         ("test_lmstudio_models_endpoint_when_available",),
+        ("test_lmstudio_native_messages_e2e",),
         ("lmstudio",),
-        ("LM_STUDIO_BASE_URL",),
-        "skip when the local LM Studio server is not reachable",
+        ("LM_STUDIO_BASE_URL with running LM Studio server",),
+        "skip when local upstream is unavailable",
     ),
     FeatureCoverage(
         "llamacpp_endpoint",
-        "Configured llama.cpp endpoint exposes an OpenAI-compatible models route",
+        "llama.cpp native messages and local no-key operation work when running",
         "public_surface",
-        "both",
-        ("tests/providers/test_llamacpp.py",),
+        (
+            "tests/providers/test_llamacpp.py",
+            "tests/providers/test_anthropic_messages.py",
+        ),
         ("test_llamacpp_models_endpoint_when_available",),
+        ("test_llamacpp_native_messages_e2e",),
         ("llamacpp",),
-        ("LLAMACPP_BASE_URL",),
-        "skip when the local llama.cpp server is not reachable",
+        ("LLAMACPP_BASE_URL with running llama-server",),
+        "skip when local upstream is unavailable",
     ),
     FeatureCoverage(
         "package_cli_entrypoints",
         "Installed package scripts scaffold config and start the server",
         "public_surface",
-        "both",
         ("tests/cli/test_entrypoints.py",),
         (
             "test_fcc_init_scaffolds_user_config",
             "test_free_claude_code_entrypoint_starts_server",
         ),
+        ("test_entrypoint_init_e2e", "test_entrypoint_server_e2e"),
         ("cli",),
         (),
         "always runnable once uv project dependencies are available",
     ),
     FeatureCoverage(
         "claude_cli_drop_in",
-        "Claude CLI can send a prompt through the proxy when installed",
+        "Claude CLI can send adaptive thinking and tool-shaped history",
         "public_surface",
-        "live_smoke",
-        (),
+        ("tests/cli/test_cli.py",),
         ("test_claude_cli_prompt_when_available",),
+        (
+            "test_claude_cli_adaptive_thinking_e2e",
+            "test_claude_cli_multiturn_tool_protocol_e2e",
+        ),
         ("cli",),
         ("FCC_SMOKE_CLAUDE_BIN", "configured provider"),
-        "skip when Claude CLI or provider config is unavailable",
+        "skip only when Claude CLI binary is absent",
     ),
     FeatureCoverage(
         "messaging_commands",
-        "Messaging /stop, /clear, and /stats commands use platform queues safely",
+        "Messaging /stop, /clear, and /stats operate on product state",
         "public_surface",
-        "pytest",
         (
             "tests/messaging/test_handler.py",
             "tests/messaging/test_handler_integration.py",
         ),
         (),
+        ("test_messaging_commands_stop_clear_stats_e2e",),
+        ("messaging",),
         (),
-        (),
-        "hermetic messaging handler coverage",
+        "required fake-platform product flow",
     ),
     FeatureCoverage(
         "tree_threading",
-        "Reply-based message trees support queueing, branching, and cancellation",
+        "Reply-based branches fork sessions and stay scoped",
         "public_surface",
-        "pytest",
         (
             "tests/messaging/test_tree_queue.py",
             "tests/messaging/test_tree_concurrency.py",
         ),
         (),
+        ("test_tree_threading_e2e",),
+        ("messaging",),
         (),
-        (),
-        "hermetic tree queue coverage",
+        "required fake-platform product flow",
     ),
     FeatureCoverage(
         "restart_restore",
-        "Persisted tree state is restored after restart for reply routing",
+        "Persisted tree state restores reply routing after restart",
         "public_surface",
-        "pytest",
         ("tests/messaging/test_restart_reply_restore.py",),
         (),
+        ("test_restart_restore_and_session_persistence_e2e",),
+        ("messaging",),
         (),
-        (),
-        "hermetic persistence coverage",
+        "required fake-platform persistence flow",
     ),
     FeatureCoverage(
         "session_persistence",
-        "SessionStore persists trees, node mappings, and message logs",
+        "Session JSON preserves trees, node mapping, and message logs",
         "public_surface",
-        "pytest",
         ("tests/messaging/test_session_store_edge_cases.py",),
         (),
+        ("test_restart_restore_and_session_persistence_e2e",),
+        ("messaging",),
         (),
-        (),
-        "hermetic persistence coverage",
+        "required fake-platform persistence flow",
     ),
     FeatureCoverage(
         "config_env_precedence",
-        "Environment and dotenv precedence are deterministic",
+        "FCC_ENV_FILE, dotenv, and process env precedence are deterministic",
         "public_surface",
-        "pytest",
         ("tests/config/test_config.py",),
         (),
+        ("test_env_precedence_e2e",),
+        ("config",),
         (),
-        (),
-        "hermetic config coverage",
+        "always runnable with isolated env files",
     ),
     FeatureCoverage(
         "removed_env_migration",
-        "Removed NIM_ENABLE_THINKING env var fails fast with migration guidance",
+        "Removed env vars fail fast with migration guidance",
         "public_surface",
-        "pytest",
         ("tests/config/test_config.py",),
         (),
+        ("test_removed_env_migration_e2e",),
+        ("config",),
         (),
-        (),
-        "hermetic config coverage",
+        "always runnable with isolated env files",
     ),
     FeatureCoverage(
         "streaming_error_mapping",
-        "Provider and streaming errors map to Anthropic-compatible error shapes",
+        "Provider and validation errors map to Anthropic-compatible payloads",
         "public_surface",
-        "pytest",
         (
             "tests/providers/test_streaming_errors.py",
             "tests/providers/test_error_mapping.py",
         ),
         (),
-        (),
-        (),
-        "hermetic provider coverage",
+        ("test_api_error_shape_e2e", "test_provider_error_e2e"),
+        ("api", "providers"),
+        ("configured provider for provider error scenario",),
+        "invalid request path is required; provider error path requires provider",
     ),
 )
 
@@ -452,10 +497,24 @@ def feature_ids(*, source: FeatureSource | None = None) -> set[str]:
     }
 
 
-def smoke_feature_ids() -> set[str]:
-    """Return feature IDs with at least one live smoke owner."""
+def product_smoke_feature_ids() -> set[str]:
+    """Return feature IDs with at least one product E2E owner."""
     return {
         feature.feature_id
         for feature in FEATURE_INVENTORY
-        if feature.has_smoke_coverage
+        if feature.has_product_e2e_coverage
     }
+
+
+def live_prereq_feature_ids() -> set[str]:
+    """Return feature IDs with prerequisite/live probe owners."""
+    return {
+        feature.feature_id
+        for feature in FEATURE_INVENTORY
+        if feature.has_live_prereq_coverage
+    }
+
+
+def smoke_feature_ids() -> set[str]:
+    """Backward-compatible alias for product smoke feature IDs."""
+    return product_smoke_feature_ids()

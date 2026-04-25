@@ -85,6 +85,8 @@ def classify_outcome(*, nodeid: str, outcome: str, detail: str) -> str:
 
     if "harness_bug" in text:
         return "harness_bug"
+    if "missing_env" in text:
+        return "missing_env"
     if any(
         marker in text
         for marker in (

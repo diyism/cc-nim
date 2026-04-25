@@ -2,6 +2,7 @@
 
 from .anthropic import (
     ContentBlockImage,
+    ContentBlockRedactedThinking,
     ContentBlockText,
     ContentBlockThinking,
     ContentBlockToolResult,
@@ -24,6 +25,7 @@ from .responses import (
 
 __all__ = [
     "ContentBlockImage",
+    "ContentBlockRedactedThinking",
     "ContentBlockText",
     "ContentBlockThinking",
     "ContentBlockToolResult",

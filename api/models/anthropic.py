@@ -3,10 +3,7 @@
 from enum import StrEnum
 from typing import Any, Literal
 
-from loguru import logger
-from pydantic import BaseModel, field_validator, model_validator
-
-from config.settings import Settings, get_settings
+from pydantic import BaseModel
 
 
 # =============================================================================
@@ -44,6 +41,12 @@ class ContentBlockToolResult(BaseModel):
 class ContentBlockThinking(BaseModel):
     type: Literal["thinking"]
     thinking: str
+    signature: str | None = None
+
+
+class ContentBlockRedactedThinking(BaseModel):
+    type: Literal["redacted_thinking"]
+    data: str
 
 
 class SystemContent(BaseModel):
@@ -64,6 +67,7 @@ class Message(BaseModel):
             | ContentBlockToolUse
             | ContentBlockToolResult
             | ContentBlockThinking
+            | ContentBlockRedactedThinking
         ]
     )
     reasoning_content: str | None = None
@@ -76,7 +80,9 @@ class Tool(BaseModel):
 
 
 class ThinkingConfig(BaseModel):
-    enabled: bool = True
+    enabled: bool | None = True
+    type: str | None = None
+    budget_tokens: int | None = None
 
 
 # =============================================================================
@@ -100,22 +106,6 @@ class MessagesRequest(BaseModel):
     original_model: str | None = None
     resolved_provider_model: str | None = None
 
-    @model_validator(mode="after")
-    def map_model(self) -> MessagesRequest:
-        """Map any Claude model name to the configured model (model-aware)."""
-        settings = get_settings()
-        if self.original_model is None:
-            self.original_model = self.model
-
-        resolved_full = settings.resolve_model(self.original_model)
-        self.resolved_provider_model = resolved_full
-        self.model = Settings.parse_model_name(resolved_full)
-
-        if self.model != self.original_model:
-            logger.debug(f"MODEL MAPPING: '{self.original_model}' -> '{self.model}'")
-
-        return self
-
 
 class TokenCountRequest(BaseModel):
     model: str
@@ -124,11 +114,3 @@ class TokenCountRequest(BaseModel):
     tools: list[Tool] | None = None
     thinking: ThinkingConfig | None = None
     tool_choice: dict[str, Any] | None = None
-
-    @field_validator("model")
-    @classmethod
-    def validate_model_field(cls, v: str, info) -> str:
-        """Map any Claude model name to the configured model (model-aware)."""
-        settings = get_settings()
-        resolved_full = settings.resolve_model(v)
-        return Settings.parse_model_name(resolved_full)

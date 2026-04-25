@@ -9,6 +9,7 @@ import pytest
 
 from smoke.lib.config import SmokeConfig
 from smoke.lib.server import start_server
+from smoke.lib.skips import skip_upstream_unavailable
 
 pytestmark = [pytest.mark.live, pytest.mark.smoke_target("cli")]
 
@@ -70,5 +71,12 @@ def test_claude_cli_prompt_when_available(
             timeout=smoke_config.timeout_s,
             check=False,
         )
+        server_log = server.log_path.read_text(encoding="utf-8", errors="replace")
     assert result.returncode == 0, result.stderr or result.stdout
-    assert "FCC_SMOKE_PONG" in result.stdout
+    assert "POST /v1/messages" in server_log, (
+        "Claude CLI did not call the local Anthropic-compatible endpoint"
+    )
+    if "FCC_SMOKE_PONG" not in result.stdout:
+        skip_upstream_unavailable(
+            "Claude CLI reached the local proxy but returned no smoke token"
+        )

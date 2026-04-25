@@ -4,7 +4,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from .anthropic import ContentBlockText, ContentBlockThinking, ContentBlockToolUse
+from .anthropic import (
+    ContentBlockRedactedThinking,
+    ContentBlockText,
+    ContentBlockThinking,
+    ContentBlockToolUse,
+)
 
 
 class TokenCountResponse(BaseModel):
@@ -37,7 +42,11 @@ class MessagesResponse(BaseModel):
     model: str
     role: Literal["assistant"] = "assistant"
     content: list[
-        ContentBlockText | ContentBlockToolUse | ContentBlockThinking | dict[str, Any]
+        ContentBlockText
+        | ContentBlockToolUse
+        | ContentBlockThinking
+        | ContentBlockRedactedThinking
+        | dict[str, Any]
     ]
     type: Literal["message"] = "message"
     stop_reason: (

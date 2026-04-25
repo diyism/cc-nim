@@ -29,12 +29,7 @@ class GlobalRateLimiter:
     """
 
     _instance: ClassVar[GlobalRateLimiter | None] = None
-
-    def __new__(cls, *args: Any, **kwargs: Any) -> GlobalRateLimiter:
-        if cls._instance is not None:
-            return cls._instance
-        instance = super().__new__(cls)
-        return instance
+    _scoped_instances: ClassVar[dict[str, GlobalRateLimiter]] = {}
 
     def __init__(
         self,
@@ -89,9 +84,30 @@ class GlobalRateLimiter:
         return cls._instance
 
     @classmethod
+    def get_scoped_instance(
+        cls,
+        scope: str,
+        *,
+        rate_limit: int | None = None,
+        rate_window: float | None = None,
+        max_concurrency: int = 5,
+    ) -> GlobalRateLimiter:
+        """Get or create a provider-scoped limiter instance."""
+        if not scope:
+            raise ValueError("scope must be non-empty")
+        if scope not in cls._scoped_instances:
+            cls._scoped_instances[scope] = cls(
+                rate_limit=rate_limit or 40,
+                rate_window=rate_window or 60.0,
+                max_concurrency=max_concurrency,
+            )
+        return cls._scoped_instances[scope]
+
+    @classmethod
     def reset_instance(cls) -> None:
         """Reset singleton (for testing)."""
         cls._instance = None
+        cls._scoped_instances = {}
 
     async def wait_if_blocked(self) -> bool:
         """

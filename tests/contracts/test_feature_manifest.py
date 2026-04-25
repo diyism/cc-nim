@@ -12,7 +12,6 @@ from providers.nvidia_nim import NvidiaNimProvider
 from providers.open_router import OpenRouterProvider
 from smoke.features import FEATURE_INVENTORY, README_FEATURES, feature_ids
 
-VALID_COVERAGE = {"pytest", "live_smoke", "both"}
 VALID_SOURCE = {"readme", "public_surface"}
 
 
@@ -32,13 +31,16 @@ def test_feature_inventory_is_unique_and_decision_complete() -> None:
 
     for feature in FEATURE_INVENTORY:
         assert feature.source in VALID_SOURCE, feature
-        assert feature.coverage in VALID_COVERAGE, feature
         assert feature.title.strip(), feature
         assert feature.skip_policy.strip(), feature
-        if feature.has_pytest_coverage:
-            assert feature.pytest_tests, feature
-        if feature.has_smoke_coverage:
-            assert feature.smoke_tests, feature
+        assert feature.pytest_contract_tests, feature
+        assert feature.has_pytest_coverage, feature
+        if feature.product_e2e_tests:
+            assert feature.smoke_targets, feature
+            assert not feature.product_e2e_reason, feature
+        else:
+            assert feature.product_e2e_reason.strip(), feature
+        if feature.live_prereq_tests:
             assert feature.smoke_targets, feature
 
 
@@ -48,10 +50,18 @@ def test_feature_inventory_test_owners_exist() -> None:
     smoke_names = _collect_test_names(repo_root / "smoke")
 
     for feature in FEATURE_INVENTORY:
-        for owner in feature.pytest_tests:
+        for owner in feature.pytest_contract_tests:
             _assert_owner_exists(owner, repo_root, pytest_names)
-        for owner in feature.smoke_tests:
+        for owner in feature.live_prereq_tests + feature.product_e2e_tests:
             assert owner in smoke_names or owner in pytest_names, (feature, owner)
+
+
+def test_product_coverage_is_not_satisfied_by_prereq_probes() -> None:
+    for feature in FEATURE_INVENTORY:
+        overlap = set(feature.live_prereq_tests) & set(feature.product_e2e_tests)
+        assert not overlap, (feature.feature_id, sorted(overlap))
+        if feature.product_e2e_tests:
+            assert all("_e2e" in name for name in feature.product_e2e_tests), feature
 
 
 def test_provider_and_platform_registries_include_advertised_builtins() -> None:

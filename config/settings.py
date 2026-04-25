@@ -91,6 +91,9 @@ class Settings(BaseSettings):
 
     # ==================== OpenRouter Config ====================
     open_router_api_key: str = Field(default="", validation_alias="OPENROUTER_API_KEY")
+    openrouter_transport: str = Field(
+        default="anthropic", validation_alias="OPENROUTER_TRANSPORT"
+    )
 
     # ==================== DeepSeek Config ====================
     deepseek_api_key: str = Field(default="", validation_alias="DEEPSEEK_API_KEY")
@@ -234,6 +237,15 @@ class Settings(BaseSettings):
         if v not in ("cpu", "cuda", "nvidia_nim"):
             raise ValueError(
                 f"whisper_device must be 'cpu', 'cuda', or 'nvidia_nim', got {v!r}"
+            )
+        return v
+
+    @field_validator("openrouter_transport")
+    @classmethod
+    def validate_openrouter_transport(cls, v: str) -> str:
+        if v not in ("anthropic", "openai"):
+            raise ValueError(
+                f"openrouter_transport must be 'anthropic' or 'openai', got {v!r}"
             )
         return v
 

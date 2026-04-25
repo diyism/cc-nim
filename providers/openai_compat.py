@@ -24,7 +24,7 @@ from providers.common import (
 from providers.rate_limit import GlobalRateLimiter
 
 
-class OpenAICompatibleProvider(BaseProvider):
+class OpenAIChatTransport(BaseProvider):
     """Base class for providers using OpenAI-compatible chat completions API."""
 
     def __init__(
@@ -39,7 +39,8 @@ class OpenAICompatibleProvider(BaseProvider):
         self._provider_name = provider_name
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
-        self._global_rate_limiter = GlobalRateLimiter.get_instance(
+        self._global_rate_limiter = GlobalRateLimiter.get_scoped_instance(
+            provider_name.lower(),
             rate_limit=config.rate_limit,
             rate_window=config.rate_window,
             max_concurrency=config.max_concurrency,
@@ -286,7 +287,7 @@ class OpenAICompatibleProvider(BaseProvider):
 
             except Exception as e:
                 logger.error("{}_ERROR:{} {}: {}", tag, req_tag, type(e).__name__, e)
-                mapped_e = map_error(e)
+                mapped_e = map_error(e, rate_limiter=self._global_rate_limiter)
                 error_occurred = True
                 if getattr(mapped_e, "status_code", None) == 405:
                     base_message = (
@@ -377,3 +378,7 @@ class OpenAICompatibleProvider(BaseProvider):
                 )
         yield sse.message_delta(map_stop_reason(finish_reason), output_tokens)
         yield sse.message_stop()
+
+
+# Backward-compatible class name used by existing provider implementations.
+OpenAICompatibleProvider = OpenAIChatTransport

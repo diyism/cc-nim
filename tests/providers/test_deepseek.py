@@ -52,7 +52,7 @@ def deepseek_config():
 def mock_rate_limiter():
     """Mock the global rate limiter to prevent waiting."""
     with patch("providers.openai_compat.GlobalRateLimiter") as mock:
-        instance = mock.get_instance.return_value
+        instance = mock.get_scoped_instance.return_value
         instance.wait_if_blocked = AsyncMock(return_value=False)
 
         async def _passthrough(fn, *args, **kwargs):

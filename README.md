@@ -313,14 +313,14 @@ free-claude-code    # starts the server
 │  Claude Code    │───────>│  Free Claude Code    │───────>│  LLM Provider    │
 │  CLI / VSCode   │<───────│  Proxy (:8082)       │<───────│  NIM / OR / LMS  │
 └─────────────────┘        └──────────────────────┘        └──────────────────┘
-   Anthropic API                                             OpenAI-compatible
-   format (SSE)                                             format (SSE)
+   Anthropic API                                             Native Anthropic
+   format (SSE)                                             or OpenAI chat SSE
 ```
 
 - **Transparent proxy**: Claude Code sends standard Anthropic API requests; the proxy forwards them to your configured provider
 - **Per-model routing**: Opus / Sonnet / Haiku requests resolve to their model-specific backend, with `MODEL` as fallback
 - **Request optimization**: 5 categories of trivial requests (quota probes, title generation, prefix detection, suggestions, filepath extraction) are intercepted and responded to locally without using API quota
-- **Format translation**: Requests are translated from Anthropic format to the provider's OpenAI-compatible format and streamed back
+- **Format handling**: OpenRouter, LM Studio, and llama.cpp use native Anthropic Messages endpoints; NIM and DeepSeek use shared OpenAI chat translation
 - **Thinking tokens**: `<think>` tags and `reasoning_content` fields are converted into native Claude thinking blocks when `ENABLE_THINKING=true`
 
 The proxy also exposes Claude-compatible probe routes: `GET /v1/models`, `POST /v1/messages`, `POST /v1/messages/count_tokens`, plus `HEAD`/`OPTIONS` support for the common probe endpoints.
@@ -509,6 +509,7 @@ Configure via `WHISPER_DEVICE` (`cpu` | `cuda` | `nvidia_nim`) and `WHISPER_MODE
 | `NVIDIA_NIM_API_KEY`    | NVIDIA API key                                                        | required for NIM                                  |
 | `ENABLE_THINKING`    | Global switch for provider reasoning requests and Claude thinking blocks. Set `false` to hide thinking across all providers. | `true` |
 | `OPENROUTER_API_KEY` | OpenRouter API key                                                    | required for OpenRouter                           |
+| `OPENROUTER_TRANSPORT` | Diagnostic rollback only: `anthropic` uses OpenRouter's native Messages API, `openai` uses chat completions | `anthropic` |
 | `DEEPSEEK_API_KEY`   | DeepSeek API key                                                      | required for DeepSeek                             |
 | `LM_STUDIO_BASE_URL` | LM Studio server URL                                                  | `http://localhost:1234/v1`                        |
 | `LLAMACPP_BASE_URL`  | llama.cpp server URL                                                  | `http://localhost:8080/v1`                        |
@@ -572,10 +573,10 @@ See [`.env.example`](.env.example) for all supported parameters.
 ```
 free-claude-code/
 ├── server.py              # Entry point
-├── api/                   # FastAPI routes, request detection, optimization handlers
-├── providers/             # BaseProvider, OpenAICompatibleProvider, NIM, OpenRouter, DeepSeek, LM Studio, llamacpp
+├── api/                   # FastAPI routes, API service layer, model routing, request detection, optimizations
+├── providers/             # Provider registry, scoped runtime state, OpenAI chat + Anthropic messages transports
 │   └── common/            # Shared utils (SSE builder, message converter, parsers, error mapping)
-├── messaging/             # MessagingPlatform ABC + Discord/Telegram bots, session management
+├── messaging/             # MessagingPlatform ABC + Discord/Telegram bots, commands, voice, session management
 ├── config/                # Settings, NIM config, logging
 ├── cli/                   # CLI session and process management
 └── tests/                 # Pytest test suite
@@ -592,19 +593,21 @@ uv run pytest          # Run tests
 
 ### Extending
 
-**Adding an OpenAI-compatible provider** (Groq, Together AI, etc.) — extend `OpenAICompatibleProvider`:
+**Adding an OpenAI-compatible provider** (Groq, Together AI, etc.) — extend `OpenAIChatTransport` or its backward-compatible alias `OpenAICompatibleProvider`, then add a descriptor in the provider registry:
 
 ```python
-from providers.openai_compat import OpenAICompatibleProvider
+from providers.openai_compat import OpenAIChatTransport
 from providers.base import ProviderConfig
 
-class MyProvider(OpenAICompatibleProvider):
+class MyProvider(OpenAIChatTransport):
     def __init__(self, config: ProviderConfig):
         super().__init__(config, provider_name="MYPROVIDER",
                          base_url="https://api.example.com/v1", api_key=config.api_key)
 ```
 
-**Adding a fully custom provider** — extend `BaseProvider` directly and implement `stream_response()`.
+**Adding a native Anthropic provider** — extend `AnthropicMessagesTransport`, then add a descriptor in `providers.registry`.
+
+**Adding a fully custom provider** — extend `BaseProvider` directly, implement `stream_response()`, and register its descriptor.
 
 **Adding a messaging platform** — extend `MessagingPlatform` in `messaging/` and implement `start()`, `stop()`, `send_message()`, `edit_message()`, and `on_message()`.
 
