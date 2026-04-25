@@ -1,10 +1,8 @@
-"""Tests for the OpenRouter provider."""
+"""Tests for OpenRouter provider."""
 
 import json
-from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpx
 import pytest
 
 from providers.base import ProviderConfig
@@ -18,16 +16,6 @@ class MockMessage:
         self.content = content
 
 
-class MockTool:
-    def __init__(self):
-        self.name = "run_command"
-        self.description = "Run a command"
-        self.input_schema = {
-            "type": "object",
-            "properties": {"cmd": {"type": "string"}},
-        }
-
-
 class MockRequest:
     def __init__(self, **kwargs):
         self.model = "stepfun/step-3.5-flash:free"
@@ -35,58 +23,14 @@ class MockRequest:
         self.max_tokens = 100
         self.temperature = 0.5
         self.top_p = 0.9
-        self.top_k = 20
         self.system = "System prompt"
-        self.stop_sequences = ["STOP"]
-        self.stream = False
-        self.metadata = {"source": "request"}
-        self.tools = [MockTool()]
-        self.tool_choice = {"type": "auto"}
+        self.stop_sequences = None
+        self.tools = []
         self.extra_body = {}
-        self.original_model = "claude-sonnet-4-20250514"
-        self.resolved_provider_model = "open_router/stepfun/step-3.5-flash:free"
         self.thinking = MagicMock()
         self.thinking.enabled = True
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
-
-class FakeResponse:
-    """Simple async streaming response for provider tests."""
-
-    def __init__(self, *, status_code=200, lines=None, text=""):
-        self.status_code = status_code
-        self._lines = lines or []
-        self._text = text
-        self.is_closed = False
-        self.request = httpx.Request("POST", "https://openrouter.ai/api/v1/messages")
-
-    async def aiter_lines(self):
-        for line in self._lines:
-            yield line
-
-    def raise_for_status(self):
-        response = httpx.Response(
-            self.status_code,
-            request=self.request,
-            text=self._text,
-        )
-        response.raise_for_status()
-
-    async def aclose(self):
-        self.is_closed = True
-
-
-def parse_sse_event(event: str) -> tuple[str | None, dict]:
-    """Parse an SSE event string into event type and JSON payload."""
-    event_type = None
-    data_lines: list[str] = []
-    for line in event.strip().splitlines():
-        if line.startswith("event:"):
-            event_type = line[6:].strip()
-        elif line.startswith("data:"):
-            data_lines.append(line[5:].lstrip())
-    return event_type, json.loads("\n".join(data_lines))
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
 
 @pytest.fixture
@@ -102,20 +46,14 @@ def open_router_config():
 @pytest.fixture(autouse=True)
 def mock_rate_limiter():
     """Mock the global rate limiter to prevent waiting."""
-
-    @asynccontextmanager
-    async def _slot():
-        yield
-
-    with patch("providers.anthropic_compat.GlobalRateLimiter") as mock:
+    with patch("providers.openai_compat.GlobalRateLimiter") as mock:
         instance = mock.get_instance.return_value
+        instance.wait_if_blocked = AsyncMock(return_value=False)
 
         async def _passthrough(fn, *args, **kwargs):
             return await fn(*args, **kwargs)
 
         instance.execute_with_retry = AsyncMock(side_effect=_passthrough)
-        instance.wait_if_blocked = AsyncMock(return_value=False)
-        instance.concurrency_slot.side_effect = _slot
         yield instance
 
 
@@ -124,75 +62,47 @@ def open_router_provider(open_router_config):
     return OpenRouterProvider(open_router_config)
 
 
-def test_init_uses_httpx_client_with_proxy_and_timeouts():
-    """Provider initialization configures an httpx client directly."""
+def test_init(open_router_config):
+    """Test provider initialization."""
+    with patch("providers.openai_compat.AsyncOpenAI") as mock_openai:
+        provider = OpenRouterProvider(open_router_config)
+        assert provider._api_key == "test_openrouter_key"
+        assert provider._base_url == "https://openrouter.ai/api/v1"
+        mock_openai.assert_called_once()
+
+
+def test_init_uses_configurable_timeouts():
+    """Test that provider passes configurable read/write/connect timeouts to client."""
     config = ProviderConfig(
         api_key="test_openrouter_key",
         base_url="https://openrouter.ai/api/v1",
-        proxy="socks5://127.0.0.1:9999",
         http_read_timeout=600.0,
         http_write_timeout=15.0,
         http_connect_timeout=5.0,
     )
-
-    with patch("httpx.AsyncClient") as mock_client:
-        provider = OpenRouterProvider(config)
-
-    assert provider._api_key == "test_openrouter_key"
-    assert provider._base_url == "https://openrouter.ai/api/v1"
-    kwargs = mock_client.call_args.kwargs
-    timeout = kwargs["timeout"]
-    assert kwargs["base_url"] == "https://openrouter.ai/api/v1"
-    assert kwargs["proxy"] == "socks5://127.0.0.1:9999"
-    assert timeout.read == 600.0
-    assert timeout.write == 15.0
-    assert timeout.connect == 5.0
+    with patch("providers.openai_compat.AsyncOpenAI") as mock_openai:
+        OpenRouterProvider(config)
+        call_kwargs = mock_openai.call_args[1]
+        timeout = call_kwargs["timeout"]
+        assert timeout.read == 600.0
+        assert timeout.write == 15.0
+        assert timeout.connect == 5.0
 
 
-def test_build_request_body_is_anthropic_shaped(open_router_provider):
-    """System stays top-level and internal fields are stripped."""
+def test_build_request_body_has_reasoning_extra(open_router_provider):
+    """Request body has extra_body.reasoning.enabled for thinking models."""
     req = MockRequest()
-
     body = open_router_provider._build_request_body(req)
 
     assert body["model"] == "stepfun/step-3.5-flash:free"
-    assert body["system"] == "System prompt"
-    assert body["stream"] is True
     assert body["temperature"] == 0.5
-    assert body["top_p"] == 0.9
-    assert body["top_k"] == 20
-    assert body["stop_sequences"] == ["STOP"]
-    assert body["metadata"] == {"source": "request"}
-    assert body["tool_choice"] == {"type": "auto"}
-    assert len(body["messages"]) == 1
-    assert body["messages"][0] == {"role": "user", "content": "Hello"}
-    assert body["tools"][0]["name"] == "run_command"
-    assert body["reasoning"] == {"enabled": True}
-    assert "thinking" not in body
-    assert "original_model" not in body
-    assert "resolved_provider_model" not in body
-    assert "extra_body" not in body
+    assert len(body["messages"]) == 2  # System + User
+    assert body["messages"][0]["role"] == "system"
+    assert body["messages"][0]["content"] == "System prompt"
 
-
-def test_build_request_body_extra_body_merges_top_level_and_preserves_overrides(
-    open_router_provider,
-):
-    req = MockRequest(
-        metadata={"source": "request"},
-        extra_body={
-            "metadata": {"source": "extra"},
-            "reasoning": {"enabled": False},
-            "service_tier": "flex",
-            "stream": False,
-        },
-    )
-
-    body = open_router_provider._build_request_body(req)
-
-    assert body["metadata"] == {"source": "extra"}
-    assert body["reasoning"] == {"enabled": False}
-    assert body["service_tier"] == "flex"
-    assert body["stream"] is True
+    assert "extra_body" in body
+    assert "reasoning" in body["extra_body"]
+    assert body["extra_body"]["reasoning"]["enabled"] is True
 
 
 def test_build_request_body_omits_reasoning_when_globally_disabled(open_router_config):
@@ -200,10 +110,9 @@ def test_build_request_body_omits_reasoning_when_globally_disabled(open_router_c
         open_router_config.model_copy(update={"enable_thinking": False})
     )
     req = MockRequest()
-
     body = provider._build_request_body(req)
 
-    assert "reasoning" not in body
+    assert "extra_body" not in body or "reasoning" not in body["extra_body"]
 
 
 def test_build_request_body_omits_reasoning_when_request_disables_thinking(
@@ -211,174 +120,283 @@ def test_build_request_body_omits_reasoning_when_request_disables_thinking(
 ):
     req = MockRequest()
     req.thinking.enabled = False
-
     body = open_router_provider._build_request_body(req)
 
-    assert "reasoning" not in body
+    assert "extra_body" not in body or "reasoning" not in body["extra_body"]
+
+
+def test_build_request_body_base_url_and_model(open_router_provider):
+    """Base URL and model are correct in provider config."""
+    assert open_router_provider._base_url == "https://openrouter.ai/api/v1"
+    req = MockRequest(model="stepfun/step-3.5-flash:free")
+    body = open_router_provider._build_request_body(req)
+    assert body["model"] == "stepfun/step-3.5-flash:free"
 
 
 def test_build_request_body_default_max_tokens(open_router_provider):
+    """max_tokens=None uses OPENROUTER_DEFAULT_MAX_TOKENS (81920)."""
     req = MockRequest(max_tokens=None)
-
     body = open_router_provider._build_request_body(req)
-
     assert body["max_tokens"] == OPENROUTER_DEFAULT_MAX_TOKENS
+    assert body["max_tokens"] == 81920
 
 
 @pytest.mark.asyncio
-async def test_stream_response_passthroughs_anthropic_sse(open_router_provider):
+async def test_stream_response_text(open_router_provider):
+    """Test streaming text response."""
     req = MockRequest()
-    request_obj = httpx.Request("POST", "https://openrouter.ai/api/v1/messages")
-    response = FakeResponse(
-        lines=[
-            "event: message_start",
-            'data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"stepfun/step-3.5-flash:free","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":0,"output_tokens":0}}}',
-            "",
-            "event: content_block_start",
-            'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}',
-            "",
-            "event: content_block_delta",
-            'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}',
-            "",
-            "event: content_block_stop",
-            'data: {"type":"content_block_stop","index":0}',
-            "",
-            "event: message_delta",
-            'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":22,"output_tokens":1}}',
-            "",
-            "event: message_stop",
-            'data: {"type":"message_stop"}',
-            "",
-        ]
-    )
 
-    with (
-        patch.object(
-            open_router_provider._client,
-            "build_request",
-            return_value=request_obj,
-        ) as mock_build_request,
-        patch.object(
-            open_router_provider._client,
-            "send",
-            new_callable=AsyncMock,
-            return_value=response,
-        ) as mock_send,
-    ):
+    mock_chunk1 = MagicMock()
+    mock_chunk1.choices = [
+        MagicMock(
+            delta=MagicMock(content="Hello", reasoning_content=None),
+            finish_reason=None,
+        )
+    ]
+    mock_chunk1.usage = None
+
+    mock_chunk2 = MagicMock()
+    mock_chunk2.choices = [
+        MagicMock(
+            delta=MagicMock(content=" World", reasoning_content=None),
+            finish_reason="stop",
+        )
+    ]
+    mock_chunk2.usage = MagicMock(completion_tokens=10)
+
+    async def mock_stream():
+        yield mock_chunk1
+        yield mock_chunk2
+
+    with patch.object(
+        open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+
         events = [e async for e in open_router_provider.stream_response(req)]
 
-    assert events[0].startswith("event: message_start")
-    assert any("Hello" in event for event in events)
-    assert any("event: message_stop" in event for event in events)
-    assert mock_build_request.call_args.args[:2] == ("POST", "/messages")
-    assert (
-        mock_build_request.call_args.kwargs["headers"]["anthropic-version"]
-        == "2023-06-01"
-    )
-    assert mock_build_request.call_args.kwargs["headers"]["Authorization"].startswith(
-        "Bearer "
-    )
-    mock_send.assert_awaited_once_with(request_obj, stream=True)
+        assert len(events) > 0
+        assert "event: message_start" in events[0]
+
+        text_content = ""
+        for e in events:
+            if "event: content_block_delta" in e and '"text_delta"' in e:
+                for line in e.splitlines():
+                    if line.startswith("data: "):
+                        data = json.loads(line[6:])
+                        if "delta" in data and "text" in data["delta"]:
+                            text_content += data["delta"]["text"]
+
+        assert "Hello World" in text_content
 
 
 @pytest.mark.asyncio
-async def test_stream_response_filters_thinking_when_disabled(open_router_config):
+async def test_stream_response_reasoning_content(open_router_provider):
+    """Test streaming with reasoning_content delta."""
+    req = MockRequest()
+
+    mock_chunk = MagicMock()
+    mock_chunk.choices = [
+        MagicMock(
+            delta=MagicMock(content=None, reasoning_content="Thinking..."),
+            finish_reason=None,
+        )
+    ]
+    mock_chunk.usage = None
+
+    async def mock_stream():
+        yield mock_chunk
+
+    with patch.object(
+        open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+
+        events = [e async for e in open_router_provider.stream_response(req)]
+
+        found_thinking = False
+        for e in events:
+            if (
+                "event: content_block_delta" in e
+                and '"thinking_delta"' in e
+                and "Thinking..." in e
+            ):
+                found_thinking = True
+        assert found_thinking
+
+
+@pytest.mark.asyncio
+async def test_stream_response_suppresses_reasoning_when_disabled(open_router_config):
     provider = OpenRouterProvider(
         open_router_config.model_copy(update={"enable_thinking": False})
     )
     req = MockRequest()
-    request_obj = httpx.Request("POST", "https://openrouter.ai/api/v1/messages")
-    response = FakeResponse(
-        lines=[
-            "event: message_start",
-            'data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"stepfun/step-3.5-flash:free","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":0,"output_tokens":0}}}',
-            "",
-            "event: content_block_start",
-            'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}',
-            "",
-            "event: content_block_delta",
-            'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"secret"}}',
-            "",
-            "event: content_block_stop",
-            'data: {"type":"content_block_stop","index":0}',
-            "",
-            "event: content_block_start",
-            'data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}',
-            "",
-            "event: content_block_delta",
-            'data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Visible"}}',
-            "",
-            "event: content_block_stop",
-            'data: {"type":"content_block_stop","index":1}',
-            "",
-            "event: message_delta",
-            'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":22,"output_tokens":1}}',
-            "",
-            "event: message_stop",
-            'data: {"type":"message_stop"}',
-            "",
-        ]
-    )
 
-    with (
-        patch.object(provider._client, "build_request", return_value=request_obj),
-        patch.object(
-            provider._client,
-            "send",
-            new_callable=AsyncMock,
-            return_value=response,
-        ),
-    ):
+    mock_chunk = MagicMock()
+    mock_chunk.choices = [
+        MagicMock(
+            delta=MagicMock(
+                content="<think>secret</think>Answer",
+                reasoning_content="Thinking...",
+                reasoning_details=[{"text": "Step 1"}],
+            ),
+            finish_reason="stop",
+        )
+    ]
+    mock_chunk.usage = None
+
+    async def mock_stream():
+        yield mock_chunk
+
+    with patch.object(
+        provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+
         events = [e async for e in provider.stream_response(req)]
 
     event_text = "".join(events)
     assert "thinking_delta" not in event_text
+    assert "Thinking..." not in event_text
+    assert "Step 1" not in event_text
     assert "secret" not in event_text
-    assert "Visible" in event_text
-
-    content_block_starts = [
-        parse_sse_event(event)
-        for event in events
-        if event.startswith("event: content_block_start")
-    ]
-    assert len(content_block_starts) == 1
-    _, payload = content_block_starts[0]
-    assert payload["content_block"]["type"] == "text"
-    assert payload["index"] == 0
+    assert "Answer" in event_text
 
 
 @pytest.mark.asyncio
-async def test_stream_response_error_path_emits_existing_sse_shape(
-    open_router_provider,
-):
+async def test_stream_response_empty_choices_skipped(open_router_provider):
+    """Chunks with empty choices are skipped."""
     req = MockRequest()
-    request_obj = httpx.Request("POST", "https://openrouter.ai/api/v1/messages")
-    response = FakeResponse(status_code=400, text='{"error":"bad request"}')
 
-    with (
-        patch.object(
-            open_router_provider._client,
-            "build_request",
-            return_value=request_obj,
-        ),
-        patch.object(
-            open_router_provider._client,
-            "send",
-            new_callable=AsyncMock,
-            return_value=response,
-        ),
-    ):
-        events = [
-            event
-            async for event in open_router_provider.stream_response(
-                req,
-                input_tokens=12,
-                request_id="req_123",
-            )
-        ]
+    async def mock_stream():
+        yield MagicMock(choices=[], usage=None)
+        yield MagicMock(
+            choices=[
+                MagicMock(
+                    delta=MagicMock(content="ok", reasoning_content=None),
+                    finish_reason="stop",
+                )
+            ],
+            usage=MagicMock(completion_tokens=2),
+        )
 
-    assert events[0].startswith("event: message_start")
-    assert any("400 Bad Request" in event for event in events)
-    assert any("(request_id=req_123)" in event for event in events)
-    assert any("event: message_delta" in event for event in events)
-    assert any("event: message_stop" in event for event in events)
+    with patch.object(
+        open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+        events = [e async for e in open_router_provider.stream_response(req)]
+        assert any("content_block_delta" in e and "ok" in e for e in events)
+
+
+@pytest.mark.asyncio
+async def test_stream_response_delta_none_skipped(open_router_provider):
+    """Chunks with delta=None are skipped."""
+    req = MockRequest()
+
+    async def mock_stream():
+        yield MagicMock(
+            choices=[MagicMock(delta=None, finish_reason=None)],
+            usage=None,
+        )
+        yield MagicMock(
+            choices=[
+                MagicMock(
+                    delta=MagicMock(content="x", reasoning_content=None),
+                    finish_reason="stop",
+                )
+            ],
+            usage=MagicMock(completion_tokens=1),
+        )
+
+    with patch.object(
+        open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+        events = [e async for e in open_router_provider.stream_response(req)]
+        assert any("x" in e for e in events)
+
+
+@pytest.mark.asyncio
+async def test_stream_response_reasoning_details(open_router_provider):
+    """Streaming with reasoning_details (stepfun format)."""
+    req = MockRequest()
+
+    mock_chunk = MagicMock()
+    mock_chunk.choices = [
+        MagicMock(
+            delta=MagicMock(
+                content=None,
+                reasoning_content=None,
+                reasoning_details=[{"text": "Step 1"}],
+            ),
+            finish_reason=None,
+        )
+    ]
+    mock_chunk.usage = None
+
+    async def mock_stream():
+        yield mock_chunk
+        yield MagicMock(
+            choices=[
+                MagicMock(
+                    delta=MagicMock(
+                        content=None,
+                        reasoning_content=None,
+                        reasoning_details=None,
+                    ),
+                    finish_reason="stop",
+                )
+            ],
+            usage=MagicMock(completion_tokens=5),
+        )
+
+    with patch.object(
+        open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+        events = [e async for e in open_router_provider.stream_response(req)]
+        assert any("Step 1" in e for e in events)
+
+
+@pytest.mark.asyncio
+async def test_stream_response_error_path(open_router_provider):
+    """Stream raises exception -> error event emitted."""
+    req = MockRequest()
+
+    async def mock_stream():
+        raise RuntimeError("API failed")
+        yield  # unreachable, makes it a generator
+
+    with patch.object(
+        open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+        events = [e async for e in open_router_provider.stream_response(req)]
+        # Error is emitted; message_stop/done indicates stream completed
+        assert any("API failed" in e for e in events)
+        assert any("message_stop" in e for e in events)
+
+
+@pytest.mark.asyncio
+async def test_stream_response_finish_reason_only(open_router_provider):
+    """Chunk with finish_reason but no content still completes."""
+    req = MockRequest()
+
+    async def mock_stream():
+        yield MagicMock(
+            choices=[
+                MagicMock(
+                    delta=MagicMock(content=None, reasoning_content=None),
+                    finish_reason="stop",
+                )
+            ],
+            usage=MagicMock(completion_tokens=0),
+        )
+
+    with patch.object(
+        open_router_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+        events = [e async for e in open_router_provider.stream_response(req)]
+        assert any("message_delta" in e for e in events)
+        assert any("message_stop" in e for e in events)
