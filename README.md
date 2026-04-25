@@ -526,7 +526,7 @@ Configure via `WHISPER_DEVICE` (`cpu` | `cuda` | `nvidia_nim`) and `WHISPER_MODE
 | `PROVIDER_MAX_CONCURRENCY` | Max simultaneous open provider streams    | `5`     |
 | `HTTP_READ_TIMEOUT`        | Read timeout for provider requests (s)    | `120`   |
 | `HTTP_WRITE_TIMEOUT`       | Write timeout for provider requests (s)   | `10`    |
-| `HTTP_CONNECT_TIMEOUT`     | Connect timeout for provider requests (s) | `2`     |
+| `HTTP_CONNECT_TIMEOUT`     | Connect timeout for provider requests (s) | `10`     |
 
 ### Messaging & Voice
 
