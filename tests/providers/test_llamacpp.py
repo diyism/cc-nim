@@ -1,5 +1,6 @@
 """Tests for Llama.cpp native Anthropic provider."""
 
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -55,7 +56,12 @@ def llamacpp_config():
 @pytest.fixture(autouse=True)
 def mock_rate_limiter():
     """Mock the global rate limiter to prevent waiting."""
-    with patch("providers.llamacpp.client.GlobalRateLimiter") as mock:
+
+    @asynccontextmanager
+    async def _slot():
+        yield
+
+    with patch("providers.anthropic_compat.GlobalRateLimiter") as mock:
         instance = mock.get_instance.return_value
         instance.wait_if_blocked = AsyncMock(return_value=False)
 
@@ -63,6 +69,7 @@ def mock_rate_limiter():
             return await fn(*args, **kwargs)
 
         instance.execute_with_retry = AsyncMock(side_effect=_passthrough)
+        instance.concurrency_slot.side_effect = _slot
         yield instance
 
 
