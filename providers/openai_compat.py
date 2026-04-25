@@ -1,5 +1,10 @@
-"""Shared base class for OpenAI-compatible providers (NIM, OpenRouter, LM Studio)."""
+"""OpenAI-style chat base for :class:`OpenAIChatTransport` (NIM, DeepSeek, etc.).
 
+``AnthropicMessagesTransport``-based providers (OpenRouter, LM Studio, …) live
+in separate modules; do not list them as subclasses of this class.
+"""
+
+import asyncio
 import json
 import uuid
 from abc import abstractmethod
@@ -25,7 +30,7 @@ from providers.rate_limit import GlobalRateLimiter
 
 
 class OpenAIChatTransport(BaseProvider):
-    """Base class for providers using OpenAI-compatible chat completions API."""
+    """Base for OpenAI-compatible ``/chat/completions`` adapters (NIM, DeepSeek, …)."""
 
     def __init__(
         self,
@@ -114,6 +119,7 @@ class OpenAIChatTransport(BaseProvider):
 
         fn_delta = tc.get("function", {})
         incoming_name = fn_delta.get("name")
+        arguments = fn_delta.get("arguments", "")
         if incoming_name is not None:
             sse.blocks.register_tool_name(tc_index, incoming_name)
 
@@ -124,7 +130,7 @@ class OpenAIChatTransport(BaseProvider):
                 tool_id = tc.get("id") or f"tool_{uuid.uuid4()}"
                 yield sse.start_tool_block(tc_index, tool_id, name)
 
-        args = fn_delta.get("arguments", "")
+        args = arguments
         if args:
             state = sse.blocks.tool_states.get(tc_index)
             if state is None or not state.started:
@@ -285,6 +291,8 @@ class OpenAIChatTransport(BaseProvider):
                             for event in self._process_tool_call(tc_info, sse):
                                 yield event
 
+            except asyncio.CancelledError, GeneratorExit:
+                raise
             except Exception as e:
                 logger.error("{}_ERROR:{} {}: {}", tag, req_tag, type(e).__name__, e)
                 mapped_e = map_error(e, rate_limiter=self._global_rate_limiter)

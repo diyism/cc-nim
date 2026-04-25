@@ -1,7 +1,19 @@
+"""Package import contract tests (static AST; dynamic ``importlib`` loads are not scanned)."""
+
 from __future__ import annotations
 
 import ast
 from pathlib import Path
+
+# `api` may only import this narrow ``providers`` surface (AGENTS/PLAN).
+_API_ALLOWED_PROVIDER_MODULES = frozenset(
+    {
+        "providers",
+        "providers.base",
+        "providers.exceptions",
+        "providers.registry",
+    }
+)
 
 
 def test_api_and_messaging_do_not_import_provider_common() -> None:
@@ -25,6 +37,66 @@ def test_provider_adapters_do_not_import_runtime_layers() -> None:
     assert offenders == []
 
 
+def test_core_does_not_import_product_packages() -> None:
+    """Neutral ``core`` must stay independent of API, workers, and providers."""
+    repo_root = Path(__file__).resolve().parents[2]
+    offenders = _imports_matching(
+        [repo_root / "core"],
+        forbidden_prefixes=(
+            "api.",
+            "messaging.",
+            "cli.",
+            "smoke.",
+            "providers.",
+            "config.",
+        ),
+    )
+    assert offenders == []
+
+
+def test_config_does_not_import_non_config_packages() -> None:
+    """Settings and env handling must not depend on transport or protocol layers."""
+    repo_root = Path(__file__).resolve().parents[2]
+    offenders = _imports_matching(
+        [repo_root / "config"],
+        forbidden_prefixes=(
+            "api.",
+            "messaging.",
+            "cli.",
+            "smoke.",
+            "providers.",
+            "core.",
+        ),
+    )
+    assert offenders == []
+
+
+def test_messaging_does_not_import_api_or_cli_or_providers() -> None:
+    """Messaging is wired by ``api.runtime``; must not import server or provider adapters."""
+    repo_root = Path(__file__).resolve().parents[2]
+    offenders = _imports_matching(
+        [repo_root / "messaging"],
+        forbidden_prefixes=("api.", "cli.", "providers.", "smoke."),
+    )
+    assert offenders == []
+
+
+def test_api_may_only_import_narrow_provider_facade() -> None:
+    """HTTP layer must not depend on per-adapter provider subpackages."""
+    repo_root = Path(__file__).resolve().parents[2]
+    offenders: list[str] = []
+    for path in (repo_root / "api").rglob("*.py"):
+        for imported in _imports_from(path, repo_root):
+            if imported is None or not imported.startswith("providers"):
+                continue
+            if imported in _API_ALLOWED_PROVIDER_MODULES:
+                continue
+            if imported.startswith("providers."):
+                rel = path.relative_to(repo_root)
+                offenders.append(f"{rel}: {imported}")
+    assert sorted(offenders) == []
+
+
 def test_removed_openrouter_rollback_transport_stays_removed() -> None:
     repo_root = Path(__file__).resolve().parents[2]
 
@@ -35,6 +107,11 @@ def test_removed_openrouter_rollback_transport_stays_removed() -> None:
 
 def test_architecture_doc_names_enforced_boundaries() -> None:
     repo_root = Path(__file__).resolve().parents[2]
+    contract_test = repo_root / "tests" / "contracts" / "test_import_boundaries.py"
+    assert contract_test.is_file()
+    stream_contracts = repo_root / "core" / "anthropic" / "stream_contracts.py"
+    assert stream_contracts.is_file()
+
     text = (repo_root / "PLAN.md").read_text(encoding="utf-8")
 
     assert "core/anthropic/" in text
@@ -46,26 +123,89 @@ def _imports_matching(
     roots: list[Path], *, forbidden_prefixes: tuple[str, ...]
 ) -> list[str]:
     offenders: list[str] = []
+    repo_root = roots[0].parent
     for root in roots:
         for path in root.rglob("*.py"):
             rel = path.relative_to(root.parent)
             offenders.extend(
                 f"{rel}: {imported}"
-                for imported in _imports_from(path)
-                if imported in forbidden_prefixes
-                or imported.startswith(forbidden_prefixes)
+                for imported in _imports_from(path, repo_root)
+                if imported is not None and _is_forbidden(imported, forbidden_prefixes)
             )
     return sorted(offenders)
 
 
-def _imports_from(path: Path) -> list[str]:
+def _is_forbidden(name: str, forbidden: tuple[str, ...]) -> bool:
+    """Match root modules (``import api``) and submodules (``import api.x``)."""
+    for token in forbidden:
+        if not token:
+            continue
+        root = token.rstrip(".")
+        if name == root or name.startswith(f"{root}."):
+            return True
+    return False
+
+
+def _module_fqn_from_path(repo_root: Path, path: Path) -> str:
+    rel = path.relative_to(repo_root)
+    if rel.name == "__init__.py":
+        return ".".join(rel.parent.parts) if rel.parent != Path() else rel.parent.name
+    return ".".join(rel.with_suffix("").parts)
+
+
+def _importing_package_parts(repo_root: Path, path: Path) -> list[str]:
+    """Package in which this file's module lives (for relative imports)."""
+    rel = path.relative_to(repo_root)
+    if rel.name == "__init__.py":
+        return list(rel.parent.parts)
+    fqn = _module_fqn_from_path(repo_root, path)
+    parts = fqn.split(".")
+    if len(parts) <= 1:
+        return []
+    return parts[:-1]
+
+
+def _resolve_relative_import(
+    repo_root: Path, path: Path, node: ast.ImportFrom
+) -> str | None:
+    """Best-effort absolute name for ``from .x`` / ``from ..y`` (level >= 1)."""
+    if node.level == 0 and node.module:
+        return node.module
+    base = _importing_package_parts(repo_root, path)
+    for _ in range(node.level - 1):
+        if not base:
+            return None
+        base.pop()
+    if not node.module:
+        return ".".join(base) if base else None
+    return ".".join(base + node.module.split("."))
+
+
+def _imports_from(path: Path, repo_root: Path) -> list[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     imports: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             imports.extend(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            imports.append(node.module)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level == 0:
+                if node.module:
+                    imports.append(node.module)
+                continue
+            if node.module is not None:
+                resolved = _resolve_relative_import(repo_root, path, node)
+                if resolved:
+                    imports.append(resolved)
+            else:
+                base = _importing_package_parts(repo_root, path).copy()
+                for _ in range(node.level - 1):
+                    if base:
+                        base.pop()
+                for alias in node.names:
+                    if base:
+                        imports.append(".".join([*base, alias.name]))
+                    else:
+                        imports.append(alias.name)
     return imports
 
 

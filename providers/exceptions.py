@@ -88,3 +88,10 @@ class APIError(ProviderError):
             error_type="api_error",
             raw_error=raw_error,
         )
+
+
+class UnknownProviderTypeError(ValueError):
+    """Raised when ``provider_id`` is not registered in the provider map."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)

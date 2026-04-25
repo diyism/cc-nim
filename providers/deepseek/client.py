@@ -3,11 +3,10 @@
 from typing import Any
 
 from providers.base import ProviderConfig
+from providers.defaults import DEEPSEEK_BASE_URL
 from providers.openai_compat import OpenAIChatTransport
 
 from .request import build_request_body
-
-DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 
 class DeepSeekProvider(OpenAIChatTransport):

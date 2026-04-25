@@ -1,5 +1,6 @@
 """Heuristic parser for text-emitted tool calls."""
 
+import json
 import re
 import uuid
 from enum import Enum
@@ -31,6 +32,9 @@ class HeuristicToolParser:
     _PARAM_PATTERN = re.compile(
         r"<parameter=([^>]+)>(.*?)(?:</parameter>|$)", re.DOTALL
     )
+    _WEB_TOOL_JSON_PATTERN = re.compile(
+        r"(?is)\b(?:use\s+)?(?P<tool>WebFetch|WebSearch)\b.*?(?P<json>\{.*?\})"
+    )
 
     def __init__(self):
         self._state = ParserState.TEXT
@@ -38,6 +42,41 @@ class HeuristicToolParser:
         self._current_tool_id = None
         self._current_function_name = None
         self._current_parameters = {}
+
+    def _extract_web_tool_json_calls(self) -> tuple[str, list[dict[str, Any]]]:
+        detected_tools: list[dict[str, Any]] = []
+
+        for match in self._WEB_TOOL_JSON_PATTERN.finditer(self._buffer):
+            try:
+                tool_input = json.loads(match.group("json"))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(tool_input, dict):
+                continue
+
+            tool_name = match.group("tool")
+            if tool_name == "WebFetch" and "url" not in tool_input:
+                continue
+            if tool_name == "WebSearch" and "query" not in tool_input:
+                continue
+
+            detected_tools.append(
+                {
+                    "type": "tool_use",
+                    "id": f"toolu_heuristic_{uuid.uuid4().hex[:8]}",
+                    "name": tool_name,
+                    "input": tool_input,
+                }
+            )
+            logger.debug(
+                "Heuristic bypass: Detected JSON-style tool call '{}'",
+                tool_name,
+            )
+
+        if not detected_tools:
+            return self._buffer, []
+
+        return "", detected_tools
 
     def _strip_control_tokens(self, text: str) -> str:
         return _CONTROL_TOKEN_RE.sub("", text)
@@ -58,7 +97,7 @@ class HeuristicToolParser:
         """Feed text and return safe text plus detected tool calls."""
         self._buffer += text
         self._buffer = self._strip_control_tokens(self._buffer)
-        detected_tools = []
+        self._buffer, detected_tools = self._extract_web_tool_json_calls()
         filtered_output_parts: list[str] = []
 
         while True:

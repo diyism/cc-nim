@@ -75,8 +75,11 @@ class Message(BaseModel):
 
 class Tool(BaseModel):
     name: str
+    # Anthropic server tools (e.g. web_search beta tools) include a ``type`` and
+    # may omit ``input_schema`` because the provider owns the schema.
+    type: str | None = None
     description: str | None = None
-    input_schema: dict[str, Any]
+    input_schema: dict[str, Any] | None = None
 
 
 class ThinkingConfig(BaseModel):

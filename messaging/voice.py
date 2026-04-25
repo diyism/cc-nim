@@ -46,6 +46,15 @@ class PendingVoiceRegistry:
 class VoiceTranscriptionService:
     """Run configured transcription backends off the event loop."""
 
+    def __init__(
+        self,
+        *,
+        hf_token: str = "",
+        nvidia_nim_api_key: str = "",
+    ) -> None:
+        self._hf_token = hf_token
+        self._nvidia_nim_api_key = nvidia_nim_api_key
+
     async def transcribe(
         self,
         file_path: Path,
@@ -62,4 +71,6 @@ class VoiceTranscriptionService:
             mime_type,
             whisper_model=whisper_model,
             whisper_device=whisper_device,
+            hf_token=self._hf_token,
+            nvidia_nim_api_key=self._nvidia_nim_api_key,
         )

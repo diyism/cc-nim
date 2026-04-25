@@ -1,19 +1,26 @@
+from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
+from starlette.applications import Starlette
+from starlette.datastructures import State
 
 from api.dependencies import (
     cleanup_provider,
     get_provider,
     get_provider_for_type,
     get_settings,
+    resolve_provider,
 )
 from config.nim import NimSettings
 from providers.deepseek import DeepSeekProvider
+from providers.exceptions import UnknownProviderTypeError
 from providers.lmstudio import LMStudioProvider
 from providers.nvidia_nim import NvidiaNimProvider
 from providers.open_router import OpenRouterProvider
+from providers.registry import ProviderRegistry
 
 
 def _make_mock_settings(**overrides):
@@ -304,11 +311,11 @@ async def test_get_provider_deepseek_missing_api_key():
 
 @pytest.mark.asyncio
 async def test_get_provider_unknown_type():
-    """Test that unknown provider_type raises ValueError."""
+    """Unknown ``provider_type`` raises :exc:`~providers.exceptions.UnknownProviderTypeError`."""
     with patch("api.dependencies.get_settings") as mock_settings:
         mock_settings.return_value = _make_mock_settings(provider_type="unknown")
 
-        with pytest.raises(ValueError, match="Unknown provider_type"):
+        with pytest.raises(UnknownProviderTypeError, match="Unknown provider_type"):
             get_provider()
 
 
@@ -390,3 +397,55 @@ async def test_cleanup_provider_cleans_all():
 
         nim._client.aclose.assert_called_once()
         lmstudio._client.aclose.assert_called_once()
+
+
+def test_resolve_provider_per_app_uses_separate_registries() -> None:
+    """With app set, each app gets its own provider cache (not process _providers)."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings()
+        settings = _make_mock_settings()
+        app1 = SimpleNamespace(state=State())
+        app2 = SimpleNamespace(state=State())
+        app1.state.provider_registry = ProviderRegistry()
+        app2.state.provider_registry = ProviderRegistry()
+        p1 = resolve_provider(
+            "nvidia_nim", app=cast(Starlette, app1), settings=settings
+        )
+        p2 = resolve_provider(
+            "nvidia_nim", app=cast(Starlette, app2), settings=settings
+        )
+        assert isinstance(p1, NvidiaNimProvider)
+        assert isinstance(p2, NvidiaNimProvider)
+        assert p1 is not p2
+
+
+def test_resolve_provider_lazily_installs_registry() -> None:
+    """If app has no provider_registry, one is created on app.state."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings()
+        settings = _make_mock_settings()
+        app = SimpleNamespace(state=State())
+        assert getattr(app.state, "provider_registry", None) is None
+        resolve_provider("nvidia_nim", app=cast(Starlette, app), settings=settings)
+        reg = app.state.provider_registry
+        assert reg is not None
+        p2 = resolve_provider("nvidia_nim", app=cast(Starlette, app), settings=settings)
+        assert p2 is reg.get("nvidia_nim", settings)  # same registry instance
+
+
+def test_resolve_provider_unrelated_value_error_is_not_unknown_provider_log() -> None:
+    """Only :exc:`~providers.exceptions.UnknownProviderTypeError` logs unknown provider."""
+    import api.dependencies as deps
+
+    with (
+        patch.object(deps, "get_settings", return_value=_make_mock_settings()),
+        patch.object(
+            ProviderRegistry,
+            "get",
+            side_effect=ValueError("unrelated config"),
+        ),
+        patch.object(deps.logger, "error") as log_err,
+        pytest.raises(ValueError, match="unrelated config"),
+    ):
+        deps.resolve_provider("nvidia_nim", app=None, settings=_make_mock_settings())
+    log_err.assert_not_called()

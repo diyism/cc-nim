@@ -8,6 +8,7 @@ from loguru import logger
 
 from config.nim import NimSettings
 from providers.base import ProviderConfig
+from providers.defaults import NVIDIA_NIM_BASE_URL
 from providers.openai_compat import OpenAIChatTransport
 
 from .request import (
@@ -15,8 +16,6 @@ from .request import (
     clone_body_without_chat_template,
     clone_body_without_reasoning_budget,
 )
-
-NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
 
 class NvidiaNimProvider(OpenAIChatTransport):

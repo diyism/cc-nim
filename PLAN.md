@@ -33,20 +33,43 @@ flowchart TD
     core --> providers
     core --> messaging
     providers --> api
+    api --> cli[cli]
+    api --> messaging
     cli --> messaging
-    messaging --> api
 ```
+
+Runtime note: `api.runtime` imports `cli` and `messaging` to wire the optional
+messaging stack; `messaging` does not import `cli` (session/CLI access is passed
+in from `api.runtime`).
 
 The practical rule is simpler than the graph: shared protocol helpers belong in
 neutral core modules, not under a provider package. Provider adapters may depend
 on the neutral protocol layer, but API and messaging code should not import
 provider internals.
 
+The diagram above mixes **Python import direction** (e.g. `config` → `providers`)
+with **runtime composition** (e.g. `api.runtime` constructs `cli` and `messaging`).
+`PLAN.md` remains the product map; **encoded** rules (including root imports like
+`import api`, relative imports, and `api` → `providers` facade allowlists) live in
+`tests/contracts/test_import_boundaries.py`.
+
+**Contract highlights:** `api/` may import only `providers.base`, `providers.exceptions`,
+and `providers.registry` from the providers package (not per-adapter modules).
+`core/` stays free of `api`, `messaging`, `cli`, `providers`, `config`, and `smoke`.
+`messaging/` does not import `api`, `cli`, or `providers`. Neutral stream contract
+assertions for default CI live under `core/anthropic/stream_contracts.py`;
+`smoke.lib.sse` re-exports them for live smoke. Process-cached provider helpers
+(`api.dependencies.get_provider` / `get_provider_for_type`) exist for scripts and
+unit tests; production HTTP handlers must use `resolve_provider` with
+`request.app` so the app-scoped `ProviderRegistry` is used. The `api` package
+`__all__` exposes HTTP models and `create_app` only (not those helpers).
+
 ## Target Boundaries
 
 - `core/anthropic/`: Anthropic protocol helpers, stream primitives, content
   extraction, token estimation, user-facing error strings, request conversion,
-  thinking, and tool helpers shared across API, providers, messaging, and tests.
+  thinking, tool helpers, and stream contract assertions
+  (`stream_contracts.py`) shared across API, providers, messaging, and tests.
 - `api/runtime.py`: application composition, optional messaging startup,
   session store restoration, and cleanup ownership.
 - `providers/`: provider descriptors, credential resolution, transport

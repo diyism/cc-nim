@@ -11,10 +11,10 @@ from typing import Any
 from core.anthropic import SSEBuilder, append_request_id
 from providers.anthropic_messages import AnthropicMessagesTransport, StreamChunkMode
 from providers.base import ProviderConfig
+from providers.defaults import OPENROUTER_BASE_URL
 
 from .request import build_request_body
 
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 _ANTHROPIC_VERSION = "2023-06-01"
 
 

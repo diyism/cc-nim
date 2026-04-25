@@ -2,8 +2,7 @@
 
 from providers.anthropic_messages import AnthropicMessagesTransport
 from providers.base import ProviderConfig
-
-LLAMACPP_DEFAULT_BASE_URL = "http://localhost:8080/v1"
+from providers.defaults import LLAMACPP_DEFAULT_BASE_URL
 
 
 class LlamaCppProvider(AnthropicMessagesTransport):

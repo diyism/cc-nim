@@ -467,7 +467,7 @@ class ClaudeMessageHandler:
                     status,
                     len(display),
                 )
-                if os.getenv("DEBUG_TELEGRAM_EDITS") == "1":
+                if os.getenv("DEBUG_PLATFORM_EDITS") == "1":
                     logger.debug("PLATFORM_EDIT_TEXT:\n{}", display)
                 else:
                     head = display[:500]

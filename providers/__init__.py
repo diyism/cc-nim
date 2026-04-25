@@ -1,8 +1,11 @@
-"""Providers package - implement your own provider by extending BaseProvider."""
+"""Providers package - implement your own provider by extending BaseProvider.
 
-from .anthropic_messages import AnthropicMessagesTransport
+Concrete adapters (e.g. ``NvidiaNimProvider``) live in subpackages; import them
+from ``providers.nvidia_nim`` etc. to avoid loading every adapter when the
+``providers`` package is imported.
+"""
+
 from .base import BaseProvider, ProviderConfig
-from .deepseek import DeepSeekProvider
 from .exceptions import (
     APIError,
     AuthenticationError,
@@ -10,27 +13,17 @@ from .exceptions import (
     OverloadedError,
     ProviderError,
     RateLimitError,
+    UnknownProviderTypeError,
 )
-from .llamacpp import LlamaCppProvider
-from .lmstudio import LMStudioProvider
-from .nvidia_nim import NvidiaNimProvider
-from .open_router import OpenRouterProvider
-from .openai_compat import OpenAIChatTransport
 
 __all__ = [
     "APIError",
-    "AnthropicMessagesTransport",
     "AuthenticationError",
     "BaseProvider",
-    "DeepSeekProvider",
     "InvalidRequestError",
-    "LMStudioProvider",
-    "LlamaCppProvider",
-    "NvidiaNimProvider",
-    "OpenAIChatTransport",
-    "OpenRouterProvider",
     "OverloadedError",
     "ProviderConfig",
     "ProviderError",
     "RateLimitError",
+    "UnknownProviderTypeError",
 ]

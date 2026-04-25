@@ -42,8 +42,8 @@ _MODEL_MAP: dict[str, str] = {
     "large-v3-turbo": "openai/whisper-large-v3-turbo",
 }
 
-# Lazy-loaded pipelines: (model_id, device) -> pipeline
-_pipeline_cache: dict[tuple[str, str], Any] = {}
+# Lazy-loaded pipelines: (model_id, device, hf_token_fingerprint) -> pipeline
+_pipeline_cache: dict[tuple[str, str, str], Any] = {}
 
 
 def _resolve_model_id(whisper_model: str) -> str:
@@ -51,20 +51,22 @@ def _resolve_model_id(whisper_model: str) -> str:
     return _MODEL_MAP.get(whisper_model, whisper_model)
 
 
-def _get_pipeline(model_id: str, device: str) -> Any:
+def _get_pipeline(model_id: str, device: str, hf_token: str | None = None) -> Any:
     """Lazy-load transformers Whisper pipeline. Raises ImportError if not installed."""
     global _pipeline_cache
     if device not in ("cpu", "cuda"):
         raise ValueError(f"whisper_device must be 'cpu' or 'cuda', got {device!r}")
-    cache_key = (model_id, device)
+    resolved_token = (
+        hf_token if hf_token is not None else get_settings().hf_token
+    ) or ""
+    cache_key = (model_id, device, resolved_token)
     if cache_key not in _pipeline_cache:
         try:
             import torch
             from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
-            token = get_settings().hf_token
-            if token:
-                os.environ["HF_TOKEN"] = token
+            if resolved_token:
+                os.environ["HF_TOKEN"] = resolved_token
 
             use_cuda = device == "cuda" and torch.cuda.is_available()
             pipe_device = "cuda:0" if use_cuda else "cpu"
@@ -103,6 +105,8 @@ def transcribe_audio(
     *,
     whisper_model: str = "base",
     whisper_device: str = "cpu",
+    hf_token: str = "",
+    nvidia_nim_api_key: str = "",
 ) -> str:
     """
     Transcribe audio file to text.
@@ -136,9 +140,12 @@ def transcribe_audio(
         )
 
     if whisper_device == "nvidia_nim":
-        return _transcribe_nim(file_path, whisper_model)
-    else:
-        return _transcribe_local(file_path, whisper_model, whisper_device)
+        return _transcribe_nim(
+            file_path, whisper_model, nvidia_nim_api_key=nvidia_nim_api_key
+        )
+    return _transcribe_local(
+        file_path, whisper_model, whisper_device, hf_token=hf_token
+    )
 
 
 # Whisper expects 16 kHz sample rate
@@ -153,10 +160,17 @@ def _load_audio(file_path: Path) -> dict[str, Any]:
     return {"array": waveform, "sampling_rate": sr}
 
 
-def _transcribe_local(file_path: Path, whisper_model: str, whisper_device: str) -> str:
+def _transcribe_local(
+    file_path: Path,
+    whisper_model: str,
+    whisper_device: str,
+    *,
+    hf_token: str = "",
+) -> str:
     """Transcribe using transformers Whisper pipeline."""
     model_id = _resolve_model_id(whisper_model)
-    pipe = _get_pipeline(model_id, whisper_device)
+    token: str | None = hf_token if hf_token else None
+    pipe = _get_pipeline(model_id, whisper_device, hf_token=token)
     audio = _load_audio(file_path)
     result = pipe(audio, generate_kwargs={"language": "en", "task": "transcribe"})
     text = result.get("text", "") or ""
@@ -167,7 +181,9 @@ def _transcribe_local(file_path: Path, whisper_model: str, whisper_device: str) 
     return result_text or "(no speech detected)"
 
 
-def _transcribe_nim(file_path: Path, model: str) -> str:
+def _transcribe_nim(
+    file_path: Path, model: str, *, nvidia_nim_api_key: str = ""
+) -> str:
     """Transcribe using NVIDIA NIM Whisper API via Riva gRPC client."""
     try:
         import riva.client
@@ -177,8 +193,7 @@ def _transcribe_nim(file_path: Path, model: str) -> str:
             "Install with: uv sync --extra voice"
         ) from e
 
-    settings = get_settings()
-    api_key = settings.nvidia_nim_api_key
+    api_key = nvidia_nim_api_key or get_settings().nvidia_nim_api_key
 
     # Look up function ID and language code from model mapping
     model_config = _NIM_MODEL_MAP.get(model)

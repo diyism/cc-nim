@@ -6,7 +6,8 @@ from loguru import logger
 from config.settings import Settings
 from core.anthropic import get_token_count
 
-from .dependencies import get_provider_for_type, get_settings, require_api_key
+from . import dependencies
+from .dependencies import get_settings, require_api_key
 from .models.anthropic import MessagesRequest, TokenCountRequest
 from .models.responses import ModelResponse, ModelsListResponse
 from .services import ClaudeProxyService
@@ -54,12 +55,15 @@ SUPPORTED_CLAUDE_MODELS = [
 
 
 def get_proxy_service(
+    request: Request,
     settings: Settings = Depends(get_settings),
 ) -> ClaudeProxyService:
     """Build the request service for route handlers."""
     return ClaudeProxyService(
         settings,
-        provider_getter=get_provider_for_type,
+        provider_getter=lambda provider_type: dependencies.resolve_provider(
+            provider_type, app=request.app, settings=settings
+        ),
         token_counter=get_token_count,
     )
 

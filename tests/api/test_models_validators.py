@@ -91,6 +91,21 @@ def test_messages_request_accepts_adaptive_thinking_type():
     assert dumped["thinking"]["type"] == "adaptive"
 
 
+def test_messages_request_accepts_anthropic_server_tool_without_input_schema():
+    request = MessagesRequest.model_validate(
+        {
+            "model": "claude-opus-4-7",
+            "max_tokens": 100,
+            "messages": [{"role": "user", "content": "search"}],
+            "tools": [{"type": "web_search_20250305", "name": "web_search"}],
+        }
+    )
+
+    dumped = request.model_dump(exclude_none=True)
+
+    assert dumped["tools"] == [{"name": "web_search", "type": "web_search_20250305"}]
+
+
 def test_messages_request_accepts_redacted_thinking_blocks():
     request = MessagesRequest.model_validate(
         {

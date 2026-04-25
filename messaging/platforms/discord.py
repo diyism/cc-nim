@@ -91,6 +91,12 @@ class DiscordPlatform(MessagingPlatform):
         self,
         bot_token: str | None = None,
         allowed_channel_ids: str | None = None,
+        *,
+        voice_note_enabled: bool = True,
+        whisper_model: str = "base",
+        whisper_device: str = "cpu",
+        hf_token: str = "",
+        nvidia_nim_api_key: str = "",
     ):
         if not DISCORD_AVAILABLE:
             raise ImportError(
@@ -117,7 +123,13 @@ class DiscordPlatform(MessagingPlatform):
         self._limiter: Any | None = None
         self._start_task: asyncio.Task | None = None
         self._pending_voice = PendingVoiceRegistry()
-        self._voice_transcription = VoiceTranscriptionService()
+        self._voice_transcription = VoiceTranscriptionService(
+            hf_token=hf_token,
+            nvidia_nim_api_key=nvidia_nim_api_key,
+        )
+        self._voice_note_enabled = voice_note_enabled
+        self._whisper_model = whisper_model
+        self._whisper_device = whisper_device
 
     async def _handle_client_message(self, message: Any) -> None:
         """Adapter entry point used by the internal discord client."""
@@ -154,10 +166,7 @@ class DiscordPlatform(MessagingPlatform):
         self, message: Any, attachment: Any, channel_id: str
     ) -> bool:
         """Handle voice/audio attachment. Returns True if handled."""
-        from config.settings import get_settings
-
-        settings = get_settings()
-        if not settings.voice_note_enabled:
+        if not self._voice_note_enabled:
             await message.reply("Voice notes are disabled.")
             return True
 
@@ -201,8 +210,8 @@ class DiscordPlatform(MessagingPlatform):
             transcribed = await self._voice_transcription.transcribe(
                 tmp_path,
                 ct,
-                whisper_model=settings.whisper_model,
-                whisper_device=settings.whisper_device,
+                whisper_model=self._whisper_model,
+                whisper_device=self._whisper_device,
             )
 
             if not await self._is_voice_still_pending(channel_id, message_id):

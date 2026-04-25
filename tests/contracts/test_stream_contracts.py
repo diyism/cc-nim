@@ -1,11 +1,14 @@
+"""Stream/SSE contract tests. Strict transcript *ordering* is covered here for
+``SSEBuilder`` output; for transport-integrated ordering, add messaging or API
+integration tests.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
 
 from core.anthropic import ContentType, HeuristicToolParser, SSEBuilder, ThinkTagParser
-from messaging.event_parser import parse_cli_event
-from messaging.transcript import RenderCtx, TranscriptBuffer
-from smoke.lib.sse import (
+from core.anthropic.stream_contracts import (
     assert_anthropic_stream_contract,
     event_names,
     has_tool_use,
@@ -13,6 +16,8 @@ from smoke.lib.sse import (
     text_content,
     thinking_content,
 )
+from messaging.event_parser import parse_cli_event
+from messaging.transcript import RenderCtx, TranscriptBuffer
 
 
 def test_interleaved_thinking_text_blocks_are_valid() -> None:

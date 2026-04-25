@@ -2,8 +2,7 @@
 
 from providers.anthropic_messages import AnthropicMessagesTransport
 from providers.base import ProviderConfig
-
-LMSTUDIO_DEFAULT_BASE_URL = "http://localhost:1234/v1"
+from providers.defaults import LMSTUDIO_DEFAULT_BASE_URL
 
 
 class LMStudioProvider(AnthropicMessagesTransport):

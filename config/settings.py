@@ -11,6 +11,7 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .nim import NimSettings
+from .provider_ids import SUPPORTED_PROVIDER_IDS
 
 
 def _env_files() -> tuple[Path, ...]:
@@ -252,25 +253,16 @@ class Settings(BaseSettings):
     def validate_model_format(cls, v: str | None) -> str | None:
         if v is None:
             return None
-        valid_providers = (
-            "nvidia_nim",
-            "open_router",
-            "deepseek",
-            "lmstudio",
-            "llamacpp",
-        )
         if "/" not in v:
             raise ValueError(
                 f"Model must be prefixed with provider type. "
-                f"Valid providers: {', '.join(valid_providers)}. "
+                f"Valid providers: {', '.join(SUPPORTED_PROVIDER_IDS)}. "
                 f"Format: provider_type/model/name"
             )
         provider = v.split("/", 1)[0]
-        if provider not in valid_providers:
-            raise ValueError(
-                f"Invalid provider: '{provider}'. "
-                f"Supported: 'nvidia_nim', 'open_router', 'deepseek', 'lmstudio', 'llamacpp'"
-            )
+        if provider not in SUPPORTED_PROVIDER_IDS:
+            supported = ", ".join(f"'{p}'" for p in SUPPORTED_PROVIDER_IDS)
+            raise ValueError(f"Invalid provider: '{provider}'. Supported: {supported}")
         return v
 
     @model_validator(mode="after")

@@ -24,7 +24,7 @@ class MockBlock:
 
 
 class MockTool:
-    def __init__(self, name, description, input_schema):
+    def __init__(self, name, description, input_schema=None):
         self.name = name
         self.description = description
         self.input_schema = input_schema
@@ -77,6 +77,23 @@ def test_convert_tools():
 
     assert result[1]["function"]["name"] == "calculator"
     assert result[1]["function"]["description"] == ""  # Check default empty string
+
+
+def test_convert_tool_without_input_schema_uses_empty_object_schema():
+    tools = [MockTool("web_search", None)]
+
+    result = AnthropicToOpenAIConverter.convert_tools(tools)
+
+    assert result == [
+        {
+            "type": "function",
+            "function": {
+                "name": "web_search",
+                "description": "",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    ]
 
 
 @pytest.mark.parametrize(

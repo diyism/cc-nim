@@ -4,16 +4,20 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 from loguru import logger
 
 from config.settings import Settings, get_settings
+from providers.registry import ProviderRegistry
 
-from .dependencies import cleanup_provider
+if TYPE_CHECKING:
+    from cli.manager import CLISessionManager
+    from messaging.handler import ClaudeMessageHandler
+    from messaging.platforms.base import MessagingPlatform
+    from messaging.session import SessionStore
 
 _SHUTDOWN_TIMEOUT_S = 5.0
 
@@ -32,8 +36,7 @@ async def best_effort(
 
 def warn_if_process_auth_token(settings: Settings) -> None:
     """Warn when server auth was implicitly inherited from the shell."""
-    uses_process_token = getattr(settings, "uses_process_anthropic_auth_token", None)
-    if callable(uses_process_token) and uses_process_token():
+    if settings.uses_process_anthropic_auth_token():
         logger.warning(
             "ANTHROPIC_AUTH_TOKEN is set in the process environment but not in "
             "a configured .env file. The proxy will require that token. Add "
@@ -48,32 +51,29 @@ class AppRuntime:
 
     app: FastAPI
     settings: Settings
-    provider_cleanup: Callable[[], Awaitable[None]] = cleanup_provider
-    messaging_platform: Any = None
-    message_handler: Any = None
-    cli_manager: Any = None
+    _provider_registry: ProviderRegistry | None = field(default=None, init=False)
+    messaging_platform: MessagingPlatform | None = None
+    message_handler: ClaudeMessageHandler | None = None
+    cli_manager: CLISessionManager | None = None
 
     @classmethod
     def for_app(
         cls,
         app: FastAPI,
         settings: Settings | None = None,
-        provider_cleanup: Callable[[], Awaitable[None]] = cleanup_provider,
     ) -> AppRuntime:
-        return cls(
-            app=app,
-            settings=settings or get_settings(),
-            provider_cleanup=provider_cleanup,
-        )
+        return cls(app=app, settings=settings or get_settings())
 
     async def startup(self) -> None:
         logger.info("Starting Claude Code Proxy...")
+        self._provider_registry = ProviderRegistry()
+        self.app.state.provider_registry = self._provider_registry
         warn_if_process_auth_token(self.settings)
         await self._start_messaging_if_configured()
         self._publish_state()
 
     async def shutdown(self) -> None:
-        if self.message_handler and hasattr(self.message_handler, "session_store"):
+        if self.message_handler is not None:
             try:
                 self.message_handler.session_store.flush_pending_save()
             except Exception as e:
@@ -84,20 +84,33 @@ class AppRuntime:
             await best_effort("messaging_platform.stop", self.messaging_platform.stop())
         if self.cli_manager:
             await best_effort("cli_manager.stop_all", self.cli_manager.stop_all())
-        await best_effort("cleanup_provider", self.provider_cleanup())
+        if self._provider_registry is not None:
+            await best_effort(
+                "provider_registry.cleanup", self._provider_registry.cleanup()
+            )
         await self._shutdown_limiter()
         logger.info("Server shut down cleanly")
 
     async def _start_messaging_if_configured(self) -> None:
         try:
-            from messaging.platforms.factory import create_messaging_platform
+            from messaging.platforms.factory import (
+                MessagingPlatformOptions,
+                create_messaging_platform,
+            )
 
             self.messaging_platform = create_messaging_platform(
-                platform_type=self.settings.messaging_platform,
-                bot_token=self.settings.telegram_bot_token,
-                allowed_user_id=self.settings.allowed_telegram_user_id,
-                discord_bot_token=self.settings.discord_bot_token,
-                allowed_discord_channels=self.settings.allowed_discord_channels,
+                self.settings.messaging_platform,
+                MessagingPlatformOptions(
+                    telegram_bot_token=self.settings.telegram_bot_token,
+                    allowed_telegram_user_id=self.settings.allowed_telegram_user_id,
+                    discord_bot_token=self.settings.discord_bot_token,
+                    allowed_discord_channels=self.settings.allowed_discord_channels,
+                    voice_note_enabled=self.settings.voice_note_enabled,
+                    whisper_model=self.settings.whisper_model,
+                    whisper_device=self.settings.whisper_device,
+                    hf_token=self.settings.hf_token,
+                    nvidia_nim_api_key=self.settings.nvidia_nim_api_key,
+                ),
             )
 
             if self.messaging_platform:
@@ -137,28 +150,30 @@ class AppRuntime:
             api_url=api_url,
             allowed_dirs=allowed_dirs,
             plans_directory=plans_directory,
-            claude_bin=getattr(self.settings, "claude_cli_bin", "claude"),
+            claude_bin=self.settings.claude_cli_bin,
         )
 
         session_store = SessionStore(
             storage_path=os.path.join(data_path, "sessions.json")
         )
+        platform = self.messaging_platform
+        assert platform is not None
         self.message_handler = ClaudeMessageHandler(
-            platform=self.messaging_platform,
+            platform=platform,
             cli_manager=self.cli_manager,
             session_store=session_store,
         )
         self._restore_tree_state(session_store)
 
-        self.messaging_platform.on_message(self.message_handler.handle_message)
-        await self.messaging_platform.start()
-        logger.info(
-            f"{self.messaging_platform.name} platform started with message handler"
-        )
+        platform.on_message(self.message_handler.handle_message)
+        await platform.start()
+        logger.info(f"{platform.name} platform started with message handler")
 
-    def _restore_tree_state(self, session_store: Any) -> None:
+    def _restore_tree_state(self, session_store: SessionStore) -> None:
         saved_trees = session_store.get_all_trees()
         if not saved_trees:
+            return
+        if self.message_handler is None:
             return
 
         logger.info(f"Restoring {len(saved_trees)} conversation trees...")
@@ -188,11 +203,16 @@ class AppRuntime:
     async def _shutdown_limiter(self) -> None:
         try:
             from messaging.limiter import MessagingRateLimiter
-
-            await best_effort(
-                "MessagingRateLimiter.shutdown_instance",
-                MessagingRateLimiter.shutdown_instance(),
-                timeout_s=2.0,
+        except Exception as e:
+            logger.debug(
+                "Rate limiter shutdown skipped (import failed): {}: {}",
+                type(e).__name__,
+                e,
             )
-        except Exception:
-            pass
+            return
+
+        await best_effort(
+            "MessagingRateLimiter.shutdown_instance",
+            MessagingRateLimiter.shutdown_instance(),
+            timeout_s=2.0,
+        )

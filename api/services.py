@@ -20,6 +20,10 @@ from .model_router import ModelRouter
 from .models.anthropic import MessagesRequest, TokenCountRequest
 from .models.responses import TokenCountResponse
 from .optimization_handlers import try_optimizations
+from .web_server_tools import (
+    is_web_server_tool_request,
+    stream_web_server_tool_response,
+)
 
 TokenCounter = Callable[[list[Any], str | list[Any] | None, list[Any] | None], int]
 
@@ -48,6 +52,22 @@ class ClaudeProxyService:
                 raise InvalidRequestError("messages cannot be empty")
 
             routed = self._model_router.resolve_messages_request(request_data)
+            if is_web_server_tool_request(routed.request):
+                input_tokens = self._token_counter(
+                    routed.request.messages, routed.request.system, routed.request.tools
+                )
+                logger.info("Optimization: Handling Anthropic web server tool")
+                return StreamingResponse(
+                    stream_web_server_tool_response(
+                        routed.request, input_tokens=input_tokens
+                    ),
+                    media_type="text/event-stream",
+                    headers={
+                        "X-Accel-Buffering": "no",
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive",
+                    },
+                )
 
             optimized = try_optimizations(routed.request, self._settings)
             if optimized is not None:

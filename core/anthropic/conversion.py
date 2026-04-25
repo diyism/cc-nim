@@ -7,6 +7,17 @@ from .content import get_block_attr, get_block_type
 from .utils import set_if_not_none
 
 
+def _tool_name(tool: Any) -> str:
+    return str(getattr(tool, "name", "") or "")
+
+
+def _tool_input_schema(tool: Any) -> dict[str, Any]:
+    schema = getattr(tool, "input_schema", None)
+    if isinstance(schema, dict):
+        return schema
+    return {"type": "object", "properties": {}}
+
+
 class AnthropicToOpenAIConverter:
     """Convert Anthropic message format to OpenAI-compatible format."""
 
@@ -140,7 +151,7 @@ class AnthropicToOpenAIConverter:
                 "function": {
                     "name": tool.name,
                     "description": tool.description or "",
-                    "parameters": tool.input_schema,
+                    "parameters": _tool_input_schema(tool),
                 },
             }
             for tool in tools

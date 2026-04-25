@@ -18,6 +18,7 @@ from typing import Any
 import httpx
 import pytest
 
+from config.provider_ids import SUPPORTED_PROVIDER_IDS
 from messaging.handler import ClaudeMessageHandler
 from messaging.models import IncomingMessage
 from messaging.platforms.base import MessagingPlatform
@@ -153,7 +154,7 @@ class ConversationDriver:
 class ProviderMatrixDriver:
     """Resolve provider models and enforce matrix semantics for product smoke."""
 
-    ALL_PROVIDERS = ("nvidia_nim", "open_router", "deepseek", "lmstudio", "llamacpp")
+    ALL_PROVIDERS: tuple[str, ...] = SUPPORTED_PROVIDER_IDS
 
     def __init__(self, config: SmokeConfig) -> None:
         self.config = config

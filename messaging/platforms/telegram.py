@@ -62,6 +62,12 @@ class TelegramPlatform(MessagingPlatform):
         self,
         bot_token: str | None = None,
         allowed_user_id: str | None = None,
+        *,
+        voice_note_enabled: bool = True,
+        whisper_model: str = "base",
+        whisper_device: str = "cpu",
+        hf_token: str = "",
+        nvidia_nim_api_key: str = "",
     ):
         if not TELEGRAM_AVAILABLE:
             raise ImportError(
@@ -84,7 +90,13 @@ class TelegramPlatform(MessagingPlatform):
         self._limiter: Any | None = None  # Will be MessagingRateLimiter
         # Pending voice transcriptions: (chat_id, msg_id) -> (voice_msg_id, status_msg_id)
         self._pending_voice = PendingVoiceRegistry()
-        self._voice_transcription = VoiceTranscriptionService()
+        self._voice_transcription = VoiceTranscriptionService(
+            hf_token=hf_token,
+            nvidia_nim_api_key=nvidia_nim_api_key,
+        )
+        self._voice_note_enabled = voice_note_enabled
+        self._whisper_model = whisper_model
+        self._whisper_device = whisper_device
 
     async def _register_pending_voice(
         self, chat_id: str, voice_msg_id: str, status_msg_id: str
@@ -544,10 +556,7 @@ class TelegramPlatform(MessagingPlatform):
         ):
             return
 
-        from config.settings import get_settings
-
-        settings = get_settings()
-        if not settings.voice_note_enabled:
+        if not self._voice_note_enabled:
             await update.message.reply_text("Voice notes are disabled.")
             return
 
@@ -600,8 +609,8 @@ class TelegramPlatform(MessagingPlatform):
             transcribed = await self._voice_transcription.transcribe(
                 tmp_path,
                 voice.mime_type or "audio/ogg",
-                whisper_model=settings.whisper_model,
-                whisper_device=settings.whisper_device,
+                whisper_model=self._whisper_model,
+                whisper_device=self._whisper_device,
             )
 
             if not await self._is_voice_still_pending(chat_id, message_id):

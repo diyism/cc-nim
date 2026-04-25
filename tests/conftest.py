@@ -118,6 +118,15 @@ def mock_platform():
     platform.queue_edit_message = AsyncMock()
     platform.queue_delete_message = AsyncMock()
 
+    async def _queue_delete_messages(
+        chat_id: str, message_ids: list[str], *, fire_and_forget: bool = True
+    ) -> None:
+        qdm = platform.queue_delete_message
+        for mid in message_ids:
+            await qdm(chat_id, mid, fire_and_forget=fire_and_forget)
+
+    platform.queue_delete_messages = AsyncMock(side_effect=_queue_delete_messages)
+
     def _fire_and_forget(task):
         if asyncio.iscoroutine(task):
             # Create a task to avoid "coroutine was never awaited" warning

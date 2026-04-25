@@ -7,6 +7,23 @@ import pytest
 from fastapi.testclient import TestClient
 
 from config.settings import Settings
+from providers.registry import ProviderRegistry
+
+_RUNTIME_EXTRAS = {
+    "voice_note_enabled": True,
+    "whisper_model": "base",
+    "whisper_device": "cpu",
+    "hf_token": "",
+    "nvidia_nim_api_key": "",
+    "claude_cli_bin": "claude",
+    "uses_process_anthropic_auth_token": lambda: False,
+}
+
+
+def _app_settings(**kwargs):
+    """Minimal settings namespace for AppRuntime (matches typed :class:`Settings` fields used)."""
+    data = {**_RUNTIME_EXTRAS, **kwargs}
+    return SimpleNamespace(**data)
 
 
 def test_warn_if_process_auth_token_logs_warning():
@@ -45,7 +62,7 @@ def test_create_app_provider_error_handler_returns_anthropic_format():
         raise AuthenticationError("bad key")
 
     api_app_mod = importlib.import_module("api.app")
-    settings = SimpleNamespace(
+    settings = _app_settings(
         messaging_platform="telegram",
         telegram_bot_token=None,
         allowed_telegram_user_id=None,
@@ -59,7 +76,7 @@ def test_create_app_provider_error_handler_returns_anthropic_format():
     )
     with (
         patch.object(api_app_mod, "get_settings", return_value=settings),
-        patch.object(api_app_mod, "cleanup_provider", new=AsyncMock()),
+        patch.object(ProviderRegistry, "cleanup", new=AsyncMock()),
     ):
         with TestClient(app) as client:
             resp = client.get("/raise_provider")
@@ -79,7 +96,7 @@ def test_create_app_general_exception_handler_returns_500():
         raise RuntimeError("boom")
 
     api_app_mod = importlib.import_module("api.app")
-    settings = SimpleNamespace(
+    settings = _app_settings(
         messaging_platform="telegram",
         telegram_bot_token=None,
         allowed_telegram_user_id=None,
@@ -93,7 +110,7 @@ def test_create_app_general_exception_handler_returns_500():
     )
     with (
         patch.object(api_app_mod, "get_settings", return_value=settings),
-        patch.object(api_app_mod, "cleanup_provider", new=AsyncMock()),
+        patch.object(ProviderRegistry, "cleanup", new=AsyncMock()),
     ):
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.get("/raise_general")
@@ -111,7 +128,7 @@ def test_app_lifespan_sets_state_and_cleans_up(tmp_path, messaging_enabled):
 
     app = create_app()
 
-    settings = SimpleNamespace(
+    settings = _app_settings(
         messaging_platform="telegram",
         telegram_bot_token="token" if messaging_enabled else None,
         allowed_telegram_user_id="123",
@@ -147,10 +164,10 @@ def test_app_lifespan_sets_state_and_cleans_up(tmp_path, messaging_enabled):
 
     api_app_mod = importlib.import_module("api.app")
 
-    cleanup_provider = AsyncMock()
+    registry_cleanup = AsyncMock()
     with (
         patch.object(api_app_mod, "get_settings", return_value=settings),
-        patch.object(api_app_mod, "cleanup_provider", new=cleanup_provider),
+        patch.object(ProviderRegistry, "cleanup", new=registry_cleanup),
         patch(
             "messaging.platforms.factory.create_messaging_platform",
             return_value=fake_platform if messaging_enabled else None,
@@ -182,7 +199,7 @@ def test_app_lifespan_sets_state_and_cleans_up(tmp_path, messaging_enabled):
         cli_manager.stop_all.assert_not_awaited()
         assert getattr(app.state, "messaging_platform", "missing") is None
 
-    cleanup_provider.assert_awaited_once()
+    registry_cleanup.assert_awaited_once()
 
 
 def test_app_lifespan_cleanup_continues_if_platform_stop_raises(tmp_path):
@@ -190,7 +207,7 @@ def test_app_lifespan_cleanup_continues_if_platform_stop_raises(tmp_path):
 
     app = create_app()
 
-    settings = SimpleNamespace(
+    settings = _app_settings(
         messaging_platform="telegram",
         telegram_bot_token="token",
         allowed_telegram_user_id="123",
@@ -218,10 +235,10 @@ def test_app_lifespan_cleanup_continues_if_platform_stop_raises(tmp_path):
     cli_manager.stop_all = AsyncMock()
 
     api_app_mod = importlib.import_module("api.app")
-    cleanup_provider = AsyncMock()
+    registry_cleanup = AsyncMock()
     with (
         patch.object(api_app_mod, "get_settings", return_value=settings),
-        patch.object(api_app_mod, "cleanup_provider", new=cleanup_provider),
+        patch.object(ProviderRegistry, "cleanup", new=registry_cleanup),
         patch(
             "messaging.platforms.factory.create_messaging_platform",
             return_value=fake_platform,
@@ -234,7 +251,7 @@ def test_app_lifespan_cleanup_continues_if_platform_stop_raises(tmp_path):
 
     fake_platform.stop.assert_awaited_once()
     cli_manager.stop_all.assert_awaited_once()
-    cleanup_provider.assert_awaited_once()
+    registry_cleanup.assert_awaited_once()
 
 
 def test_app_lifespan_messaging_import_error_no_crash(tmp_path, caplog):
@@ -243,7 +260,7 @@ def test_app_lifespan_messaging_import_error_no_crash(tmp_path, caplog):
 
     app = create_app()
 
-    settings = SimpleNamespace(
+    settings = _app_settings(
         messaging_platform="telegram",
         telegram_bot_token="token",
         allowed_telegram_user_id="123",
@@ -257,10 +274,10 @@ def test_app_lifespan_messaging_import_error_no_crash(tmp_path, caplog):
     )
 
     api_app_mod = importlib.import_module("api.app")
-    cleanup_provider = AsyncMock()
+    registry_cleanup = AsyncMock()
     with (
         patch.object(api_app_mod, "get_settings", return_value=settings),
-        patch.object(api_app_mod, "cleanup_provider", new=cleanup_provider),
+        patch.object(ProviderRegistry, "cleanup", new=registry_cleanup),
         patch(
             "messaging.platforms.factory.create_messaging_platform",
             side_effect=ImportError("discord not installed"),
@@ -270,7 +287,7 @@ def test_app_lifespan_messaging_import_error_no_crash(tmp_path, caplog):
         pass
 
     assert getattr(app.state, "messaging_platform", None) is None
-    cleanup_provider.assert_awaited_once()
+    registry_cleanup.assert_awaited_once()
 
 
 def test_app_lifespan_platform_start_exception_cleanup_still_runs(tmp_path):
@@ -279,7 +296,7 @@ def test_app_lifespan_platform_start_exception_cleanup_still_runs(tmp_path):
 
     app = create_app()
 
-    settings = SimpleNamespace(
+    settings = _app_settings(
         messaging_platform="telegram",
         telegram_bot_token="token",
         allowed_telegram_user_id="123",
@@ -307,10 +324,10 @@ def test_app_lifespan_platform_start_exception_cleanup_still_runs(tmp_path):
     cli_manager.stop_all = AsyncMock()
 
     api_app_mod = importlib.import_module("api.app")
-    cleanup_provider = AsyncMock()
+    registry_cleanup = AsyncMock()
     with (
         patch.object(api_app_mod, "get_settings", return_value=settings),
-        patch.object(api_app_mod, "cleanup_provider", new=cleanup_provider),
+        patch.object(ProviderRegistry, "cleanup", new=registry_cleanup),
         patch(
             "messaging.platforms.factory.create_messaging_platform",
             return_value=fake_platform,
@@ -321,7 +338,7 @@ def test_app_lifespan_platform_start_exception_cleanup_still_runs(tmp_path):
     ):
         pass
 
-    cleanup_provider.assert_awaited_once()
+    registry_cleanup.assert_awaited_once()
 
 
 def test_app_lifespan_flush_pending_save_exception_warning_only(tmp_path):
@@ -330,7 +347,7 @@ def test_app_lifespan_flush_pending_save_exception_warning_only(tmp_path):
 
     app = create_app()
 
-    settings = SimpleNamespace(
+    settings = _app_settings(
         messaging_platform="telegram",
         telegram_bot_token="token",
         allowed_telegram_user_id="123",
@@ -359,10 +376,10 @@ def test_app_lifespan_flush_pending_save_exception_warning_only(tmp_path):
     cli_manager.stop_all = AsyncMock()
 
     api_app_mod = importlib.import_module("api.app")
-    cleanup_provider = AsyncMock()
+    registry_cleanup = AsyncMock()
     with (
         patch.object(api_app_mod, "get_settings", return_value=settings),
-        patch.object(api_app_mod, "cleanup_provider", new=cleanup_provider),
+        patch.object(ProviderRegistry, "cleanup", new=registry_cleanup),
         patch(
             "messaging.platforms.factory.create_messaging_platform",
             return_value=fake_platform,
@@ -374,4 +391,4 @@ def test_app_lifespan_flush_pending_save_exception_warning_only(tmp_path):
         pass
 
     session_store.flush_pending_save.assert_called_once()
-    cleanup_provider.assert_awaited_once()
+    registry_cleanup.assert_awaited_once()
