@@ -107,7 +107,10 @@ def test_optimization_fast_paths_do_not_need_provider(
             "title",
             {
                 "model": "claude-3-5-sonnet-20241022",
-                "system": "Generate a title for the new conversation topic.",
+                "system": (
+                    "Generate a concise, sentence-case title (3-7 words). "
+                    'Return JSON with a single "title" field.'
+                ),
                 "messages": [{"role": "user", "content": "hello"}],
             },
             "Conversation",

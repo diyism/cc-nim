@@ -114,11 +114,15 @@ class TestTitleGenerationRequest:
 
     def _title_gen_system(self) -> list[MagicMock]:
         block = MagicMock()
-        block.text = "Analyze if this message indicates a new conversation topic. If it does, extract a 2-3 word title."
+        block.text = (
+            "Generate a concise, sentence-case title (3-7 words) that captures the "
+            "main topic or goal of this coding session. Return JSON with a single "
+            '"title" field.'
+        )
         return [block]
 
     def test_title_generation_detected_via_system(self):
-        """Title gen detected by system prompt containing topic/title keywords."""
+        """Title gen detected by session title system prompt (sentence-case / JSON)."""
         req = MagicMock(spec=MessagesRequest)
         req.system = self._title_gen_system()
         req.tools = None
@@ -151,14 +155,10 @@ class TestTitleGenerationRequest:
 
         assert is_title_generation_request(req) is False
 
-    def test_title_generation_claude_code_session_title_prompt(self):
-        """Claude Code 2.1+ session title JSON (sentence-case) is detected."""
+    def test_title_generation_return_json_coding_session_branch(self):
+        """JSON title field + session wording matches without sentence-case phrase."""
         block = MagicMock()
-        block.text = (
-            "Generate a concise, sentence-case title (3-7 words) that captures the "
-            "main topic or goal of this coding session. Return JSON with a single "
-            '"title" field.'
-        )
+        block.text = 'Return JSON with a single "title" field for this coding session.'
         req = MagicMock(spec=MessagesRequest)
         req.system = [block]
         req.tools = None
