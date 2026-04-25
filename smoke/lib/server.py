@@ -13,6 +13,7 @@ from pathlib import Path
 
 import httpx
 
+from .child_process import cmd_uvicorn_server_app
 from .config import SmokeConfig, redacted
 
 
@@ -55,18 +56,7 @@ def start_server(
     if env_overrides:
         env.update(env_overrides)
 
-    cmd = command or [
-        "uv",
-        "run",
-        "uvicorn",
-        "server:app",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        str(port),
-        "--timeout-graceful-shutdown",
-        "5",
-    ]
+    cmd = command or cmd_uvicorn_server_app("127.0.0.1", port)
 
     with log_path.open("ab") as log_file:
         process = subprocess.Popen(

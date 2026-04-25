@@ -55,6 +55,7 @@ def create_messaging_platform(
         )
 
     logger.warning(
-        f"Unknown messaging platform: '{platform_type}'. Supported: 'telegram', 'discord'"
+        f"Unknown messaging platform: '{platform_type}'. "
+        "Supported: 'none', 'telegram', 'discord'"
     )
     return None

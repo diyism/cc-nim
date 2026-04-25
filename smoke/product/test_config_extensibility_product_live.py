@@ -8,6 +8,7 @@ import pytest
 from config.settings import Settings
 from messaging.platforms.factory import create_messaging_platform
 from providers.registry import PROVIDER_DESCRIPTORS, build_provider_config
+from smoke.lib.child_process import cmd_free_claude_code_serve, cmd_python_c
 from smoke.lib.config import SmokeConfig
 from smoke.lib.e2e import SmokeServerDriver
 
@@ -31,7 +32,7 @@ def test_env_precedence_e2e(smoke_config: SmokeConfig, tmp_path) -> None:
         "print(s.model); print(s.anthropic_auth_token)"
     )
     result = subprocess.run(
-        ["uv", "run", "python", "-c", script],
+        cmd_python_c(script),
         cwd=smoke_config.root,
         env=env,
         capture_output=True,
@@ -51,13 +52,7 @@ def test_removed_env_migration_e2e(smoke_config: SmokeConfig, tmp_path) -> None:
     env = os.environ.copy()
     env["FCC_ENV_FILE"] = str(env_file)
     result = subprocess.run(
-        [
-            "uv",
-            "run",
-            "python",
-            "-c",
-            "from config.settings import Settings; Settings()",
-        ],
+        cmd_python_c("from config.settings import Settings; Settings()"),
         cwd=smoke_config.root,
         env=env,
         capture_output=True,
@@ -91,7 +86,7 @@ def test_proxy_timeout_config_e2e(smoke_config: SmokeConfig, tmp_path) -> None:
         "print(c.http_connect_timeout); print(c.http_write_timeout)"
     )
     result = subprocess.run(
-        ["uv", "run", "python", "-c", script],
+        cmd_python_c(script),
         cwd=smoke_config.root,
         env=env,
         capture_output=True,
@@ -135,7 +130,7 @@ def test_entrypoint_server_e2e(smoke_config: SmokeConfig) -> None:
     with SmokeServerDriver(
         smoke_config,
         name="product-entrypoint",
-        command=["uv", "run", "free-claude-code"],
+        command=cmd_free_claude_code_serve(),
         env_overrides={"MESSAGING_PLATFORM": "none"},
     ).run() as server:
         assert server.process.poll() is None

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from smoke.lib.child_process import cmd_fcc_init, cmd_free_claude_code_serve
 from smoke.lib.config import SmokeConfig
 from smoke.lib.server import start_server
 from smoke.lib.skips import skip_upstream_unavailable
@@ -21,7 +22,7 @@ def test_fcc_init_scaffolds_user_config(
     env["HOME"] = str(tmp_path)
     env["USERPROFILE"] = str(tmp_path)
     result = subprocess.run(
-        ["uv", "run", "fcc-init"],
+        cmd_fcc_init(),
         cwd=smoke_config.root,
         env=env,
         capture_output=True,
@@ -36,7 +37,7 @@ def test_fcc_init_scaffolds_user_config(
 def test_free_claude_code_entrypoint_starts_server(smoke_config: SmokeConfig) -> None:
     with start_server(
         smoke_config,
-        command=["uv", "run", "free-claude-code"],
+        command=cmd_free_claude_code_serve(),
         env_overrides={"MESSAGING_PLATFORM": "none"},
         name="entrypoint",
     ) as server:
