@@ -378,7 +378,3 @@ class OpenAIChatTransport(BaseProvider):
                 )
         yield sse.message_delta(map_stop_reason(finish_reason), output_tokens)
         yield sse.message_stop()
-
-
-# Backward-compatible class name used by existing provider implementations.
-OpenAICompatibleProvider = OpenAIChatTransport

@@ -2,20 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-from typing import Protocol
+from typing import Any
 
+from .commands import handle_clear_command, handle_stats_command, handle_stop_command
 from .models import IncomingMessage
-
-CommandHandler = Callable[[IncomingMessage], Awaitable[None]]
-
-
-class SupportsMessagingCommands(Protocol):
-    async def _handle_clear_command(self, incoming: IncomingMessage) -> None: ...
-
-    async def _handle_stop_command(self, incoming: IncomingMessage) -> None: ...
-
-    async def _handle_stats_command(self, incoming: IncomingMessage) -> None: ...
 
 
 def parse_command_base(text: str | None) -> str:
@@ -31,18 +21,18 @@ def message_kind_for_command(command_base: str) -> str:
 
 
 async def dispatch_command(
-    handler: SupportsMessagingCommands,
+    handler: Any,
     incoming: IncomingMessage,
     command_base: str,
 ) -> bool:
     """Dispatch a known command and return whether it was handled."""
-    commands: dict[str, CommandHandler] = {
-        "/clear": handler._handle_clear_command,
-        "/stop": handler._handle_stop_command,
-        "/stats": handler._handle_stats_command,
+    commands = {
+        "/clear": handle_clear_command,
+        "/stop": handle_stop_command,
+        "/stats": handle_stats_command,
     }
     command = commands.get(command_base)
     if command is None:
         return False
-    await command(incoming)
+    await command(handler, incoming)
     return True

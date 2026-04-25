@@ -7,7 +7,7 @@ from providers.deepseek import DeepSeekProvider
 from providers.llamacpp import LlamaCppProvider
 from providers.lmstudio import LMStudioProvider
 from providers.nvidia_nim import NvidiaNimProvider
-from providers.open_router import OpenRouterChatProvider, OpenRouterProvider
+from providers.open_router import OpenRouterProvider
 from providers.registry import (
     PROVIDER_DESCRIPTORS,
     ProviderRegistry,
@@ -35,7 +35,6 @@ def _make_settings(**overrides):
     mock.http_write_timeout = 10.0
     mock.http_connect_timeout = 2.0
     mock.enable_thinking = True
-    mock.openrouter_transport = "anthropic"
     mock.nim = NimSettings()
     for key, value in overrides.items():
         setattr(mock, key, value)
@@ -61,15 +60,6 @@ def test_create_provider_uses_native_openrouter_by_default():
         provider = create_provider("open_router", _make_settings())
 
     assert isinstance(provider, OpenRouterProvider)
-
-
-def test_create_provider_can_use_openrouter_openai_rollback():
-    with patch("providers.openai_compat.AsyncOpenAI"):
-        provider = create_provider(
-            "open_router", _make_settings(openrouter_transport="openai")
-        )
-
-    assert isinstance(provider, OpenRouterChatProvider)
 
 
 def test_create_provider_instantiates_each_builtin():

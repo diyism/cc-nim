@@ -14,8 +14,8 @@ from .exceptions import (
 from .llamacpp import LlamaCppProvider
 from .lmstudio import LMStudioProvider
 from .nvidia_nim import NvidiaNimProvider
-from .open_router import OpenRouterChatProvider, OpenRouterProvider
-from .openai_compat import OpenAIChatTransport, OpenAICompatibleProvider
+from .open_router import OpenRouterProvider
+from .openai_compat import OpenAIChatTransport
 
 __all__ = [
     "APIError",
@@ -28,8 +28,6 @@ __all__ = [
     "LlamaCppProvider",
     "NvidiaNimProvider",
     "OpenAIChatTransport",
-    "OpenAICompatibleProvider",
-    "OpenRouterChatProvider",
     "OpenRouterProvider",
     "OverloadedError",
     "ProviderConfig",

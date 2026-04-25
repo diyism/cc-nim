@@ -15,7 +15,6 @@ from providers.lmstudio import LMStudioProvider
 from providers.nvidia_nim import NVIDIA_NIM_BASE_URL, NvidiaNimProvider
 from providers.open_router import (
     OPENROUTER_BASE_URL,
-    OpenRouterChatProvider,
     OpenRouterProvider,
 )
 
@@ -85,9 +84,7 @@ def _create_nvidia_nim(config: ProviderConfig, settings: Settings) -> BaseProvid
     return NvidiaNimProvider(config, nim_settings=settings.nim)
 
 
-def _create_open_router(config: ProviderConfig, settings: Settings) -> BaseProvider:
-    if settings.openrouter_transport == "openai":
-        return OpenRouterChatProvider(config)
+def _create_open_router(config: ProviderConfig, _settings: Settings) -> BaseProvider:
     return OpenRouterProvider(config)
 
 

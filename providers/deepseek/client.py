@@ -3,14 +3,14 @@
 from typing import Any
 
 from providers.base import ProviderConfig
-from providers.openai_compat import OpenAICompatibleProvider
+from providers.openai_compat import OpenAIChatTransport
 
 from .request import build_request_body
 
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 
-class DeepSeekProvider(OpenAICompatibleProvider):
+class DeepSeekProvider(OpenAIChatTransport):
     """DeepSeek provider using OpenAI-compatible chat completions."""
 
     def __init__(self, config: ProviderConfig):

@@ -25,6 +25,14 @@ def test_provider_adapters_do_not_import_runtime_layers() -> None:
     assert offenders == []
 
 
+def test_removed_openrouter_rollback_transport_stays_removed() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+
+    assert not (repo_root / "providers" / "open_router" / "chat_request.py").exists()
+    assert _text_occurrences(repo_root, "OpenRouter" + "ChatProvider") == []
+    assert _text_occurrences(repo_root, "OPENROUTER" + "_TRANSPORT") == []
+
+
 def test_architecture_doc_names_enforced_boundaries() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     text = (repo_root / "PLAN.md").read_text(encoding="utf-8")
@@ -59,3 +67,34 @@ def _imports_from(path: Path) -> list[str]:
         elif isinstance(node, ast.ImportFrom) and node.module:
             imports.append(node.module)
     return imports
+
+
+def _text_occurrences(repo_root: Path, needle: str) -> list[str]:
+    searchable_paths = [
+        repo_root / "api",
+        repo_root / "cli",
+        repo_root / "config",
+        repo_root / "core",
+        repo_root / "messaging",
+        repo_root / "providers",
+        repo_root / "smoke",
+        repo_root / "tests",
+        repo_root / ".env.example",
+        repo_root / "AGENTS.md",
+        repo_root / "PLAN.md",
+        repo_root / "README.md",
+        repo_root / "pyproject.toml",
+    ]
+    occurrences: list[str] = []
+    for root in searchable_paths:
+        paths = root.rglob("*") if root.is_dir() else (root,)
+        for path in paths:
+            if not path.is_file():
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+            if needle in text:
+                occurrences.append(str(path.relative_to(repo_root)))
+    return sorted(occurrences)

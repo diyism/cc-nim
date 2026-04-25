@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 
 from config.settings import Settings
-from core.anthropic import get_user_facing_error_message
+from core.anthropic import get_token_count, get_user_facing_error_message
 from providers.base import BaseProvider
 from providers.exceptions import InvalidRequestError, ProviderError
 
@@ -20,7 +20,6 @@ from .model_router import ModelRouter
 from .models.anthropic import MessagesRequest, TokenCountRequest
 from .models.responses import TokenCountResponse
 from .optimization_handlers import try_optimizations
-from .request_utils import get_token_count
 
 TokenCounter = Callable[[list[Any], str | list[Any] | None, list[Any] | None], int]
 

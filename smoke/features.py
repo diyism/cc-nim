@@ -31,30 +31,6 @@ class FeatureCoverage:
     def has_pytest_coverage(self) -> bool:
         return bool(self.pytest_contract_tests)
 
-    @property
-    def has_live_prereq_coverage(self) -> bool:
-        return bool(self.live_prereq_tests)
-
-    @property
-    def has_product_e2e_coverage(self) -> bool:
-        return bool(self.product_e2e_tests)
-
-    @property
-    def has_smoke_coverage(self) -> bool:
-        return self.has_product_e2e_coverage
-
-    @property
-    def pytest_tests(self) -> tuple[str, ...]:
-        return self.pytest_contract_tests
-
-    @property
-    def smoke_tests(self) -> tuple[str, ...]:
-        return self.product_e2e_tests
-
-    @property
-    def all_smoke_tests(self) -> tuple[str, ...]:
-        return self.live_prereq_tests + self.product_e2e_tests
-
 
 README_FEATURES: tuple[str, ...] = (
     "zero_cost_provider_access",
@@ -495,26 +471,3 @@ def feature_ids(*, source: FeatureSource | None = None) -> set[str]:
         for feature in FEATURE_INVENTORY
         if source is None or feature.source == source
     }
-
-
-def product_smoke_feature_ids() -> set[str]:
-    """Return feature IDs with at least one product E2E owner."""
-    return {
-        feature.feature_id
-        for feature in FEATURE_INVENTORY
-        if feature.has_product_e2e_coverage
-    }
-
-
-def live_prereq_feature_ids() -> set[str]:
-    """Return feature IDs with prerequisite/live probe owners."""
-    return {
-        feature.feature_id
-        for feature in FEATURE_INVENTORY
-        if feature.has_live_prereq_coverage
-    }
-
-
-def smoke_feature_ids() -> set[str]:
-    """Backward-compatible alias for product smoke feature IDs."""
-    return product_smoke_feature_ids()

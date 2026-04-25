@@ -1,28 +1,35 @@
 import importlib
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from config.settings import Settings
+
 
 def test_warn_if_process_auth_token_logs_warning():
-    api_app_mod = importlib.import_module("api.app")
-    settings = SimpleNamespace(uses_process_anthropic_auth_token=lambda: True)
+    api_runtime_mod = importlib.import_module("api.runtime")
+    settings = cast(
+        Settings, SimpleNamespace(uses_process_anthropic_auth_token=lambda: True)
+    )
 
-    with patch.object(api_app_mod.logger, "warning") as warning:
-        api_app_mod._warn_if_process_auth_token(settings)
+    with patch.object(api_runtime_mod.logger, "warning") as warning:
+        api_runtime_mod.warn_if_process_auth_token(settings)
 
     warning.assert_called_once()
     assert "ANTHROPIC_AUTH_TOKEN" in warning.call_args.args[0]
 
 
 def test_warn_if_process_auth_token_skips_explicit_dotenv_config():
-    api_app_mod = importlib.import_module("api.app")
-    settings = SimpleNamespace(uses_process_anthropic_auth_token=lambda: False)
+    api_runtime_mod = importlib.import_module("api.runtime")
+    settings = cast(
+        Settings, SimpleNamespace(uses_process_anthropic_auth_token=lambda: False)
+    )
 
-    with patch.object(api_app_mod.logger, "warning") as warning:
-        api_app_mod._warn_if_process_auth_token(settings)
+    with patch.object(api_runtime_mod.logger, "warning") as warning:
+        api_runtime_mod.warn_if_process_auth_token(settings)
 
     warning.assert_not_called()
 

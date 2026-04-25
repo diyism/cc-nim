@@ -13,7 +13,7 @@ from providers.exceptions import ProviderError
 
 from .dependencies import cleanup_provider
 from .routes import router
-from .runtime import AppRuntime, warn_if_process_auth_token
+from .runtime import AppRuntime
 
 # Opt-in to future behavior for python-telegram-bot
 os.environ["PTB_TIMEDELTA"] = "1"
@@ -21,11 +21,6 @@ os.environ["PTB_TIMEDELTA"] = "1"
 # Configure logging first (before any module logs)
 _settings = get_settings()
 configure_logging(_settings.log_file)
-
-
-def _warn_if_process_auth_token(settings) -> None:
-    """Compatibility wrapper for tests importing the old app helper."""
-    warn_if_process_auth_token(settings)
 
 
 @asynccontextmanager

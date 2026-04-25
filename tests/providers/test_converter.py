@@ -204,15 +204,15 @@ def test_convert_assistant_message_thinking():
     assert "reasoning_content" not in result[0]
 
 
-def test_convert_assistant_message_thinking_include_reasoning_for_openrouter():
-    """When include_reasoning_for_openrouter=True, reasoning_content is added."""
+def test_convert_assistant_message_thinking_include_reasoning_content():
+    """When include_reasoning_content=True, reasoning_content is added."""
     content = [
         MockBlock(type="thinking", thinking="I need to calculate this."),
         MockBlock(type="text", text="The answer is 4."),
     ]
     messages = [MockMessage("assistant", content)]
     result = AnthropicToOpenAIConverter.convert_messages(
-        messages, include_reasoning_for_openrouter=True
+        messages, include_reasoning_content=True
     )
 
     assert len(result) == 1
@@ -229,7 +229,7 @@ def test_convert_assistant_message_thinking_removed_when_disabled():
     result = AnthropicToOpenAIConverter.convert_messages(
         messages,
         include_thinking=False,
-        include_reasoning_for_openrouter=True,
+        include_reasoning_content=True,
     )
 
     assert len(result) == 1

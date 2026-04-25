@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from providers.base import ProviderConfig
-from providers.open_router import OpenRouterChatProvider, OpenRouterProvider
+from providers.open_router import OpenRouterProvider
 from providers.open_router.request import OPENROUTER_DEFAULT_MAX_TOKENS
 
 
@@ -453,13 +453,3 @@ async def test_stream_response_error_path(open_router_provider):
     assert "message_start" in event_text
     assert "API failed" in event_text
     assert "message_stop" in event_text
-
-
-def test_openai_chat_rollback_provider_builds_legacy_extra_body(open_router_config):
-    with patch("providers.openai_compat.AsyncOpenAI"):
-        provider = OpenRouterChatProvider(open_router_config)
-
-    body = provider._build_request_body(MockRequest())
-
-    assert "extra_body" in body
-    assert body["extra_body"]["reasoning"] == {"enabled": True}

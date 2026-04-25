@@ -88,7 +88,7 @@ def test_provider_error_e2e(smoke_config: SmokeConfig) -> None:
     assert any(event.event == "error" for event in events) or text_content(events)
 
 
-def test_openrouter_native_and_rollback_e2e(smoke_config: SmokeConfig) -> None:
+def test_openrouter_native_e2e(smoke_config: SmokeConfig) -> None:
     models = [
         model
         for model in ProviderMatrixDriver(smoke_config).configured_models()
@@ -98,30 +98,28 @@ def test_openrouter_native_and_rollback_e2e(smoke_config: SmokeConfig) -> None:
         pytest.skip("missing_env: open_router is not configured")
 
     provider_model = models[0]
-    for transport in ("anthropic", "openai"):
-        with SmokeServerDriver(
-            smoke_config,
-            name=f"product-openrouter-{transport}",
-            env_overrides={
-                "MODEL": provider_model.full_model,
-                "MESSAGING_PLATFORM": "none",
-                "OPENROUTER_TRANSPORT": transport,
-            },
-        ).run() as server:
-            turn = ConversationDriver(server, smoke_config).stream(
-                {
-                    "model": "claude-opus-4-7",
-                    "max_tokens": 256,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": "Reply with one short sentence.",
-                        }
-                    ],
-                    "thinking": {"type": "adaptive", "budget_tokens": 1024},
-                }
-            )
-        assert_product_stream(turn.events)
+    with SmokeServerDriver(
+        smoke_config,
+        name="product-openrouter-native",
+        env_overrides={
+            "MODEL": provider_model.full_model,
+            "MESSAGING_PLATFORM": "none",
+        },
+    ).run() as server:
+        turn = ConversationDriver(server, smoke_config).stream(
+            {
+                "model": "claude-opus-4-7",
+                "max_tokens": 256,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Reply with one short sentence.",
+                    }
+                ],
+                "thinking": {"type": "adaptive", "budget_tokens": 1024},
+            }
+        )
+    assert_product_stream(turn.events)
 
 
 def _run_for_each_provider(smoke_config: SmokeConfig, scenario) -> None:

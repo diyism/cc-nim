@@ -8,7 +8,7 @@ from loguru import logger
 
 from config.nim import NimSettings
 from providers.base import ProviderConfig
-from providers.openai_compat import OpenAICompatibleProvider
+from providers.openai_compat import OpenAIChatTransport
 
 from .request import (
     build_request_body,
@@ -19,7 +19,7 @@ from .request import (
 NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
 
-class NvidiaNimProvider(OpenAICompatibleProvider):
+class NvidiaNimProvider(OpenAIChatTransport):
     """NVIDIA NIM provider using official OpenAI client."""
 
     def __init__(self, config: ProviderConfig, *, nim_settings: NimSettings):

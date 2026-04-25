@@ -1,5 +1,5 @@
-"""OpenRouter provider - Anthropic-compatible and rollback transports."""
+"""OpenRouter provider - Anthropic-compatible native transport."""
 
-from .client import OPENROUTER_BASE_URL, OpenRouterChatProvider, OpenRouterProvider
+from .client import OPENROUTER_BASE_URL, OpenRouterProvider
 
-__all__ = ["OPENROUTER_BASE_URL", "OpenRouterChatProvider", "OpenRouterProvider"]
+__all__ = ["OPENROUTER_BASE_URL", "OpenRouterProvider"]

@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from loguru import logger
 
 from config.settings import Settings
+from core.anthropic import get_token_count
 
 from .dependencies import get_provider_for_type, get_settings, require_api_key
 from .models.anthropic import MessagesRequest, TokenCountRequest
 from .models.responses import ModelResponse, ModelsListResponse
-from .request_utils import get_token_count
 from .services import ClaudeProxyService
 
 router = APIRouter()
@@ -75,7 +75,6 @@ def _probe_response(allow: str) -> Response:
 @router.post("/v1/messages")
 async def create_message(
     request_data: MessagesRequest,
-    _raw_request: Request,
     service: ClaudeProxyService = Depends(get_proxy_service),
     _auth=Depends(require_api_key),
 ):

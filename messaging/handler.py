@@ -19,11 +19,6 @@ from .command_dispatcher import (
     message_kind_for_command,
     parse_command_base,
 )
-from .commands import (
-    handle_clear_command,
-    handle_stats_command,
-    handle_stop_command,
-)
 from .event_parser import parse_cli_event
 from .models import IncomingMessage
 from .platforms.base import MessagingPlatform, SessionManagerInterface
@@ -715,15 +710,3 @@ class ClaudeMessageHandler:
                 trees_to_save[tree.root_id] = tree
         for root_id, tree in trees_to_save.items():
             self.session_store.save_tree(root_id, tree.to_dict())
-
-    async def _handle_stop_command(self, incoming: IncomingMessage) -> None:
-        """Handle /stop command from messaging platform."""
-        await handle_stop_command(self, incoming)
-
-    async def _handle_stats_command(self, incoming: IncomingMessage) -> None:
-        """Handle /stats command."""
-        await handle_stats_command(self, incoming)
-
-    async def _handle_clear_command(self, incoming: IncomingMessage) -> None:
-        """Handle /clear command."""
-        await handle_clear_command(self, incoming)

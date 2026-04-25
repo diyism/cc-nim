@@ -509,7 +509,6 @@ Configure via `WHISPER_DEVICE` (`cpu` | `cuda` | `nvidia_nim`) and `WHISPER_MODE
 | `NVIDIA_NIM_API_KEY`    | NVIDIA API key                                                        | required for NIM                                  |
 | `ENABLE_THINKING`    | Global switch for provider reasoning requests and Claude thinking blocks. Set `false` to hide thinking across all providers. | `true` |
 | `OPENROUTER_API_KEY` | OpenRouter API key                                                    | required for OpenRouter                           |
-| `OPENROUTER_TRANSPORT` | Diagnostic rollback only: `anthropic` uses OpenRouter's native Messages API, `openai` uses chat completions | `anthropic` |
 | `DEEPSEEK_API_KEY`   | DeepSeek API key                                                      | required for DeepSeek                             |
 | `LM_STUDIO_BASE_URL` | LM Studio server URL                                                  | `http://localhost:1234/v1`                        |
 | `LLAMACPP_BASE_URL`  | llama.cpp server URL                                                  | `http://localhost:8080/v1`                        |
@@ -574,8 +573,8 @@ See [`.env.example`](.env.example) for all supported parameters.
 free-claude-code/
 ├── server.py              # Entry point
 ├── api/                   # FastAPI routes, API service layer, model routing, request detection, optimizations
+├── core/                  # Shared Anthropic protocol helpers, SSE, conversion, parsers, token counting
 ├── providers/             # Provider registry, scoped runtime state, OpenAI chat + Anthropic messages transports
-│   └── common/            # Shared utils (SSE builder, message converter, parsers, error mapping)
 ├── messaging/             # MessagingPlatform ABC + Discord/Telegram bots, commands, voice, session management
 ├── config/                # Settings, NIM config, logging
 ├── cli/                   # CLI session and process management
@@ -593,7 +592,7 @@ uv run pytest          # Run tests
 
 ### Extending
 
-**Adding an OpenAI-compatible provider** (Groq, Together AI, etc.) — extend `OpenAIChatTransport` or its backward-compatible alias `OpenAICompatibleProvider`, then add a descriptor in the provider registry:
+**Adding an OpenAI-compatible provider** (Groq, Together AI, etc.) — extend `OpenAIChatTransport`, then add a descriptor in the provider registry:
 
 ```python
 from providers.openai_compat import OpenAIChatTransport

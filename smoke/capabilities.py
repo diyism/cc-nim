@@ -210,7 +210,7 @@ CAPABILITY_CONTRACTS: tuple[CapabilityContract, ...] = (
         "request_behavior",
         "token_counting",
         "count_tokens_contract",
-        "api.request_utils",
+        "core.anthropic.get_token_count",
         "messages, system blocks, tools, images, thinking, tool results",
         "positive input token estimate",
         "500 with readable detail on unexpected failure",

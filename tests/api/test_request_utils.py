@@ -1,4 +1,4 @@
-"""Tests for api/request_utils.py module."""
+"""Tests for API request detection and token counting helpers."""
 
 from unittest.mock import MagicMock
 
@@ -11,7 +11,7 @@ from api.detection import (
     is_title_generation_request,
 )
 from api.models.anthropic import Message, MessagesRequest
-from api.request_utils import get_token_count
+from core.anthropic import get_token_count
 
 
 class TestQuotaCheckRequest:

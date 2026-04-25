@@ -2,7 +2,6 @@
 
 from providers.anthropic_messages import AnthropicMessagesTransport
 from providers.base import ProviderConfig
-from providers.rate_limit import GlobalRateLimiter as GlobalRateLimiter
 
 LLAMACPP_DEFAULT_BASE_URL = "http://localhost:8080/v1"
 

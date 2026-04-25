@@ -23,7 +23,7 @@
 
 ## ARCHITECTURE PRINCIPLES (see PLAN.md)
 
-- **Shared utilities**: Extract common logic into shared packages (e.g. `providers/common/`). Do not have one provider import from another provider's utils.
+- **Shared utilities**: Put shared Anthropic protocol logic in neutral `core/anthropic/` modules. Do not have one provider import from another provider's utils.
 - **DRY**: Extract shared base classes to eliminate duplication. Prefer composition over copy-paste.
 - **Encapsulation**: Use accessor methods for internal state (e.g. `set_current_task()`), not direct `_attribute` assignment from outside.
 - **Provider-specific config**: Keep provider-specific fields (e.g. `nim_settings`) in provider constructors, not in the base `ProviderConfig`.
