@@ -151,6 +151,20 @@ class TestTitleGenerationRequest:
 
         assert is_title_generation_request(req) is False
 
+    def test_title_generation_claude_code_session_title_prompt(self):
+        """Claude Code 2.1+ session title JSON (sentence-case) is detected."""
+        block = MagicMock()
+        block.text = (
+            "Generate a concise, sentence-case title (3-7 words) that captures the "
+            "main topic or goal of this coding session. Return JSON with a single "
+            '"title" field.'
+        )
+        req = MagicMock(spec=MessagesRequest)
+        req.system = [block]
+        req.tools = None
+
+        assert is_title_generation_request(req) is True
+
 
 class TestExtractCommandPrefix:
     """Tests for extract_command_prefix function."""

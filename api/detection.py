@@ -31,11 +31,24 @@ def is_title_generation_request(request_data: MessagesRequest) -> bool:
 
     Title generation requests are detected by a system prompt containing
     title extraction instructions, no tools, and a single user message.
+
+    Matches both legacy phrasing and Claude Code 2.1+ session title prompts
+    (JSON \"title\" field, sentence-case title instructions, etc.).
     """
     if not request_data.system or request_data.tools:
         return False
     system_text = extract_text_from_content(request_data.system).lower()
-    return "new conversation topic" in system_text and "title" in system_text
+    if "title" not in system_text:
+        return False
+    return (
+        "new conversation topic" in system_text
+        or "sentence-case title" in system_text
+        or (
+            "return json" in system_text
+            and "field" in system_text
+            and ("coding session" in system_text or "this session" in system_text)
+        )
+    )
 
 
 def is_prefix_detection_request(request_data: MessagesRequest) -> tuple[bool, str]:
