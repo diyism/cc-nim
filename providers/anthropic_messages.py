@@ -9,8 +9,9 @@ from typing import Any, Literal
 import httpx
 from loguru import logger
 
+from core.anthropic import get_user_facing_error_message
 from providers.base import BaseProvider, ProviderConfig
-from providers.common import get_user_facing_error_message, map_error
+from providers.error_mapping import map_error
 from providers.rate_limit import GlobalRateLimiter
 
 ANTHROPIC_DEFAULT_MAX_TOKENS = 81920

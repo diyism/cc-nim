@@ -24,6 +24,10 @@ def create_messaging_platform(
     Returns:
         Configured MessagingPlatform instance, or None if not configured.
     """
+    if platform_type == "none":
+        logger.info("Messaging platform disabled by configuration")
+        return None
+
     if platform_type == "telegram":
         bot_token = kwargs.get("bot_token")
         if not bot_token:

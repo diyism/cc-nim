@@ -19,6 +19,18 @@ class ResolvedModel:
     provider_model_ref: str
 
 
+@dataclass(frozen=True, slots=True)
+class RoutedMessagesRequest:
+    request: MessagesRequest
+    resolved: ResolvedModel
+
+
+@dataclass(frozen=True, slots=True)
+class RoutedTokenCountRequest:
+    request: TokenCountRequest
+    resolved: ResolvedModel
+
+
 class ModelRouter:
     """Resolve incoming Claude model names to configured provider/model pairs."""
 
@@ -40,19 +52,21 @@ class ModelRouter:
             provider_model_ref=provider_model_ref,
         )
 
-    def resolve_messages_request(self, request: MessagesRequest) -> MessagesRequest:
-        """Return a routed copy of a MessagesRequest."""
-        original_model = request.original_model or request.model
-        resolved = self.resolve(original_model)
+    def resolve_messages_request(
+        self, request: MessagesRequest
+    ) -> RoutedMessagesRequest:
+        """Return an internal routed request context."""
+        resolved = self.resolve(request.model)
         routed = request.model_copy(deep=True)
-        routed.original_model = resolved.original_model
-        routed.resolved_provider_model = resolved.provider_model_ref
         routed.model = resolved.provider_model
-        return routed
+        return RoutedMessagesRequest(request=routed, resolved=resolved)
 
     def resolve_token_count_request(
         self, request: TokenCountRequest
-    ) -> TokenCountRequest:
-        """Return a token-count request copy with provider model name applied."""
+    ) -> RoutedTokenCountRequest:
+        """Return an internal token-count request context."""
         resolved = self.resolve(request.model)
-        return request.model_copy(update={"model": resolved.provider_model}, deep=True)
+        routed = request.model_copy(
+            update={"model": resolved.provider_model}, deep=True
+        )
+        return RoutedTokenCountRequest(request=routed, resolved=resolved)

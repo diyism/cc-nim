@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from config.nim import NimSettings
-from providers.common.utils import set_if_not_none
+from core.anthropic import set_if_not_none
 from providers.nvidia_nim.request import (
     _set_extra,
     build_request_body,

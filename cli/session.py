@@ -4,11 +4,23 @@ import asyncio
 import json
 import os
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass, field
 from typing import Any
 
 from loguru import logger
 
 from .process_registry import register_pid, unregister_pid
+
+
+@dataclass(frozen=True, slots=True)
+class ClaudeCliConfig:
+    """Configuration for a managed Claude CLI subprocess."""
+
+    workspace_path: str
+    api_url: str
+    allowed_dirs: list[str] = field(default_factory=list)
+    plans_directory: str | None = None
+    claude_bin: str = "claude"
 
 
 class CLISession:
@@ -20,11 +32,20 @@ class CLISession:
         api_url: str,
         allowed_dirs: list[str] | None = None,
         plans_directory: str | None = None,
+        claude_bin: str = "claude",
     ):
-        self.workspace = os.path.normpath(os.path.abspath(workspace_path))
-        self.api_url = api_url
-        self.allowed_dirs = [os.path.normpath(d) for d in (allowed_dirs or [])]
-        self.plans_directory = plans_directory
+        self.config = ClaudeCliConfig(
+            workspace_path=os.path.normpath(os.path.abspath(workspace_path)),
+            api_url=api_url,
+            allowed_dirs=[os.path.normpath(d) for d in (allowed_dirs or [])],
+            plans_directory=plans_directory,
+            claude_bin=claude_bin,
+        )
+        self.workspace = self.config.workspace_path
+        self.api_url = self.config.api_url
+        self.allowed_dirs = self.config.allowed_dirs
+        self.plans_directory = self.config.plans_directory
+        self.claude_bin = self.config.claude_bin
         self.process: asyncio.subprocess.Process | None = None
         self.current_session_id: str | None = None
         self._is_busy = False
@@ -67,7 +88,7 @@ class CLISession:
             # Build command
             if session_id and not session_id.startswith("pending_"):
                 cmd = [
-                    "claude",
+                    self.claude_bin,
                     "--resume",
                     session_id,
                 ]
@@ -84,7 +105,7 @@ class CLISession:
                 logger.info(f"Resuming Claude session {session_id}")
             else:
                 cmd = [
-                    "claude",
+                    self.claude_bin,
                     "-p",
                     prompt,
                     "--output-format",

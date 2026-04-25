@@ -1,4 +1,4 @@
-"""Think tag parser for extracting reasoning content from responses."""
+"""Streaming parser for provider-emitted thinking tags."""
 
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -22,15 +22,13 @@ class ContentChunk:
 
 class ThinkTagParser:
     """
-    Streaming parser for <think>...</think> tags.
+    Streaming parser for ``<think>...</think>`` tags.
 
     Handles partial tags at chunk boundaries by buffering.
     """
 
     OPEN_TAG = "<think>"
     CLOSE_TAG = "</think>"
-    OPEN_TAG_LEN = 7
-    CLOSE_TAG_LEN = 8
 
     def __init__(self):
         self._buffer: str = ""
@@ -42,13 +40,7 @@ class ThinkTagParser:
         return self._in_think_tag
 
     def feed(self, content: str) -> Iterator[ContentChunk]:
-        """
-        Feed content and yield parsed chunks.
-
-        Handles partial tags by buffering content near potential tag boundaries.
-        Uses an iterative loop instead of mutual recursion to avoid stack overflow
-        on inputs with many consecutive think tags.
-        """
+        """Feed content and yield parsed chunks."""
         self._buffer += content
 
         while self._buffer:
@@ -61,7 +53,6 @@ class ThinkTagParser:
             if chunk:
                 yield chunk
             elif len(self._buffer) == prev_len:
-                # No progress: waiting for more data
                 break
 
     def _parse_outside_think(self) -> ContentChunk | None:
@@ -69,29 +60,23 @@ class ThinkTagParser:
         think_start = self._buffer.find(self.OPEN_TAG)
         orphan_close = self._buffer.find(self.CLOSE_TAG)
 
-        # Handle orphan </think> - strip it (Step Fun AI sends reasoning via
-        # reasoning_content but may leak closing tags in content)
         if orphan_close != -1 and (think_start == -1 or orphan_close < think_start):
             pre_orphan = self._buffer[:orphan_close]
-            self._buffer = self._buffer[orphan_close + self.CLOSE_TAG_LEN :]
+            self._buffer = self._buffer[orphan_close + len(self.CLOSE_TAG) :]
             if pre_orphan:
                 return ContentChunk(ContentType.TEXT, pre_orphan)
-            # Buffer shrunk; the feed() loop will continue parsing
             return None
 
         if think_start == -1:
-            # No tag found - check for partial tag at end
-            # We buffer any trailing '<' and subsequent characters that could be part of <think> or </think>
             last_bracket = self._buffer.rfind("<")
             if last_bracket != -1:
                 potential_tag = self._buffer[last_bracket:]
                 tag_len = len(potential_tag)
-                # Check if could be partial <think> or </think>
                 if (
-                    tag_len < self.OPEN_TAG_LEN
+                    tag_len < len(self.OPEN_TAG)
                     and self.OPEN_TAG.startswith(potential_tag)
                 ) or (
-                    tag_len < self.CLOSE_TAG_LEN
+                    tag_len < len(self.CLOSE_TAG)
                     and self.CLOSE_TAG.startswith(potential_tag)
                 ):
                     emit = self._buffer[:last_bracket]
@@ -100,35 +85,28 @@ class ThinkTagParser:
                         return ContentChunk(ContentType.TEXT, emit)
                     return None
 
-            # No partial tag found or it's irrelevant
             emit = self._buffer
             self._buffer = ""
             if emit:
                 return ContentChunk(ContentType.TEXT, emit)
             return None
-        else:
-            # Found <think> tag
-            pre_think = self._buffer[:think_start]
-            self._buffer = self._buffer[think_start + self.OPEN_TAG_LEN :]
-            self._in_think_tag = True
-            if pre_think:
-                return ContentChunk(ContentType.TEXT, pre_think)
-            # Buffer shrunk (consumed <think>); the feed() loop will continue
-            # parsing inside the think tag on the next iteration
-            return None
+
+        pre_think = self._buffer[:think_start]
+        self._buffer = self._buffer[think_start + len(self.OPEN_TAG) :]
+        self._in_think_tag = True
+        if pre_think:
+            return ContentChunk(ContentType.TEXT, pre_think)
+        return None
 
     def _parse_inside_think(self) -> ContentChunk | None:
         """Parse content inside think tags."""
         think_end = self._buffer.find(self.CLOSE_TAG)
 
         if think_end == -1:
-            # No closing tag - check for partial at end
             last_bracket = self._buffer.rfind("<")
-            if (
-                last_bracket != -1
-                and len(self._buffer) - last_bracket < self.CLOSE_TAG_LEN
+            if last_bracket != -1 and len(self._buffer) - last_bracket < len(
+                self.CLOSE_TAG
             ):
-                # Check if the partial string could be the start of </think>
                 potential_tag = self._buffer[last_bracket:]
                 if self.CLOSE_TAG.startswith(potential_tag):
                     emit = self._buffer[:last_bracket]
@@ -142,16 +120,13 @@ class ThinkTagParser:
             if emit:
                 return ContentChunk(ContentType.THINKING, emit)
             return None
-        else:
-            # Found </think> tag
-            thinking_content = self._buffer[:think_end]
-            self._buffer = self._buffer[think_end + self.CLOSE_TAG_LEN :]
-            self._in_think_tag = False
-            if thinking_content:
-                return ContentChunk(ContentType.THINKING, thinking_content)
-            # Buffer shrunk (consumed </think>); the feed() loop will continue
-            # parsing outside the think tag on the next iteration
-            return None
+
+        thinking_content = self._buffer[:think_end]
+        self._buffer = self._buffer[think_end + len(self.CLOSE_TAG) :]
+        self._in_think_tag = False
+        if thinking_content:
+            return ContentChunk(ContentType.THINKING, thinking_content)
+        return None
 
     def flush(self) -> ContentChunk | None:
         """Flush any remaining buffered content."""

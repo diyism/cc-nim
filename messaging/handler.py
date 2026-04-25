@@ -12,8 +12,13 @@ import time
 
 from loguru import logger
 
-from providers.common import get_user_facing_error_message
+from core.anthropic import get_user_facing_error_message
 
+from .command_dispatcher import (
+    dispatch_command,
+    message_kind_for_command,
+    parse_command_base,
+)
 from .commands import (
     handle_clear_command,
     handle_stats_command,
@@ -155,36 +160,23 @@ class ClaudeMessageHandler:
 
     async def _handle_message_impl(self, incoming: IncomingMessage) -> None:
         """Implementation of handle_message with context bound."""
-        # Check for commands
-        parts = (incoming.text or "").strip().split()
-        cmd = parts[0] if parts else ""
-        cmd_base = cmd.split("@", 1)[0] if cmd else ""
+        cmd_base = parse_command_base(incoming.text)
 
         # Record incoming message ID for best-effort UI clearing (/clear), even if
         # we later ignore this message (status/command/etc).
         try:
             if incoming.message_id is not None:
-                kind = "command" if cmd_base.startswith("/") else "content"
                 self.session_store.record_message_id(
                     incoming.platform,
                     incoming.chat_id,
                     str(incoming.message_id),
                     direction="in",
-                    kind=kind,
+                    kind=message_kind_for_command(cmd_base),
                 )
         except Exception as e:
             logger.debug(f"Failed to record incoming message_id: {e}")
 
-        if cmd_base == "/clear":
-            await self._handle_clear_command(incoming)
-            return
-
-        if cmd_base == "/stop":
-            await self._handle_stop_command(incoming)
-            return
-
-        if cmd_base == "/stats":
-            await self._handle_stats_command(incoming)
+        if await dispatch_command(self, incoming, cmd_base):
             return
 
         # Filter out status messages (our own messages)

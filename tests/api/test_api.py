@@ -96,7 +96,6 @@ def test_model_mapping():
     assert len(_stream_response_calls) == 1
     args = _stream_response_calls[0][0]
     assert args[0].model != "claude-3-haiku-20240307"
-    assert args[0].original_model == "claude-3-haiku-20240307"
 
 
 def test_error_fallbacks():

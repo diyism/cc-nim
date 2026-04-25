@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
-from providers.common import get_user_facing_error_message
+from core.anthropic import get_user_facing_error_message
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 from ..models import IncomingMessage
 from ..rendering.telegram_markdown import escape_md_v2, format_status
-from ..voice import PendingVoiceRegistry, VoiceTranscriptionService
+from ..voice_pipeline import VoiceNotePipeline
 from .base import MessagingPlatform
 
 # Optional import - python-telegram-bot may not be installed
@@ -83,24 +83,25 @@ class TelegramPlatform(MessagingPlatform):
         self._connected = False
         self._limiter: Any | None = None  # Will be MessagingRateLimiter
         # Pending voice transcriptions: (chat_id, msg_id) -> (voice_msg_id, status_msg_id)
-        self._pending_voice = PendingVoiceRegistry()
-        self._voice_transcription = VoiceTranscriptionService()
+        self._voice_pipeline = VoiceNotePipeline()
 
     async def _register_pending_voice(
         self, chat_id: str, voice_msg_id: str, status_msg_id: str
     ) -> None:
         """Register a voice note as pending transcription (for /clear reply during transcription)."""
-        await self._pending_voice.register(chat_id, voice_msg_id, status_msg_id)
+        await self._voice_pipeline.register_pending(
+            chat_id, voice_msg_id, status_msg_id
+        )
 
     async def cancel_pending_voice(
         self, chat_id: str, reply_id: str
     ) -> tuple[str, str] | None:
         """Cancel a pending voice transcription. Returns (voice_msg_id, status_msg_id) if found."""
-        return await self._pending_voice.cancel(chat_id, reply_id)
+        return await self._voice_pipeline.cancel_pending(chat_id, reply_id)
 
     async def _is_voice_still_pending(self, chat_id: str, voice_msg_id: str) -> bool:
         """Check if a voice note is still pending (not cancelled)."""
-        return await self._pending_voice.is_pending(chat_id, voice_msg_id)
+        return await self._voice_pipeline.is_pending(chat_id, voice_msg_id)
 
     async def start(self) -> None:
         """Initialize and connect to Telegram."""
@@ -597,7 +598,7 @@ class TelegramPlatform(MessagingPlatform):
             tg_file = await context.bot.get_file(voice.file_id)
             await tg_file.download_to_drive(custom_path=str(tmp_path))
 
-            transcribed = await self._voice_transcription.transcribe(
+            transcribed = await self._voice_pipeline.transcribe(
                 tmp_path,
                 voice.mime_type or "audio/ogg",
                 whisper_model=settings.whisper_model,
@@ -608,7 +609,7 @@ class TelegramPlatform(MessagingPlatform):
                 await self.queue_delete_message(chat_id, str(status_msg_id))
                 return
 
-            await self._pending_voice.complete(chat_id, message_id, str(status_msg_id))
+            await self._voice_pipeline.complete(chat_id, message_id, str(status_msg_id))
 
             incoming = IncomingMessage(
                 text=transcribed,

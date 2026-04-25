@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import MutableMapping
+from collections.abc import Callable, MutableMapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -20,6 +20,7 @@ from providers.open_router import (
 )
 
 TransportType = Literal["openai_chat", "anthropic_messages"]
+ProviderFactory = Callable[[ProviderConfig, Settings], BaseProvider]
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +78,37 @@ PROVIDER_DESCRIPTORS: dict[str, ProviderDescriptor] = {
         proxy_attr="llamacpp_proxy",
         capabilities=("chat", "streaming", "tools", "native_anthropic", "local"),
     ),
+}
+
+
+def _create_nvidia_nim(config: ProviderConfig, settings: Settings) -> BaseProvider:
+    return NvidiaNimProvider(config, nim_settings=settings.nim)
+
+
+def _create_open_router(config: ProviderConfig, settings: Settings) -> BaseProvider:
+    if settings.openrouter_transport == "openai":
+        return OpenRouterChatProvider(config)
+    return OpenRouterProvider(config)
+
+
+def _create_deepseek(config: ProviderConfig, settings: Settings) -> BaseProvider:
+    return DeepSeekProvider(config)
+
+
+def _create_lmstudio(config: ProviderConfig, settings: Settings) -> BaseProvider:
+    return LMStudioProvider(config)
+
+
+def _create_llamacpp(config: ProviderConfig, settings: Settings) -> BaseProvider:
+    return LlamaCppProvider(config)
+
+
+PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
+    "nvidia_nim": _create_nvidia_nim,
+    "open_router": _create_open_router,
+    "deepseek": _create_deepseek,
+    "lmstudio": _create_lmstudio,
+    "llamacpp": _create_llamacpp,
 }
 
 
@@ -144,20 +176,10 @@ def create_provider(provider_id: str, settings: Settings) -> BaseProvider:
         )
 
     config = build_provider_config(descriptor, settings)
-    if provider_id == "nvidia_nim":
-        return NvidiaNimProvider(config, nim_settings=settings.nim)
-    if provider_id == "open_router":
-        if settings.openrouter_transport == "openai":
-            return OpenRouterChatProvider(config)
-        return OpenRouterProvider(config)
-    if provider_id == "deepseek":
-        return DeepSeekProvider(config)
-    if provider_id == "lmstudio":
-        return LMStudioProvider(config)
-    if provider_id == "llamacpp":
-        return LlamaCppProvider(config)
-
-    raise AssertionError(f"Unhandled provider descriptor: {provider_id}")
+    factory = PROVIDER_FACTORIES.get(provider_id)
+    if factory is None:
+        raise AssertionError(f"Unhandled provider descriptor: {provider_id}")
+    return factory(config, settings)
 
 
 class ProviderRegistry:

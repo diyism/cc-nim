@@ -5,8 +5,8 @@ from loguru import logger
 
 from config.settings import Settings
 from config.settings import get_settings as _get_settings
+from core.anthropic import get_user_facing_error_message
 from providers.base import BaseProvider
-from providers.common import get_user_facing_error_message
 from providers.exceptions import AuthenticationError
 from providers.registry import PROVIDER_DESCRIPTORS, ProviderRegistry
 
@@ -24,6 +24,7 @@ def get_provider_for_type(provider_type: str) -> BaseProvider:
 
     Providers are cached in the registry and reused across requests.
     """
+    should_log_init = provider_type not in _providers
     try:
         provider = ProviderRegistry(_providers).get(provider_type, get_settings())
     except AuthenticationError as e:
@@ -37,7 +38,7 @@ def get_provider_for_type(provider_type: str) -> BaseProvider:
             ", ".join(f"'{key}'" for key in PROVIDER_DESCRIPTORS),
         )
         raise
-    if provider_type in _providers:
+    if should_log_init:
         logger.info("Provider initialized: {}", provider_type)
     return provider
 

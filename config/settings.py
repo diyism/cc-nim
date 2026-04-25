@@ -99,7 +99,7 @@ class Settings(BaseSettings):
     deepseek_api_key: str = Field(default="", validation_alias="DEEPSEEK_API_KEY")
 
     # ==================== Messaging Platform Selection ====================
-    # Valid: "telegram" | "discord"
+    # Valid: "telegram" | "discord" | "none"
     messaging_platform: str = Field(
         default="discord", validation_alias="MESSAGING_PLATFORM"
     )
@@ -195,6 +195,7 @@ class Settings(BaseSettings):
     )
     claude_workspace: str = "./agent_workspace"
     allowed_dir: str = ""
+    claude_cli_bin: str = Field(default="claude", validation_alias="CLAUDE_CLI_BIN")
 
     # ==================== Server ====================
     host: str = "0.0.0.0"
@@ -246,6 +247,15 @@ class Settings(BaseSettings):
         if v not in ("anthropic", "openai"):
             raise ValueError(
                 f"openrouter_transport must be 'anthropic' or 'openai', got {v!r}"
+            )
+        return v
+
+    @field_validator("messaging_platform")
+    @classmethod
+    def validate_messaging_platform(cls, v: str) -> str:
+        if v not in ("telegram", "discord", "none"):
+            raise ValueError(
+                f"messaging_platform must be 'telegram', 'discord', or 'none', got {v!r}"
             )
         return v
 

@@ -1,15 +1,11 @@
-"""Tests for providers/nvidia_nim/utils/sse_builder.py."""
+"""Tests for core.anthropic.sse."""
 
 import json
 from unittest.mock import patch
 
 import pytest
 
-from providers.common.sse_builder import (
-    ContentBlockManager,
-    SSEBuilder,
-    map_stop_reason,
-)
+from core.anthropic import ContentBlockManager, SSEBuilder, map_stop_reason
 
 
 def _parse_sse(sse_str: str) -> dict:
@@ -366,7 +362,7 @@ class TestSSEBuilderTokenEstimation:
         builder.start_text_block()
         builder.emit_text_delta("a" * 100)  # 100 chars -> ~25 tokens
 
-        with patch("providers.common.sse_builder.ENCODER", None):
+        with patch("core.anthropic.sse.ENCODER", None):
             tokens = builder.estimate_output_tokens()
             assert tokens == 25  # 100 // 4
 
@@ -376,7 +372,7 @@ class TestSSEBuilderTokenEstimation:
         builder.start_tool_block(0, "t1", "Read")
         builder.emit_tool_delta(0, '{"path":"test.py"}')
 
-        with patch("providers.common.sse_builder.ENCODER", None):
+        with patch("core.anthropic.sse.ENCODER", None):
             tokens = builder.estimate_output_tokens()
             # 1 tool * 50 = 50
             assert tokens == 50

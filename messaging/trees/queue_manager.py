@@ -14,14 +14,6 @@ from .data import MessageNode, MessageState, MessageTree
 from .processor import TreeQueueProcessor
 from .repository import TreeRepository
 
-# Backward compatibility: re-export moved classes
-__all__ = [
-    "MessageNode",
-    "MessageState",
-    "MessageTree",
-    "TreeQueueManager",
-]
-
 
 class TreeQueueManager:
     """

@@ -10,17 +10,17 @@ import httpx
 from loguru import logger
 from openai import AsyncOpenAI
 
-from providers.base import BaseProvider, ProviderConfig
-from providers.common import (
+from core.anthropic import (
     ContentType,
     HeuristicToolParser,
     SSEBuilder,
     ThinkTagParser,
     append_request_id,
     get_user_facing_error_message,
-    map_error,
     map_stop_reason,
 )
+from providers.base import BaseProvider, ProviderConfig
+from providers.error_mapping import map_error
 from providers.rate_limit import GlobalRateLimiter
 
 

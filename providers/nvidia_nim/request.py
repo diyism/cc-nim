@@ -6,8 +6,7 @@ from typing import Any
 from loguru import logger
 
 from config.nim import NimSettings
-from providers.common.message_converter import build_base_request_body
-from providers.common.utils import set_if_not_none
+from core.anthropic import build_base_request_body, set_if_not_none
 
 
 def _set_extra(

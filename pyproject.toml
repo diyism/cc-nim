@@ -42,7 +42,7 @@ voice_local = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["api", "cli", "config", "messaging", "providers"]
+packages = ["api", "cli", "config", "core", "messaging", "providers"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu130" }
@@ -86,7 +86,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["api", "cli", "config", "messaging", "providers", "utils"]
+known-first-party = ["api", "cli", "config", "core", "messaging", "providers", "smoke"]
 
 [tool.ruff.format]
 quote-style = "double"

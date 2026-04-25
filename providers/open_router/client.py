@@ -8,9 +8,9 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.anthropic import SSEBuilder, append_request_id
 from providers.anthropic_messages import AnthropicMessagesTransport, StreamChunkMode
 from providers.base import ProviderConfig
-from providers.common import SSEBuilder, append_request_id
 from providers.openai_compat import OpenAIChatTransport
 
 from .chat_request import build_chat_request_body

@@ -50,6 +50,7 @@ class GlobalRateLimiter:
 
         self._rate_limit = rate_limit
         self._rate_window = float(rate_window)
+        self._max_concurrency = max_concurrency
         # Monotonic timestamps of the last granted slots.
         self._request_times: deque[float] = deque()
         self._blocked_until: float = 0
@@ -95,10 +96,21 @@ class GlobalRateLimiter:
         """Get or create a provider-scoped limiter instance."""
         if not scope:
             raise ValueError("scope must be non-empty")
-        if scope not in cls._scoped_instances:
+        desired_rate_limit = rate_limit or 40
+        desired_rate_window = float(rate_window or 60.0)
+        existing = cls._scoped_instances.get(scope)
+        if existing and existing.matches_config(
+            desired_rate_limit, desired_rate_window, max_concurrency
+        ):
+            return existing
+        if existing:
+            logger.info(
+                "Rebuilding provider rate limiter for updated scope '{}'", scope
+            )
+        if scope not in cls._scoped_instances or existing:
             cls._scoped_instances[scope] = cls(
-                rate_limit=rate_limit or 40,
-                rate_window=rate_window or 60.0,
+                rate_limit=desired_rate_limit,
+                rate_window=desired_rate_window,
                 max_concurrency=max_concurrency,
             )
         return cls._scoped_instances[scope]
@@ -173,6 +185,16 @@ class GlobalRateLimiter:
     def is_blocked(self) -> bool:
         """Check if currently reactively blocked."""
         return time.monotonic() < self._blocked_until
+
+    def matches_config(
+        self, rate_limit: int, rate_window: float, max_concurrency: int
+    ) -> bool:
+        """Return whether this limiter matches the requested runtime config."""
+        return (
+            self._rate_limit == rate_limit
+            and self._rate_window == float(rate_window)
+            and self._max_concurrency == max_concurrency
+        )
 
     def remaining_wait(self) -> float:
         """Get remaining reactive wait time in seconds."""

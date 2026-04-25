@@ -1,6 +1,6 @@
 import pytest
 
-from providers.common import ContentType, HeuristicToolParser, ThinkTagParser
+from core.anthropic import ContentType, HeuristicToolParser, ThinkTagParser
 
 
 def test_think_tag_parser_basic():

@@ -2,14 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from core.anthropic import ContentType, HeuristicToolParser, SSEBuilder, ThinkTagParser
 from messaging.event_parser import parse_cli_event
 from messaging.transcript import RenderCtx, TranscriptBuffer
-from providers.common import (
-    ContentType,
-    HeuristicToolParser,
-    SSEBuilder,
-    ThinkTagParser,
-)
 from smoke.lib.sse import (
     assert_anthropic_stream_contract,
     event_names,

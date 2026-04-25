@@ -3,23 +3,12 @@
 import json
 from typing import Any
 
-
-def get_block_attr(block: Any, attr: str, default: Any = None) -> Any:
-    """Get attribute from object or dict."""
-    if hasattr(block, attr):
-        return getattr(block, attr)
-    if isinstance(block, dict):
-        return block.get(attr, default)
-    return default
-
-
-def get_block_type(block: Any) -> str | None:
-    """Get block type from object or dict."""
-    return get_block_attr(block, "type")
+from .content import get_block_attr, get_block_type
+from .utils import set_if_not_none
 
 
 class AnthropicToOpenAIConverter:
-    """Converts Anthropic message format to OpenAI format."""
+    """Convert Anthropic message format to OpenAI-compatible format."""
 
     @staticmethod
     def convert_messages(
@@ -29,12 +18,6 @@ class AnthropicToOpenAIConverter:
         include_reasoning_for_openrouter: bool = False,
         include_reasoning_content: bool = False,
     ) -> list[dict[str, Any]]:
-        """Convert a list of Anthropic messages to OpenAI format.
-
-        When reasoning_content preservation is enabled, assistant messages with
-        thinking blocks get reasoning_content added for provider multi-turn
-        reasoning continuation.
-        """
         result = []
 
         for msg in messages:
@@ -70,7 +53,6 @@ class AnthropicToOpenAIConverter:
         include_reasoning_for_openrouter: bool = False,
         include_reasoning_content: bool = False,
     ) -> list[dict[str, Any]]:
-        """Convert assistant message blocks, preserving interleaved thinking+text order."""
         content_parts: list[str] = []
         thinking_parts: list[str] = []
         tool_calls: list[dict[str, Any]] = []
@@ -106,9 +88,6 @@ class AnthropicToOpenAIConverter:
                 )
 
         content_str = "\n\n".join(content_parts)
-
-        # Ensure content is never an empty string for assistant messages
-        # NIM (especially Mistral models) requires non-empty content if there are no tool calls
         if not content_str and not tool_calls:
             content_str = " "
 
@@ -125,7 +104,6 @@ class AnthropicToOpenAIConverter:
 
     @staticmethod
     def _convert_user_message(content: list[Any]) -> list[dict[str, Any]]:
-        """Convert user message blocks (including tool results), preserving order."""
         result: list[dict[str, Any]] = []
         text_parts: list[str] = []
 
@@ -162,7 +140,6 @@ class AnthropicToOpenAIConverter:
 
     @staticmethod
     def convert_tools(tools: list[Any]) -> list[dict[str, Any]]:
-        """Convert Anthropic tools to OpenAI format."""
         return [
             {
                 "type": "function",
@@ -177,7 +154,6 @@ class AnthropicToOpenAIConverter:
 
     @staticmethod
     def convert_tool_choice(tool_choice: Any) -> Any:
-        """Convert Anthropic tool_choice to OpenAI-compatible format."""
         if not isinstance(tool_choice, dict):
             return tool_choice
 
@@ -197,10 +173,9 @@ class AnthropicToOpenAIConverter:
 
     @staticmethod
     def convert_system_prompt(system: Any) -> dict[str, str] | None:
-        """Convert Anthropic system prompt to OpenAI format."""
         if isinstance(system, str):
             return {"role": "system", "content": system}
-        elif isinstance(system, list):
+        if isinstance(system, list):
             text_parts = [
                 get_block_attr(block, "text", "")
                 for block in system
@@ -219,14 +194,7 @@ def build_base_request_body(
     include_reasoning_for_openrouter: bool = False,
     include_reasoning_content: bool = False,
 ) -> dict[str, Any]:
-    """Build the common parts of an OpenAI-format request body.
-
-    Handles message conversion, system prompt, max_tokens, temperature,
-    top_p, stop sequences, tools, and tool_choice. Provider-specific
-    parameters (extra_body, penalties, NIM settings) are added by callers.
-    """
-    from providers.common.utils import set_if_not_none
-
+    """Build the common parts of an OpenAI-format request body."""
     messages = AnthropicToOpenAIConverter.convert_messages(
         request_data.messages,
         include_thinking=include_thinking,

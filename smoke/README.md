@@ -18,7 +18,7 @@ belong under `tests/` and must stay green with plain `uv run pytest`.
 
 ```powershell
 uv run pytest smoke --collect-only -q
-uv run pytest smoke -n 0 -m live -s --tb=short
+uv run pytest smoke -n 0 -s --tb=short
 ```
 
 The second command skips everything unless `FCC_LIVE_SMOKE=1` is set, but still
@@ -28,7 +28,7 @@ writes skip entries to `.smoke-results/`.
 
 ```powershell
 $env:FCC_LIVE_SMOKE = "1"
-uv run pytest smoke -n 0 -m live -s --tb=short
+uv run pytest smoke -n 0 -s --tb=short
 ```
 
 Provider product E2E runs for every configured provider model from `MODEL`,
@@ -68,20 +68,20 @@ Side-effectful targets are opt-in:
 ```powershell
 $env:FCC_LIVE_SMOKE = "1"
 $env:FCC_SMOKE_PROVIDER_MATRIX = "open_router,nvidia_nim,deepseek,lmstudio,llamacpp"
-uv run pytest smoke/product -n 0 -m live -s --tb=short
+uv run pytest smoke/product -n 0 -s --tb=short
 ```
 
 ```powershell
 $env:FCC_LIVE_SMOKE = "1"
 $env:FCC_SMOKE_TARGETS = "telegram,discord,voice"
 $env:FCC_SMOKE_RUN_VOICE = "1"
-uv run pytest smoke/product -n 0 -m live -s --tb=short
+uv run pytest smoke/product -n 0 -s --tb=short
 ```
 
 ```powershell
 $env:FCC_LIVE_SMOKE = "1"
 $env:FCC_SMOKE_TARGETS = "messaging,config,extensibility"
-uv run pytest smoke/product -n 0 -m live -s --tb=short
+uv run pytest smoke/product -n 0 -s --tb=short
 ```
 
 ## Environment

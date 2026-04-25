@@ -103,8 +103,6 @@ class MessagesRequest(BaseModel):
     tool_choice: dict[str, Any] | None = None
     thinking: ThinkingConfig | None = None
     extra_body: dict[str, Any] | None = None
-    original_model: str | None = None
-    resolved_provider_model: str | None = None
 
 
 class TokenCountRequest(BaseModel):

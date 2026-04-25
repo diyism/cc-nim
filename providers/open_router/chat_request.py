@@ -4,7 +4,7 @@ from typing import Any
 
 from loguru import logger
 
-from providers.common.message_converter import build_base_request_body
+from core.anthropic import build_base_request_body
 
 OPENROUTER_DEFAULT_MAX_TOKENS = 81920
 

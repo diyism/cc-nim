@@ -9,22 +9,22 @@ def test_messages_request_parses_without_model_mapping_side_effects():
     )
 
     assert request.model == "claude-3-opus"
-    assert request.original_model is None
-    assert request.resolved_provider_model is None
 
 
-def test_messages_request_preserves_internal_routing_fields_when_supplied():
-    request = MessagesRequest(
-        model="target-model",
-        original_model="claude-3-opus",
-        resolved_provider_model="nvidia_nim/target-model",
-        max_tokens=100,
-        messages=[Message(role="user", content="hello")],
+def test_messages_request_ignores_internal_routing_fields_when_supplied():
+    request = MessagesRequest.model_validate(
+        {
+            "model": "target-model",
+            "original_model": "claude-3-opus",
+            "resolved_provider_model": "nvidia_nim/target-model",
+            "max_tokens": 100,
+            "messages": [{"role": "user", "content": "hello"}],
+        }
     )
 
     assert request.model == "target-model"
-    assert request.original_model == "claude-3-opus"
-    assert request.resolved_provider_model == "nvidia_nim/target-model"
+    assert "original_model" not in request.model_dump()
+    assert "resolved_provider_model" not in request.model_dump()
 
 
 def test_token_count_request_parses_without_model_mapping_side_effects():

@@ -13,10 +13,14 @@ OPENROUTER_MODELS_URL="https://openrouter.ai/api/v1/models"
 DEFAULT_LM_STUDIO_BASE_URL="http://localhost:1234/v1"
 DEFAULT_LLAMACPP_BASE_URL="http://localhost:8080/v1"
 
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "Error: python3 is required." >&2
+if ! command -v uv >/dev/null 2>&1; then
+    echo "Error: uv is required." >&2
     exit 1
 fi
+
+run_python() {
+    uv run python "$@"
+}
 
 read_env_value() {
     local key="$1"
@@ -41,7 +45,7 @@ if ! command -v fzf >/dev/null 2>&1; then
 fi
 
 parse_models_from_json() {
-    python3 -c '
+    run_python -c '
 import json, sys
 try:
     payload = json.load(sys.stdin)
@@ -61,7 +65,7 @@ get_nvidia_models() {
         exit 1
     fi
 
-    python3 -c '
+    run_python -c '
 import json, sys
 with open(sys.argv[1], "r", encoding="utf-8") as f:
     payload = json.load(f)

@@ -36,9 +36,9 @@ def test_model_router_applies_opus_override(settings):
     )
     routed = ModelRouter(settings).resolve_messages_request(request)
 
-    assert routed.model == "deepseek/deepseek-r1"
-    assert routed.resolved_provider_model == "open_router/deepseek/deepseek-r1"
-    assert routed.original_model == "claude-opus-4-20250514"
+    assert routed.request.model == "deepseek/deepseek-r1"
+    assert routed.resolved.provider_model_ref == "open_router/deepseek/deepseek-r1"
+    assert routed.resolved.original_model == "claude-opus-4-20250514"
     assert request.model == "claude-opus-4-20250514"
 
 
@@ -53,8 +53,8 @@ def test_model_router_applies_haiku_override(settings):
         )
     )
 
-    assert routed.model == "qwen2.5-7b"
-    assert routed.resolved_provider_model == "lmstudio/qwen2.5-7b"
+    assert routed.request.model == "qwen2.5-7b"
+    assert routed.resolved.provider_model_ref == "lmstudio/qwen2.5-7b"
 
 
 def test_model_router_applies_sonnet_override(settings):
@@ -68,8 +68,10 @@ def test_model_router_applies_sonnet_override(settings):
         )
     )
 
-    assert routed.model == "meta/llama-3.3-70b-instruct"
-    assert routed.resolved_provider_model == "nvidia_nim/meta/llama-3.3-70b-instruct"
+    assert routed.request.model == "meta/llama-3.3-70b-instruct"
+    assert (
+        routed.resolved.provider_model_ref == "nvidia_nim/meta/llama-3.3-70b-instruct"
+    )
 
 
 def test_model_router_routes_token_count_request(settings):
@@ -81,7 +83,7 @@ def test_model_router_routes_token_count_request(settings):
     )
     routed = ModelRouter(settings).resolve_token_count_request(request)
 
-    assert routed.model == "qwen2.5-7b"
+    assert routed.request.model == "qwen2.5-7b"
     assert request.model == "claude-3-haiku-20240307"
 
 

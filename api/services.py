@@ -12,8 +12,8 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 
 from config.settings import Settings
+from core.anthropic import get_user_facing_error_message
 from providers.base import BaseProvider
-from providers.common import get_user_facing_error_message
 from providers.exceptions import InvalidRequestError, ProviderError
 
 from .model_router import ModelRouter
@@ -48,35 +48,32 @@ class ClaudeProxyService:
             if not request_data.messages:
                 raise InvalidRequestError("messages cannot be empty")
 
-            routed_request = self._model_router.resolve_messages_request(request_data)
+            routed = self._model_router.resolve_messages_request(request_data)
 
-            optimized = try_optimizations(routed_request, self._settings)
+            optimized = try_optimizations(routed.request, self._settings)
             if optimized is not None:
                 return optimized
             logger.debug("No optimization matched, routing to provider")
 
-            provider_type = (
-                routed_request.resolved_provider_model or self._settings.model
-            ).split("/", 1)[0]
-            provider = self._provider_getter(provider_type)
+            provider = self._provider_getter(routed.resolved.provider_id)
 
             request_id = f"req_{uuid.uuid4().hex[:12]}"
             logger.info(
                 "API_REQUEST: request_id={} model={} messages={}",
                 request_id,
-                routed_request.model,
-                len(routed_request.messages),
+                routed.request.model,
+                len(routed.request.messages),
             )
             logger.debug(
-                "FULL_PAYLOAD [{}]: {}", request_id, routed_request.model_dump()
+                "FULL_PAYLOAD [{}]: {}", request_id, routed.request.model_dump()
             )
 
             input_tokens = self._token_counter(
-                routed_request.messages, routed_request.system, routed_request.tools
+                routed.request.messages, routed.request.system, routed.request.tools
             )
             return StreamingResponse(
                 provider.stream_response(
-                    routed_request,
+                    routed.request,
                     input_tokens=input_tokens,
                     request_id=request_id,
                 ),
@@ -102,17 +99,15 @@ class ClaudeProxyService:
         request_id = f"req_{uuid.uuid4().hex[:12]}"
         with logger.contextualize(request_id=request_id):
             try:
-                routed_request = self._model_router.resolve_token_count_request(
-                    request_data
-                )
+                routed = self._model_router.resolve_token_count_request(request_data)
                 tokens = self._token_counter(
-                    routed_request.messages, routed_request.system, routed_request.tools
+                    routed.request.messages, routed.request.system, routed.request.tools
                 )
                 logger.info(
                     "COUNT_TOKENS: request_id={} model={} messages={} input_tokens={}",
                     request_id,
-                    routed_request.model,
-                    len(routed_request.messages),
+                    routed.request.model,
+                    len(routed.request.messages),
                     tokens,
                 )
                 return TokenCountResponse(input_tokens=tokens)
