@@ -6,7 +6,7 @@ from smoke.lib.config import SmokeConfig, auth_headers
 from smoke.lib.http import message_payload, post_json
 from smoke.lib.server import RunningServer
 
-pytestmark = [pytest.mark.live, pytest.mark.smoke_target("vscode")]
+pytestmark = [pytest.mark.live, pytest.mark.smoke_target("clients")]
 
 
 def test_vscode_and_jetbrains_shaped_requests(

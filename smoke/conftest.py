@@ -34,7 +34,9 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
 
 
 def pytest_runtest_logreport(report: pytest.TestReport) -> None:
-    if report.when != "call":
+    if report.when == "setup" and not report.skipped:
+        return
+    if report.when == "teardown" and not report.failed:
         return
     if _REPORT is None:
         return

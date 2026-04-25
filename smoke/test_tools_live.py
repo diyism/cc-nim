@@ -5,6 +5,7 @@ import pytest
 from smoke.lib.config import SmokeConfig
 from smoke.lib.http import collect_message_stream, message_payload
 from smoke.lib.server import start_server
+from smoke.lib.skips import skip_if_upstream_unavailable_events
 from smoke.lib.sse import assert_anthropic_stream_contract, has_tool_use
 
 pytestmark = [pytest.mark.live, pytest.mark.smoke_target("tools")]
@@ -47,5 +48,6 @@ def test_live_tool_use_when_configured_model_supports_tools(
         name="tools",
     ) as server:
         events = collect_message_stream(server, payload, smoke_config)
+    skip_if_upstream_unavailable_events(events)
     assert_anthropic_stream_contract(events)
     assert has_tool_use(events), "model did not emit a tool_use block"

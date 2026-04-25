@@ -14,16 +14,45 @@ DEFAULT_TARGETS = frozenset(
         "api",
         "auth",
         "cli",
-        "contract",
-        "optimizations",
+        "clients",
+        "llamacpp",
+        "lmstudio",
         "providers",
-        "thinking",
+        "rate_limit",
         "tools",
-        "vscode",
     }
 )
-ALL_TARGETS = DEFAULT_TARGETS | frozenset({"discord", "telegram", "voice"})
+SIDE_EFFECT_TARGETS = frozenset({"discord", "telegram", "voice"})
+ALL_TARGETS = DEFAULT_TARGETS | SIDE_EFFECT_TARGETS
+TARGET_ALIASES = {
+    "contract": "api",
+    "optimizations": "api",
+    "thinking": "providers",
+    "vscode": "clients",
+}
 SECRET_KEY_PARTS = ("KEY", "TOKEN", "SECRET", "WEBHOOK", "AUTH")
+
+
+TARGET_REQUIRED_ENV: dict[str, tuple[str, ...]] = {
+    "api": (),
+    "auth": (),
+    "cli": ("FCC_SMOKE_CLAUDE_BIN", "configured provider for Claude CLI prompt"),
+    "clients": (),
+    "providers": ("MODEL or MODEL_* with usable provider configuration",),
+    "rate_limit": ("configured provider model",),
+    "tools": ("configured tool-capable provider model",),
+    "lmstudio": ("LM_STUDIO_BASE_URL with a running LM Studio server",),
+    "llamacpp": ("LLAMACPP_BASE_URL with a running llama-server",),
+    "telegram": (
+        "TELEGRAM_BOT_TOKEN",
+        "ALLOWED_TELEGRAM_USER_ID or FCC_SMOKE_TELEGRAM_CHAT_ID",
+    ),
+    "discord": (
+        "DISCORD_BOT_TOKEN",
+        "ALLOWED_DISCORD_CHANNELS or FCC_SMOKE_DISCORD_CHANNEL_ID",
+    ),
+    "voice": ("VOICE_NOTE_ENABLED=true", "FCC_SMOKE_RUN_VOICE=1"),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,7 +151,7 @@ def _parse_targets(raw: str | None) -> frozenset[str]:
     parsed = _parse_csv(raw)
     if "all" in parsed:
         return ALL_TARGETS
-    return parsed
+    return frozenset(TARGET_ALIASES.get(target, target) for target in parsed)
 
 
 def auth_headers(token: str | None = None) -> dict[str, str]:

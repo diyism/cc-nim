@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-import pytest
-
 from messaging.event_parser import parse_cli_event
 from messaging.transcript import RenderCtx, TranscriptBuffer
 from providers.common import (
@@ -20,12 +18,6 @@ from smoke.lib.sse import (
     text_content,
     thinking_content,
 )
-
-pytestmark = [
-    pytest.mark.live,
-    pytest.mark.smoke_target("contract"),
-    pytest.mark.smoke_target("thinking"),
-]
 
 
 def test_interleaved_thinking_text_blocks_are_valid() -> None:
@@ -50,7 +42,7 @@ def test_split_think_tags_preserve_text_and_thinking() -> None:
 
 
 def test_mixed_reasoning_content_and_think_tags_keep_order() -> None:
-    builder = SSEBuilder("msg_smoke", "smoke-model")
+    builder = SSEBuilder("msg_contract", "contract-model")
     chunks = [builder.message_start()]
     chunks.extend(builder.ensure_thinking_block())
     chunks.append(builder.emit_thinking_delta("reasoning field"))
@@ -68,7 +60,7 @@ def test_mixed_reasoning_content_and_think_tags_keep_order() -> None:
 
 
 def test_thinking_tool_text_and_transcript_order_contract() -> None:
-    builder = SSEBuilder("msg_smoke", "smoke-model")
+    builder = SSEBuilder("msg_contract", "contract-model")
     chunks = [builder.message_start()]
     chunks.extend(builder.ensure_thinking_block())
     chunks.append(builder.emit_thinking_delta("inspect first"))
@@ -136,7 +128,7 @@ def test_task_tool_arguments_force_foreground_execution() -> None:
 def _interleaved_thinking_text_events(
     parts: tuple[str, str, str, str],
 ) -> Iterable[str]:
-    builder = SSEBuilder("msg_smoke", "smoke-model")
+    builder = SSEBuilder("msg_contract", "contract-model")
     yield builder.message_start()
     yield from builder.ensure_thinking_block()
     yield builder.emit_thinking_delta(parts[0])
@@ -157,7 +149,7 @@ def _events_from_text_chunks(
     *,
     enable_thinking: bool = True,
 ) -> list[str]:
-    sse = builder or SSEBuilder("msg_smoke", "smoke-model")
+    sse = builder or SSEBuilder("msg_contract", "contract-model")
     out: list[str] = [] if builder else [sse.message_start()]
     parser = ThinkTagParser()
 

@@ -13,6 +13,7 @@ from .config import SmokeConfig, redacted
 class SmokeOutcome:
     nodeid: str
     outcome: str
+    classification: str
     duration_s: float
     markers: list[str]
     detail: str
@@ -37,6 +38,9 @@ class SmokeReport:
             SmokeOutcome(
                 nodeid=nodeid,
                 outcome=outcome,
+                classification=classify_outcome(
+                    nodeid=nodeid, outcome=outcome, detail=detail
+                ),
                 duration_s=duration_s,
                 markers=markers,
                 detail=redacted(detail),
@@ -56,3 +60,42 @@ class SmokeReport:
             "outcomes": [asdict(outcome) for outcome in self.outcomes],
         }
         path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def classify_outcome(*, nodeid: str, outcome: str, detail: str) -> str:
+    """Classify smoke outcomes for triage reports."""
+    if outcome == "passed":
+        return "passed"
+
+    text = f"{nodeid}\n{detail}".lower()
+    if outcome == "skipped":
+        if any(
+            marker in text
+            for marker in (
+                "upstream_unavailable",
+                "connection refused",
+                "connecterror",
+                "readtimeout",
+                "timed out",
+                "not reachable",
+            )
+        ):
+            return "upstream_unavailable"
+        return "missing_env"
+
+    if "harness_bug" in text:
+        return "harness_bug"
+    if any(
+        marker in text
+        for marker in (
+            "upstream_unavailable",
+            "connection refused",
+            "connecterror",
+            "readtimeout",
+            "timed out",
+            "not reachable",
+            "upstream provider",
+        )
+    ):
+        return "upstream_unavailable"
+    return "product_failure"

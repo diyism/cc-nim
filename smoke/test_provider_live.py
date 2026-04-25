@@ -8,6 +8,10 @@ import pytest
 from smoke.lib.config import SmokeConfig, auth_headers
 from smoke.lib.http import collect_message_stream, message_payload
 from smoke.lib.server import start_server
+from smoke.lib.skips import (
+    skip_if_upstream_unavailable_events,
+    skip_if_upstream_unavailable_exception,
+)
 from smoke.lib.sse import assert_anthropic_stream_contract, text_content
 
 pytestmark = [pytest.mark.live, pytest.mark.smoke_target("providers")]
@@ -20,6 +24,19 @@ def test_model_mapping_configuration_is_consistent(smoke_config: SmokeConfig) ->
     for provider_model in models:
         assert "/" in provider_model.full_model
         assert provider_model.model_name
+
+
+def test_mixed_provider_model_mapping_when_configured(
+    smoke_config: SmokeConfig,
+) -> None:
+    models = smoke_config.provider_models()
+    providers = {provider_model.provider for provider_model in models}
+    if len(providers) < 2:
+        pytest.skip("configure MODEL_* with at least two provider prefixes")
+
+    sources = {provider_model.source for provider_model in models}
+    assert sources <= {"MODEL", "MODEL_OPUS", "MODEL_SONNET", "MODEL_HAIKU"}
+    assert len(providers) >= 2
 
 
 def test_configured_provider_models_stream_successfully(
@@ -45,9 +62,11 @@ def test_configured_provider_models_stream_successfully(
                     message_payload(smoke_config.prompt, model="fcc-smoke-default"),
                     smoke_config,
                 )
+                skip_if_upstream_unavailable_events(events)
                 assert_anthropic_stream_contract(events)
                 assert text_content(events).strip(), "provider returned no text"
         except Exception as exc:
+            skip_if_upstream_unavailable_exception(exc)
             failures.append(
                 f"{provider_model.source}={provider_model.full_model}: "
                 f"{type(exc).__name__}: {exc}"
@@ -56,6 +75,7 @@ def test_configured_provider_models_stream_successfully(
     assert not failures, "\n".join(failures)
 
 
+@pytest.mark.smoke_target("rate_limit")
 def test_client_disconnect_mid_stream_does_not_crash_server(
     smoke_config: SmokeConfig,
 ) -> None:

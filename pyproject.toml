@@ -104,9 +104,9 @@ markers = [
     "provider: live provider checks",
     "messaging: live messaging platform checks",
     "cli: CLI integration checks",
-    "vscode: VS Code or IDE client compatibility checks",
+    "clients: client compatibility checks",
     "voice: voice transcription checks",
-    "contract: deterministic smoke contract checks",
+    "contract: deterministic feature contract checks",
     "smoke_target(name): route a smoke test behind FCC_SMOKE_TARGETS",
 ]
 

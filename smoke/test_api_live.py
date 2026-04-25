@@ -173,3 +173,15 @@ def test_invalid_messages_returns_anthropic_error(
     payload = response.json()
     assert payload["type"] == "error"
     assert payload["error"]["type"] == "invalid_request_error"
+
+
+def test_stop_endpoint_reports_no_messaging(
+    smoke_server: RunningServer, smoke_headers: dict[str, str]
+) -> None:
+    response = httpx.post(
+        f"{smoke_server.base_url}/stop",
+        headers=smoke_headers,
+        timeout=5,
+    )
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Messaging system not initialized"
