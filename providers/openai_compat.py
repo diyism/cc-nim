@@ -1,6 +1,6 @@
-"""OpenAI-style chat base for :class:`OpenAIChatTransport` (NIM, DeepSeek, etc.).
+"""OpenAI-style chat base for :class:`OpenAIChatTransport` (NIM, etc.).
 
-``AnthropicMessagesTransport``-based providers (OpenRouter, LM Studio, …) live
+``AnthropicMessagesTransport``-based providers (OpenRouter, LM Studio, DeepSeek, …) live
 in separate modules; do not list them as subclasses of this class.
 """
 
@@ -56,7 +56,7 @@ def _iter_heuristic_tool_use_sse(
 
 
 class OpenAIChatTransport(BaseProvider):
-    """Base for OpenAI-compatible ``/chat/completions`` adapters (NIM, DeepSeek, …)."""
+    """Base for OpenAI-compatible ``/chat/completions`` adapters (NIM, …)."""
 
     def __init__(
         self,
