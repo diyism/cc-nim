@@ -391,6 +391,17 @@ class OpenAIChatTransport(BaseProvider):
             for event in sse.ensure_text_block():
                 yield event
             yield sse.emit_text_delta(" ")
+        elif (
+            not has_started_tool
+            and not sse.accumulated_text.strip()
+            and sse.accumulated_reasoning.strip()
+        ):
+            # Some OpenAI-compatible models (e.g. NIM reasoning templates) stream only
+            # ``reasoning_content`` with no ``content``; emit a minimal text block so
+            # clients and smoke ``text_content()`` see a completed assistant message.
+            for event in sse.ensure_text_block():
+                yield event
+            yield sse.emit_text_delta(" ")
 
         for event in self._flush_task_arg_buffers(sse):
             yield event

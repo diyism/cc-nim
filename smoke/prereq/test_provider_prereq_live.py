@@ -8,6 +8,7 @@ import pytest
 from core.anthropic.stream_contracts import (
     assert_anthropic_stream_contract,
     text_content,
+    thinking_content,
 )
 from smoke.lib.config import SmokeConfig, auth_headers
 from smoke.lib.e2e import ProviderMatrixDriver
@@ -66,7 +67,11 @@ def test_configured_provider_models_stream_successfully(
                 )
                 skip_if_upstream_unavailable_events(events)
                 assert_anthropic_stream_contract(events)
-                assert text_content(events).strip(), "provider returned no text"
+                has_text = bool(text_content(events).strip())
+                has_thinking = bool(thinking_content(events).strip())
+                assert has_text or has_thinking, (
+                    "provider returned no visible text or thinking content"
+                )
         except Exception as exc:
             skip_if_upstream_unavailable_exception(exc)
             failures.append(

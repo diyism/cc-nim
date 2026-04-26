@@ -303,6 +303,38 @@ class TestStreamingExceptionHandling:
         assert "message_stop" in event_text
 
     @pytest.mark.asyncio
+    async def test_reasoning_only_stream_emits_placeholder_text(self):
+        """When the model streams only ``reasoning_content`` (no ``content``), add text block.
+
+        NIM / some templates may emit no main ``content``; a minimal text block matches
+        the empty-body placeholder and helps clients that expect a text segment.
+        """
+        provider = _make_provider_with_thinking_enabled(True)
+        request = _make_request()
+        chunk1 = _make_chunk(reasoning_content="reasoning only from provider")
+        chunk2 = _make_chunk(finish_reason="stop")
+        stream_mock = AsyncStreamMock([chunk1, chunk2])
+        with (
+            patch.object(
+                provider._client.chat.completions,
+                "create",
+                new_callable=AsyncMock,
+                return_value=stream_mock,
+            ),
+            patch.object(
+                provider._global_rate_limiter,
+                "wait_if_blocked",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+        ):
+            events = await _collect_stream(provider, request)
+        event_text = "".join(events)
+        assert "thinking_delta" in event_text
+        assert '"text_delta"' in event_text
+        assert "message_stop" in event_text
+
+    @pytest.mark.asyncio
     async def test_stream_with_thinking_content(self):
         """Thinking content via think tags is emitted as thinking blocks."""
         provider = _make_provider()
