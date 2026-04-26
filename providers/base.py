@@ -32,9 +32,16 @@ class BaseProvider(ABC):
     def __init__(self, config: ProviderConfig):
         self._config = config
 
-    def _is_thinking_enabled(self, request: Any) -> bool:
+    def _is_thinking_enabled(
+        self, request: Any, thinking_enabled: bool | None = None
+    ) -> bool:
         """Return whether thinking should be enabled for this request."""
         thinking = getattr(request, "thinking", None)
+        config_enabled = (
+            self._config.enable_thinking
+            if thinking_enabled is None
+            else thinking_enabled
+        )
         request_enabled = True
         if thinking is not None:
             thinking_type = (
@@ -52,7 +59,7 @@ class BaseProvider(ABC):
             )
             if enabled is not None:
                 request_enabled = bool(enabled)
-        return self._config.enable_thinking and request_enabled
+        return config_enabled and request_enabled
 
     @abstractmethod
     async def cleanup(self) -> None:
@@ -65,6 +72,7 @@ class BaseProvider(ABC):
         input_tokens: int = 0,
         *,
         request_id: str | None = None,
+        thinking_enabled: bool | None = None,
     ) -> AsyncIterator[str]:
         """Stream response in Anthropic SSE format."""
         if False:

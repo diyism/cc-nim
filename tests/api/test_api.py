@@ -100,7 +100,9 @@ def test_model_mapping(client: TestClient):
     client.post("/v1/messages", json=payload_haiku)
     assert len(_stream_response_calls) == 1
     args = _stream_response_calls[0][0]
+    kwargs = _stream_response_calls[0][1]
     assert args[0].model != "claude-3-haiku-20240307"
+    assert kwargs["thinking_enabled"] is True
 
 
 def test_error_fallbacks(client: TestClient):

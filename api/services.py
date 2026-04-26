@@ -95,6 +95,7 @@ class ClaudeProxyService:
                     routed.request,
                     input_tokens=input_tokens,
                     request_id=request_id,
+                    thinking_enabled=routed.resolved.thinking_enabled,
                 ),
                 media_type="text/event-stream",
                 headers={

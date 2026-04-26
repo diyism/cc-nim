@@ -102,8 +102,12 @@ MODEL_SONNET=
 MODEL_HAIKU=
 MODEL="nvidia_nim/z-ai/glm4.7"                     # fallback
 
-# Global switch for provider reasoning requests and Claude thinking blocks.
-ENABLE_THINKING=true
+# Per-Claude-model switches for provider reasoning requests and Claude thinking blocks.
+# Blank per-model switches inherit ENABLE_MODEL_THINKING.
+ENABLE_OPUS_THINKING=
+ENABLE_SONNET_THINKING=
+ENABLE_HAIKU_THINKING=
+ENABLE_MODEL_THINKING=true
 ```
 
 </details>
@@ -179,7 +183,7 @@ MODEL="nvidia_nim/z-ai/glm4.7"                      # fallback
 
 </details>
 
-> Migration: `NIM_ENABLE_THINKING` was removed in this release. Rename it to `ENABLE_THINKING`.
+> Migration: `NIM_ENABLE_THINKING` and `ENABLE_THINKING` were removed in this release. Use `ENABLE_MODEL_THINKING` as the fallback switch, with optional `ENABLE_OPUS_THINKING`, `ENABLE_SONNET_THINKING`, and `ENABLE_HAIKU_THINKING` overrides.
 
 <details>
 <summary><b>Optional Authentication</b> (restrict access to your proxy)</summary>
@@ -342,7 +346,7 @@ free-claude-code    # starts the server
 - **Per-model routing**: Opus / Sonnet / Haiku requests resolve to their model-specific backend, with `MODEL` as fallback
 - **Request optimization**: 5 categories of trivial requests (quota probes, title generation, prefix detection, suggestions, filepath extraction) are intercepted and responded to locally without using API quota
 - **Format handling**: OpenRouter, LM Studio, and llama.cpp use native Anthropic Messages endpoints; NIM and DeepSeek use shared OpenAI chat translation
-- **Thinking tokens**: `<think>` tags and `reasoning_content` fields are converted into native Claude thinking blocks when `ENABLE_THINKING=true`
+- **Thinking tokens**: `<think>` tags and `reasoning_content` fields are converted into native Claude thinking blocks when the resolved model's thinking switch is enabled
 
 The proxy also exposes Claude-compatible probe routes: `GET /v1/models`, `POST /v1/messages`, `POST /v1/messages/count_tokens`, plus `HEAD`/`OPTIONS` support for the common probe endpoints.
 
@@ -528,7 +532,10 @@ Configure via `WHISPER_DEVICE` (`cpu` | `cuda` | `nvidia_nim`) and `WHISPER_MODE
 | `MODEL_SONNET`       | Model for Claude Sonnet requests; empty falls back to `MODEL`         | empty                                             |
 | `MODEL_HAIKU`        | Model for Claude Haiku requests; empty falls back to `MODEL`          | empty                                             |
 | `NVIDIA_NIM_API_KEY`    | NVIDIA API key                                                        | required for NIM                                  |
-| `ENABLE_THINKING`    | Global switch for provider reasoning requests and Claude thinking blocks. Set `false` to hide thinking across all providers. | `true` |
+| `ENABLE_MODEL_THINKING` | Fallback switch for provider reasoning requests and Claude thinking blocks. Set `false` to hide thinking unless a model tier overrides it. | `true` |
+| `ENABLE_OPUS_THINKING` | Optional thinking switch for Claude Opus requests; empty inherits `ENABLE_MODEL_THINKING`. | empty |
+| `ENABLE_SONNET_THINKING` | Optional thinking switch for Claude Sonnet requests; empty inherits `ENABLE_MODEL_THINKING`. | empty |
+| `ENABLE_HAIKU_THINKING` | Optional thinking switch for Claude Haiku requests; empty inherits `ENABLE_MODEL_THINKING`. | empty |
 | `OPENROUTER_API_KEY` | OpenRouter API key                                                    | required for OpenRouter                           |
 | `DEEPSEEK_API_KEY`   | DeepSeek API key                                                      | required for DeepSeek                             |
 | `LM_STUDIO_BASE_URL` | LM Studio server URL                                                  | `http://localhost:1234/v1`                        |

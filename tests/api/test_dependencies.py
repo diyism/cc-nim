@@ -39,7 +39,7 @@ def _make_mock_settings(**overrides):
     mock.http_read_timeout = 300.0
     mock.http_write_timeout = 10.0
     mock.http_connect_timeout = 2.0
-    mock.enable_thinking = True
+    mock.enable_model_thinking = True
     for key, value in overrides.items():
         setattr(mock, key, value)
     return mock
@@ -159,12 +159,12 @@ async def test_get_provider_deepseek_uses_fixed_base_url():
 
 
 @pytest.mark.asyncio
-async def test_get_provider_deepseek_passes_enable_thinking():
-    """DeepSeek provider receives the global thinking toggle."""
+async def test_get_provider_deepseek_passes_enable_model_thinking():
+    """DeepSeek provider receives the fallback thinking toggle."""
     with patch("api.dependencies.get_settings") as mock_settings:
         mock_settings.return_value = _make_mock_settings(
             provider_type="deepseek",
-            enable_thinking=False,
+            enable_model_thinking=False,
         )
 
         provider = get_provider()

@@ -42,11 +42,13 @@ class OpenRouterProvider(AnthropicMessagesTransport):
             default_base_url=OPENROUTER_BASE_URL,
         )
 
-    def _build_request_body(self, request: Any) -> dict:
+    def _build_request_body(
+        self, request: Any, thinking_enabled: bool | None = None
+    ) -> dict:
         """Internal helper for tests and direct request dispatch."""
         return build_request_body(
             request,
-            thinking_enabled=self._is_thinking_enabled(request),
+            thinking_enabled=self._is_thinking_enabled(request, thinking_enabled),
         )
 
     def _request_headers(self) -> dict[str, str]:

@@ -30,12 +30,14 @@ class NvidiaNimProvider(OpenAIChatTransport):
         )
         self._nim_settings = nim_settings
 
-    def _build_request_body(self, request: Any) -> dict:
+    def _build_request_body(
+        self, request: Any, thinking_enabled: bool | None = None
+    ) -> dict:
         """Internal helper for tests and shared building."""
         return build_request_body(
             request,
             self._nim_settings,
-            thinking_enabled=self._is_thinking_enabled(request),
+            thinking_enabled=self._is_thinking_enabled(request, thinking_enabled),
         )
 
     def _get_retry_request_body(self, error: Exception, body: dict) -> dict | None:

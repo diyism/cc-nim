@@ -170,6 +170,7 @@ CAPABILITY_CONTRACTS: tuple[CapabilityContract, ...] = (
             "tests/contracts/test_stream_contracts.py",
             "tests/providers/test_open_router.py",
         ),
+        ("test_per_model_thinking_config_e2e",),
     ),
     CapabilityContract(
         "streaming_conversion",
@@ -232,7 +233,7 @@ CAPABILITY_CONTRACTS: tuple[CapabilityContract, ...] = (
         "removed_env_migration",
         "removed_env_migration",
         "config.settings.Settings",
-        "NIM_ENABLE_THINKING in env or dotenv",
+        "NIM_ENABLE_THINKING or ENABLE_THINKING in env or dotenv",
         "startup validation error with rename guidance",
         "application fails fast",
         ("tests/config/test_config.py",),

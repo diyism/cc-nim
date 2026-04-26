@@ -29,7 +29,7 @@ class TestSettings:
         assert isinstance(settings.provider_rate_window, int)
         assert isinstance(settings.nim.temperature, float)
         assert isinstance(settings.fast_prefix_detection, bool)
-        assert isinstance(settings.enable_thinking, bool)
+        assert isinstance(settings.enable_model_thinking, bool)
         assert settings.http_read_timeout == 120.0
 
     def test_get_settings_cached(self):
@@ -110,13 +110,48 @@ class TestSettings:
         settings = Settings()
         assert settings.http_connect_timeout == 5.0
 
-    def test_enable_thinking_from_env(self, monkeypatch):
-        """ENABLE_THINKING env var is loaded into settings."""
+    def test_enable_model_thinking_from_env(self, monkeypatch):
+        """ENABLE_MODEL_THINKING env var is loaded into settings."""
         from config.settings import Settings
 
-        monkeypatch.setenv("ENABLE_THINKING", "false")
+        monkeypatch.setenv("ENABLE_MODEL_THINKING", "false")
         settings = Settings()
-        assert settings.enable_thinking is False
+        assert settings.enable_model_thinking is False
+
+    def test_per_model_thinking_from_env(self, monkeypatch):
+        """Per-model thinking env vars are loaded into settings."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("ENABLE_OPUS_THINKING", "true")
+        monkeypatch.setenv("ENABLE_SONNET_THINKING", "false")
+        monkeypatch.setenv("ENABLE_HAIKU_THINKING", "false")
+        settings = Settings()
+        assert settings.enable_opus_thinking is True
+        assert settings.enable_sonnet_thinking is False
+        assert settings.enable_haiku_thinking is False
+
+    def test_empty_per_model_thinking_inherits_model_default(self, monkeypatch):
+        """Blank per-model thinking env vars are treated as unset."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("ENABLE_MODEL_THINKING", "false")
+        monkeypatch.setenv("ENABLE_OPUS_THINKING", "")
+        settings = Settings()
+        assert settings.enable_opus_thinking is None
+        assert settings.resolve_thinking("claude-opus-4-20250514") is False
+
+    def test_resolve_thinking_uses_model_tiers(self, monkeypatch):
+        """resolve_thinking applies tier override then fallback."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("ENABLE_MODEL_THINKING", "false")
+        monkeypatch.setenv("ENABLE_OPUS_THINKING", "true")
+        monkeypatch.setenv("ENABLE_HAIKU_THINKING", "false")
+        settings = Settings()
+        assert settings.resolve_thinking("claude-opus-4-20250514") is True
+        assert settings.resolve_thinking("claude-sonnet-4-20250514") is False
+        assert settings.resolve_thinking("claude-haiku-4-20250514") is False
+        assert settings.resolve_thinking("unknown-model") is False
 
     def test_anthropic_auth_token_from_env_without_dotenv_key(self, monkeypatch):
         """ANTHROPIC_AUTH_TOKEN env var is loaded when dotenv does not define it."""
@@ -166,7 +201,15 @@ class TestSettings:
         from config.settings import Settings
 
         monkeypatch.setenv("NIM_ENABLE_THINKING", "false")
-        with pytest.raises(ValidationError, match="Rename it to ENABLE_THINKING"):
+        with pytest.raises(ValidationError, match="ENABLE_MODEL_THINKING"):
+            Settings()
+
+    def test_removed_enable_thinking_raises(self, monkeypatch):
+        """ENABLE_THINKING now fails fast with a migration message."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("ENABLE_THINKING", "false")
+        with pytest.raises(ValidationError, match="ENABLE_MODEL_THINKING"):
             Settings()
 
 

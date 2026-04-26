@@ -81,7 +81,9 @@ class OpenAIChatTransport(BaseProvider):
             await client.aclose()
 
     @abstractmethod
-    def _build_request_body(self, request: Any) -> dict:
+    def _build_request_body(
+        self, request: Any, thinking_enabled: bool | None = None
+    ) -> dict:
         """Build request body. Must be implemented by subclasses."""
 
     def _handle_extra_reasoning(
@@ -159,11 +161,12 @@ class OpenAIChatTransport(BaseProvider):
         input_tokens: int = 0,
         *,
         request_id: str | None = None,
+        thinking_enabled: bool | None = None,
     ) -> AsyncIterator[str]:
         """Stream response in Anthropic SSE format."""
         with logger.contextualize(request_id=request_id):
             async for event in self._stream_response_impl(
-                request, input_tokens, request_id
+                request, input_tokens, request_id, thinking_enabled=thinking_enabled
             ):
                 yield event
 
@@ -172,13 +175,16 @@ class OpenAIChatTransport(BaseProvider):
         request: Any,
         input_tokens: int,
         request_id: str | None,
+        *,
+        thinking_enabled: bool | None,
     ) -> AsyncIterator[str]:
         """Shared streaming implementation."""
         tag = self._provider_name
         message_id = f"msg_{uuid.uuid4()}"
         sse = SSEBuilder(message_id, request.model, input_tokens)
 
-        body = self._build_request_body(request)
+        body = self._build_request_body(request, thinking_enabled=thinking_enabled)
+        thinking_enabled = self._is_thinking_enabled(request, thinking_enabled)
         req_tag = f" request_id={request_id}" if request_id else ""
         logger.info(
             "{}_STREAM:{} model={} msgs={} tools={}",
@@ -193,8 +199,6 @@ class OpenAIChatTransport(BaseProvider):
 
         think_parser = ThinkTagParser()
         heuristic_parser = HeuristicToolParser()
-        thinking_enabled = self._is_thinking_enabled(request)
-
         finish_reason = None
         usage_info = None
         error_occurred = False

@@ -20,9 +20,11 @@ class DeepSeekProvider(OpenAIChatTransport):
             api_key=config.api_key,
         )
 
-    def _build_request_body(self, request: Any) -> dict:
+    def _build_request_body(
+        self, request: Any, thinking_enabled: bool | None = None
+    ) -> dict:
         """Internal helper for tests and shared building."""
         return build_request_body(
             request,
-            thinking_enabled=self._is_thinking_enabled(request),
+            thinking_enabled=self._is_thinking_enabled(request, thinking_enabled),
         )

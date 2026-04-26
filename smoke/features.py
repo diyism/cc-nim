@@ -124,8 +124,9 @@ FEATURE_INVENTORY: tuple[FeatureCoverage, ...] = (
         (
             "test_provider_adaptive_thinking_history_e2e",
             "test_claude_cli_adaptive_thinking_e2e",
+            "test_per_model_thinking_config_e2e",
         ),
-        ("providers", "cli"),
+        ("providers", "cli", "config"),
         ("configured provider",),
         "configured providers must not reject adaptive thinking payloads",
     ),

@@ -59,9 +59,11 @@ class AnthropicMessagesTransport(BaseProvider):
         """Return headers for the native messages request."""
         return {"Content-Type": "application/json"}
 
-    def _build_request_body(self, request: Any) -> dict:
+    def _build_request_body(
+        self, request: Any, thinking_enabled: bool | None = None
+    ) -> dict:
         """Build a native Anthropic request body."""
-        thinking_enabled = self._is_thinking_enabled(request)
+        thinking_enabled = self._is_thinking_enabled(request, thinking_enabled)
         body = request.model_dump(exclude_none=True)
 
         body.pop("extra_body", None)
@@ -218,12 +220,13 @@ class AnthropicMessagesTransport(BaseProvider):
         input_tokens: int = 0,
         *,
         request_id: str | None = None,
+        thinking_enabled: bool | None = None,
     ) -> AsyncIterator[str]:
         """Stream response via a native Anthropic-compatible messages endpoint."""
         tag = self._provider_name
         req_tag = f" request_id={request_id}" if request_id else ""
-        thinking_enabled = self._is_thinking_enabled(request)
-        body = self._build_request_body(request)
+        body = self._build_request_body(request, thinking_enabled=thinking_enabled)
+        thinking_enabled = self._is_thinking_enabled(request, thinking_enabled)
 
         logger.info(
             "{}_STREAM:{} natively passing Anthropic request model={} msgs={} tools={}",
