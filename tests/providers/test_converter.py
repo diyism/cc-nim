@@ -573,14 +573,44 @@ def test_convert_user_message_image_raises():
         AnthropicToOpenAIConverter.convert_messages(messages)
 
 
-def test_convert_assistant_text_after_tool_use_raises():
+def test_convert_assistant_text_after_tool_use_splits_for_openai_chat():
+    """Post-tool_use assistant text is replayed as a second assistant turn (issue 206)."""
     content = [
         MockBlock(type="tool_use", id="call_z", name="Read", input={}),
-        MockBlock(type="text", text="Illegal after tool"),
+        MockBlock(type="text", text="After tool"),
     ]
     messages = [MockMessage("assistant", content)]
-    with pytest.raises(OpenAIConversionError):
-        AnthropicToOpenAIConverter.convert_messages(messages)
+    result = AnthropicToOpenAIConverter.convert_messages(messages)
+    assert len(result) == 2
+    assert result[0]["role"] == "assistant"
+    assert result[0]["tool_calls"][0]["id"] == "call_z"
+    assert result[1] == {"role": "assistant", "content": "After tool"}
+
+
+def test_convert_assistant_text_after_tool_use_inserts_after_tool_results():
+    messages = [
+        MockMessage(
+            "assistant",
+            [
+                MockBlock(type="tool_use", id="call_z", name="Read", input={}),
+                MockBlock(type="text", text="Post-tool commentary"),
+            ],
+        ),
+        MockMessage(
+            "user",
+            [
+                MockBlock(
+                    type="tool_result",
+                    tool_use_id="call_z",
+                    content="file contents",
+                )
+            ],
+        ),
+    ]
+    result = AnthropicToOpenAIConverter.convert_messages(messages)
+    assert result[0]["role"] == "assistant" and "tool_calls" in result[0]
+    assert result[1]["role"] == "tool" and result[1]["tool_call_id"] == "call_z"
+    assert result[2] == {"role": "assistant", "content": "Post-tool commentary"}
 
 
 def test_openai_build_accepts_declared_native_top_level_hints() -> None:

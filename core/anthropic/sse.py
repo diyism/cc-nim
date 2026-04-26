@@ -120,6 +120,10 @@ class ContentBlockManager:
         state.task_arg_buffer = ""
         return args_json
 
+    def has_emitted_tool_block(self) -> bool:
+        """True when native OpenAI tool streaming has started a ``tool_use`` block."""
+        return any(s.started for s in self.tool_states.values())
+
     def flush_task_arg_buffers(self) -> list[tuple[int, str]]:
         results: list[tuple[int, str]] = []
         for tool_index, state in list(self.tool_states.items()):
@@ -352,6 +356,19 @@ class SSEBuilder:
         yield self.content_block_start(error_index, "text")
         yield self.content_block_delta(error_index, "text_delta", error_message)
         yield self.content_block_stop(error_index)
+
+    def emit_top_level_error(self, error_message: str) -> str:
+        """Emit a top-level ``event: error`` (not assistant text) for transport failures."""
+        return self._format_event(
+            "error",
+            {
+                "type": "error",
+                "error": {
+                    "type": "api_error",
+                    "message": error_message,
+                },
+            },
+        )
 
     @property
     def accumulated_text(self) -> str:

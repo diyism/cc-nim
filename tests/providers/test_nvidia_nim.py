@@ -153,6 +153,44 @@ async def test_build_request_body_omits_reasoning_when_request_disables_thinking
     assert "reasoning_budget" not in extra
 
 
+def test_preflight_and_build_request_issue_206_post_tool_text(nim_provider):
+    """Regression: assistant message with tool_use then text plus tool results (GitHub #206)."""
+    tool_id = "toolu_issue_206"
+    req = MockRequest(
+        messages=[
+            MockMessage("user", "Use echo once."),
+            MockMessage(
+                "assistant",
+                [
+                    MockBlock(
+                        type="tool_use",
+                        id=tool_id,
+                        name="echo_smoke",
+                        input={"value": "FCC_206"},
+                    ),
+                    MockBlock(
+                        type="text",
+                        text="Commentary after the tool row.",
+                    ),
+                ],
+            ),
+            MockMessage(
+                "user",
+                [
+                    MockBlock(
+                        type="tool_result", tool_use_id=tool_id, content="FCC_206"
+                    ),
+                    MockBlock(type="text", text="What was echoed?"),
+                ],
+            ),
+        ],
+    )
+    nim_provider.preflight_stream(req, thinking_enabled=False)
+    body = nim_provider._build_request_body(req, thinking_enabled=False)
+    assert "messages" in body
+    assert any(m.get("role") == "tool" for m in body["messages"])
+
+
 @pytest.mark.asyncio
 async def test_stream_response_text(nim_provider):
     """Test streaming text response."""

@@ -53,6 +53,12 @@ def test_provider_interleaved_thinking_tool_e2e(smoke_config: SmokeConfig) -> No
 
 
 @pytest.mark.smoke_target("tools")
+def test_provider_tool_use_then_text_history_e2e(smoke_config: SmokeConfig) -> None:
+    """OpenAI-compatible path: history with tool_use + assistant text after tool (issue #206)."""
+    _run_for_each_provider(smoke_config, _scenario_tool_use_then_text_in_history)
+
+
+@pytest.mark.smoke_target("tools")
 def test_provider_tool_result_continuation_e2e(smoke_config: SmokeConfig) -> None:
     _run_for_each_provider(smoke_config, _scenario_tool_result_continuation)
 
@@ -245,6 +251,52 @@ def _scenario_interleaved_history(
         "thinking": {"type": "adaptive"},
     }
     with _server_for_provider(smoke_config, provider_model, "interleaved") as server:
+        turn = ConversationDriver(server, smoke_config).stream(payload)
+    assert_product_stream(turn.events)
+
+
+def _scenario_tool_use_then_text_in_history(
+    smoke_config: SmokeConfig, provider_model: ProviderModel
+) -> None:
+    tool_id = "toolu_206_smoke"
+    payload = {
+        "model": "claude-sonnet-4-5-20250929",
+        "max_tokens": 256,
+        "messages": [
+            {"role": "user", "content": "We will use echo_smoke once in this session."},
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": tool_id,
+                        "name": "echo_smoke",
+                        "input": {"value": "FCC_206_SMOKE"},
+                    },
+                    {
+                        "type": "text",
+                        "text": "Narration after the tool call (issue #206 shape).",
+                    },
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tool_id,
+                        "content": "FCC_206_SMOKE",
+                    },
+                ],
+            },
+            {
+                "role": "user",
+                "content": "Reply in one short sentence: did you see the echo value?",
+            },
+        ],
+        "tools": [echo_tool_schema()],
+    }
+    with _server_for_provider(smoke_config, provider_model, "tool-206") as server:
         turn = ConversationDriver(server, smoke_config).stream(payload)
     assert_product_stream(turn.events)
 
