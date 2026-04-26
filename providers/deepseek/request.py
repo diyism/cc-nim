@@ -4,7 +4,7 @@ from typing import Any
 
 from loguru import logger
 
-from core.anthropic import build_base_request_body
+from core.anthropic import ReasoningReplayMode, build_base_request_body
 from core.anthropic.conversion import OpenAIConversionError
 from providers.exceptions import InvalidRequestError
 
@@ -19,8 +19,9 @@ def build_request_body(request_data: Any, *, thinking_enabled: bool) -> dict:
     try:
         body = build_base_request_body(
             request_data,
-            include_thinking=thinking_enabled,
-            include_reasoning_content=thinking_enabled,
+            reasoning_replay=ReasoningReplayMode.REASONING_CONTENT
+            if thinking_enabled
+            else ReasoningReplayMode.DISABLED,
         )
     except OpenAIConversionError as exc:
         raise InvalidRequestError(str(exc)) from exc

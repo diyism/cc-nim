@@ -7,7 +7,11 @@ from typing import Any
 from loguru import logger
 
 from config.nim import NimSettings
-from core.anthropic import build_base_request_body, set_if_not_none
+from core.anthropic import (
+    ReasoningReplayMode,
+    build_base_request_body,
+    set_if_not_none,
+)
 from core.anthropic.conversion import OpenAIConversionError
 from providers.exceptions import InvalidRequestError
 
@@ -46,6 +50,20 @@ def _strip_chat_template_field(extra_body: dict[str, Any]) -> bool:
     return extra_body.pop("chat_template", None) is not None
 
 
+def _strip_message_reasoning_content(body: dict[str, Any]) -> bool:
+    removed = False
+    messages = body.get("messages")
+    if not isinstance(messages, list):
+        return False
+    for message in messages:
+        if (
+            isinstance(message, dict)
+            and message.pop("reasoning_content", None) is not None
+        ):
+            removed = True
+    return removed
+
+
 def _set_extra(
     extra_body: dict[str, Any], key: str, value: Any, ignore_value: Any = None
 ) -> None:
@@ -68,6 +86,14 @@ def clone_body_without_chat_template(body: dict[str, Any]) -> dict[str, Any] | N
     return _clone_strip_extra_body(body, _strip_chat_template_field)
 
 
+def clone_body_without_reasoning_content(body: dict[str, Any]) -> dict[str, Any] | None:
+    """Clone a request body and strip assistant message ``reasoning_content`` fields."""
+    cloned_body = deepcopy(body)
+    if not _strip_message_reasoning_content(cloned_body):
+        return None
+    return cloned_body
+
+
 def build_request_body(
     request_data: Any, nim: NimSettings, *, thinking_enabled: bool
 ) -> dict:
@@ -80,7 +106,9 @@ def build_request_body(
     try:
         body = build_base_request_body(
             request_data,
-            include_thinking=thinking_enabled,
+            reasoning_replay=ReasoningReplayMode.REASONING_CONTENT
+            if thinking_enabled
+            else ReasoningReplayMode.DISABLED,
         )
     except OpenAIConversionError as exc:
         raise InvalidRequestError(str(exc)) from exc

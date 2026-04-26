@@ -1,6 +1,7 @@
 """Message and tool format converters."""
 
 import json
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel
@@ -11,6 +12,14 @@ from .utils import set_if_not_none
 
 class OpenAIConversionError(Exception):
     """Raised when Anthropic content cannot be converted to OpenAI chat without data loss."""
+
+
+class ReasoningReplayMode(StrEnum):
+    """How assistant reasoning history is replayed to OpenAI-compatible providers."""
+
+    DISABLED = "disabled"
+    THINK_TAGS = "think_tags"
+    REASONING_CONTENT = "reasoning_content"
 
 
 def _openai_reject_native_only_top_level_fields(request_data: Any) -> None:
@@ -63,6 +72,16 @@ def _serialize_tool_result_content(tool_content: Any) -> str:
     return str(tool_content)
 
 
+def _clean_reasoning_content(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return value if value else None
+
+
+def _think_tag_content(reasoning: str) -> str:
+    return f"<think>\n{reasoning}\n</think>"
+
+
 class AnthropicToOpenAIConverter:
     """Convert Anthropic message format to OpenAI-compatible format."""
 
@@ -70,24 +89,35 @@ class AnthropicToOpenAIConverter:
     def convert_messages(
         messages: list[Any],
         *,
-        include_thinking: bool = True,
-        include_reasoning_content: bool = False,
+        reasoning_replay: ReasoningReplayMode = ReasoningReplayMode.THINK_TAGS,
     ) -> list[dict[str, Any]]:
         result = []
 
         for msg in messages:
             role = msg.role
             content = msg.content
+            reasoning_content = _clean_reasoning_content(
+                getattr(msg, "reasoning_content", None)
+            )
 
             if isinstance(content, str):
-                result.append({"role": role, "content": content})
+                converted = {"role": role, "content": content}
+                if role == "assistant" and reasoning_content:
+                    if reasoning_replay == ReasoningReplayMode.REASONING_CONTENT:
+                        converted["reasoning_content"] = reasoning_content
+                    elif reasoning_replay == ReasoningReplayMode.THINK_TAGS:
+                        content_parts = [_think_tag_content(reasoning_content)]
+                        if content:
+                            content_parts.append(content)
+                        converted["content"] = "\n\n".join(content_parts)
+                result.append(converted)
             elif isinstance(content, list):
                 if role == "assistant":
                     result.extend(
                         AnthropicToOpenAIConverter._convert_assistant_message(
                             content,
-                            include_thinking=include_thinking,
-                            include_reasoning_content=include_reasoning_content,
+                            reasoning_content=reasoning_content,
+                            reasoning_replay=reasoning_replay,
                         )
                     )
                 elif role == "user":
@@ -103,8 +133,8 @@ class AnthropicToOpenAIConverter:
     def _convert_assistant_message(
         content: list[Any],
         *,
-        include_thinking: bool = True,
-        include_reasoning_content: bool = False,
+        reasoning_content: str | None = None,
+        reasoning_replay: ReasoningReplayMode = ReasoningReplayMode.THINK_TAGS,
     ) -> list[dict[str, Any]]:
         content_parts: list[str] = []
         thinking_parts: list[str] = []
@@ -123,7 +153,7 @@ class AnthropicToOpenAIConverter:
                     )
                 content_parts.append(get_block_attr(block, "text", ""))
             elif block_type == "thinking":
-                if not include_thinking:
+                if reasoning_replay == ReasoningReplayMode.DISABLED:
                     continue
                 if seen_tool_use:
                     raise OpenAIConversionError(
@@ -132,8 +162,9 @@ class AnthropicToOpenAIConverter:
                         "native Anthropic provider."
                     )
                 thinking = get_block_attr(block, "thinking", "")
-                content_parts.append(f"<think>\n{thinking}\n</think>")
-                if include_reasoning_content:
+                if reasoning_replay == ReasoningReplayMode.THINK_TAGS:
+                    content_parts.append(_think_tag_content(thinking))
+                elif reasoning_content is None:
                     thinking_parts.append(thinking)
             elif block_type == "redacted_thinking":
                 # Opaque provider continuation data; do not materialize as model-visible text
@@ -178,8 +209,10 @@ class AnthropicToOpenAIConverter:
         }
         if tool_calls:
             msg["tool_calls"] = tool_calls
-        if include_reasoning_content and thinking_parts:
-            msg["reasoning_content"] = "\n".join(thinking_parts)
+        if reasoning_replay == ReasoningReplayMode.REASONING_CONTENT:
+            replay_reasoning = reasoning_content or "\n".join(thinking_parts)
+            if replay_reasoning:
+                msg["reasoning_content"] = replay_reasoning
 
         return [msg]
 
@@ -271,15 +304,13 @@ def build_base_request_body(
     request_data: Any,
     *,
     default_max_tokens: int | None = None,
-    include_thinking: bool = True,
-    include_reasoning_content: bool = False,
+    reasoning_replay: ReasoningReplayMode = ReasoningReplayMode.THINK_TAGS,
 ) -> dict[str, Any]:
     """Build the common parts of an OpenAI-format request body."""
     _openai_reject_native_only_top_level_fields(request_data)
     messages = AnthropicToOpenAIConverter.convert_messages(
         request_data.messages,
-        include_thinking=include_thinking,
-        include_reasoning_content=include_reasoning_content,
+        reasoning_replay=reasoning_replay,
     )
 
     system = getattr(request_data, "system", None)

@@ -11,9 +11,10 @@ from providers.exceptions import InvalidRequestError
 
 
 class MockMessage:
-    def __init__(self, role, content):
+    def __init__(self, role, content, reasoning_content=None):
         self.role = role
         self.content = content
+        self.reasoning_content = reasoning_content
 
 
 class MockBlock:
@@ -151,7 +152,61 @@ def test_build_request_body_preserves_reasoning_content(deepseek_provider):
 
     body = deepseek_provider._build_request_body(req)
 
-    assert body["messages"][0]["reasoning_content"] == "First think"
+    assistant = body["messages"][0]
+    assert assistant["reasoning_content"] == "First think"
+    assert "<think>" not in assistant["content"]
+    assert assistant["content"] == "Then answer"
+
+
+def test_build_request_body_preserves_top_level_reasoning_content(deepseek_provider):
+    """OpenAI-compatible assistant reasoning_content survives history replay."""
+    req = MockRequest(
+        system=None,
+        messages=[
+            MockMessage(
+                "assistant",
+                "Then answer",
+                reasoning_content="First think",
+            )
+        ],
+    )
+
+    body = deepseek_provider._build_request_body(req)
+
+    assistant = body["messages"][0]
+    assert assistant["reasoning_content"] == "First think"
+    assert assistant["content"] == "Then answer"
+
+
+def test_build_request_body_replays_reasoning_content_with_tool_calls(
+    deepseek_provider,
+):
+    """Thinking plus tool_use history is replayed in DeepSeek's top-level shape."""
+    req = MockRequest(
+        system=None,
+        messages=[
+            MockMessage(
+                "assistant",
+                [
+                    MockBlock(type="thinking", thinking="Need the tool."),
+                    MockBlock(
+                        type="tool_use",
+                        id="call_reasoning",
+                        name="echo",
+                        input={"value": "x"},
+                    ),
+                ],
+            )
+        ],
+    )
+
+    body = deepseek_provider._build_request_body(req)
+
+    assistant = body["messages"][0]
+    assert assistant["content"] == ""
+    assert assistant["reasoning_content"] == "Need the tool."
+    assert assistant["tool_calls"][0]["id"] == "call_reasoning"
+    assert "<think>" not in assistant["content"]
 
 
 def test_build_request_body_disabled_thinking_omits_reasoning_and_thinking_tags():
