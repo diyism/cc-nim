@@ -31,7 +31,7 @@ A lightweight proxy that routes Claude Code's Anthropic API calls to **NVIDIA NI
 | -------------------------- | ----------------------------------------------------------------------------------------------- |
 | **Zero Cost**              | 40 req/min free on NVIDIA NIM. Free models on OpenRouter. Fully local with LM Studio            |
 | **Drop-in Replacement**    | Set 2 env vars. No modifications to Claude Code CLI or VSCode extension needed                  |
-| **5 Providers**            | NVIDIA NIM, OpenRouter, DeepSeek, LM Studio (local), llama.cpp (`llama-server`)                  |
+| **6 Providers**            | NVIDIA NIM, OpenRouter, DeepSeek, LM Studio (local), llama.cpp (`llama-server`), Ollama         |
 | **Per-Model Mapping**      | Route Opus / Sonnet / Haiku to different models and providers. Mix providers freely             |
 | **Thinking Token Support** | Parses `<think>` tags and `reasoning_content` into native Claude thinking blocks                |
 | **Heuristic Tool Parser**  | Models outputting tool calls as text are auto-parsed into structured tool use                   |
@@ -361,6 +361,7 @@ The proxy also exposes Claude-compatible probe routes: `GET /v1/models`, `POST /
 | **DeepSeek**   | Usage-based  | Varies     | Direct access to DeepSeek chat/reasoner |
 | **LM Studio**  | Free (local) | Unlimited  | Privacy, offline use, no rate limits |
 | **llama.cpp**  | Free (local) | Unlimited  | Lightweight local inference engine   |
+| **Ollama**     | Free (local) | Unlimited  | Easy local LLM runtime, native Anthropic API |
 
 Models use a prefix format: `provider_prefix/model/name`. An invalid prefix causes an error.
 
@@ -371,6 +372,7 @@ Models use a prefix format: `provider_prefix/model/name`. An invalid prefix caus
 | DeepSeek   | `deepseek/...`    | `DEEPSEEK_API_KEY`   | `api.deepseek.com`            |
 | LM Studio  | `lmstudio/...`    | (none)               | `localhost:1234/v1`           |
 | llama.cpp  | `llamacpp/...`    | (none)               | `localhost:8080/v1`           |
+| Ollama     | `ollama/...`      | (none)               | `localhost:11434`             |
 
 <details>
 <summary><b>NVIDIA NIM models</b></summary>
@@ -436,6 +438,32 @@ Run models locally using `llama-server`. Ensure you have a tool-capable GGUF. Se
 
 See the Unsloth docs for detailed instructions and capable models:
 [https://unsloth.ai/docs/models/qwen3.5#qwen3.5-small-0.8b-2b-4b-9b](https://unsloth.ai/docs/models/qwen3.5#qwen3.5-small-0.8b-2b-4b-9b)
+
+</details>
+
+<details>
+<summary><b>Ollama</b> (fully local, no API key)</summary>
+
+```dotenv
+OLLAMA_BASE_URL="http://localhost:11434"
+
+MODEL_OPUS="ollama/llama3.1:70b"
+MODEL_SONNET="ollama/llama3.1:8b"
+MODEL_HAIKU="ollama/llama3.1:8b"
+MODEL="ollama/llama3.1:8b"
+```
+
+Install Ollama: [ollama.com](https://ollama.com)
+
+Pull a model:
+```bash
+ollama pull llama3.1
+```
+
+Start Ollama server:
+```bash
+ollama serve
+```
 
 </details>
 
@@ -544,6 +572,7 @@ Configure via `WHISPER_DEVICE` (`cpu` | `cuda` | `nvidia_nim`) and `WHISPER_MODE
 | `OPENROUTER_PROXY`   | Optional proxy URL for OpenRouter requests (`http://...` or `socks5://...`) | `""` |
 | `LMSTUDIO_PROXY`     | Optional proxy URL for LM Studio requests (`http://...` or `socks5://...`) | `""` |
 | `LLAMACPP_PROXY`     | Optional proxy URL for llama.cpp requests (`http://...` or `socks5://...`) | `""` |
+| `OLLAMA_BASE_URL`    | Ollama server root URL                                               | `http://localhost:11434`                          |
 
 ### Rate Limiting & Timeouts
 

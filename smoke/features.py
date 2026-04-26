@@ -349,6 +349,17 @@ FEATURE_INVENTORY: tuple[FeatureCoverage, ...] = (
         "skip when local upstream is unavailable",
     ),
     FeatureCoverage(
+        "ollama_endpoint",
+        "Ollama native Anthropic messages and local no-key operation work when running",
+        "public_surface",
+        ("tests/providers/test_ollama.py",),
+        ("test_ollama_models_endpoint_when_available",),
+        ("test_ollama_native_messages_e2e",),
+        ("ollama",),
+        ("OLLAMA_BASE_URL with running Ollama server",),
+        "skip when local upstream is unavailable",
+    ),
+    FeatureCoverage(
         "package_cli_entrypoints",
         "Installed package scripts scaffold config and start the server",
         "public_surface",

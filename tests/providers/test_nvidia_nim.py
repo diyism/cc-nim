@@ -277,6 +277,12 @@ async def test_stream_response_suppresses_thinking_when_disabled(provider_config
     assert "Answer" in event_text
 
 
+def _make_bad_request_error(message: str) -> openai.BadRequestError:
+    response = Response(status_code=400, request=Request("POST", "http://test"))
+    body = {"error": {"message": message}}
+    return openai.BadRequestError(message, response=response, body=body)
+
+
 @pytest.mark.asyncio
 async def test_stream_response_retries_without_chat_template(provider_config):
     from config.nim import NimSettings

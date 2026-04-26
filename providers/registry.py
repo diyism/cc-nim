@@ -14,6 +14,7 @@ from providers.defaults import (
     LLAMACPP_DEFAULT_BASE,
     LMSTUDIO_DEFAULT_BASE,
     NVIDIA_NIM_DEFAULT_BASE,
+    OLLAMA_DEFAULT_BASE,
     OPENROUTER_DEFAULT_BASE,
 )
 from providers.exceptions import AuthenticationError, UnknownProviderTypeError
@@ -88,6 +89,21 @@ PROVIDER_DESCRIPTORS: dict[str, ProviderDescriptor] = {
         proxy_attr="llamacpp_proxy",
         capabilities=("chat", "streaming", "tools", "native_anthropic", "local"),
     ),
+    "ollama": ProviderDescriptor(
+        provider_id="ollama",
+        transport_type="anthropic_messages",
+        static_credential="ollama",
+        default_base_url=OLLAMA_DEFAULT_BASE,
+        base_url_attr="ollama_base_url",
+        capabilities=(
+            "chat",
+            "streaming",
+            "tools",
+            "thinking",
+            "native_anthropic",
+            "local",
+        ),
+    ),
 }
 
 
@@ -121,12 +137,19 @@ def _create_llamacpp(config: ProviderConfig, settings: Settings) -> BaseProvider
     return LlamaCppProvider(config)
 
 
+def _create_ollama(config: ProviderConfig, settings: Settings) -> BaseProvider:
+    from providers.ollama import OllamaProvider
+
+    return OllamaProvider(config)
+
+
 PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     "nvidia_nim": _create_nvidia_nim,
     "open_router": _create_open_router,
     "deepseek": _create_deepseek,
     "lmstudio": _create_lmstudio,
     "llamacpp": _create_llamacpp,
+    "ollama": _create_ollama,
 }
 
 if set(PROVIDER_DESCRIPTORS) != set(SUPPORTED_PROVIDER_IDS) or set(
