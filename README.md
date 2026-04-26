@@ -12,7 +12,7 @@
 [![Code style: Ruff](https://img.shields.io/badge/code%20formatting-ruff-f5a623.svg?style=for-the-badge)](https://github.com/astral-sh/ruff)
 [![Logging: Loguru](https://img.shields.io/badge/logging-loguru-4ecdc4.svg?style=for-the-badge)](https://github.com/Delgan/loguru)
 
-A lightweight proxy that routes Claude Code's Anthropic API calls to **NVIDIA NIM** (40 req/min free), **OpenRouter** (hundreds of models), **DeepSeek** (direct API), **LM Studio** (fully local), or **llama.cpp** (local with Anthropic endpoints).
+A lightweight proxy that routes Claude Code's Anthropic API calls to **NVIDIA NIM** (40 req/min free), **OpenRouter** (hundreds of models), **DeepSeek** (direct API), **LM Studio** (fully local), **llama.cpp** (local with Anthropic endpoints), or **Ollama** (fully local, native Anthropic Messages).
 
 [Quick Start](#quick-start) · [Providers](#providers) · [Discord Bot](#discord-bot) · [Configuration](#configuration) · [Development](#development) · [Contributing](#contributing)
 
@@ -29,7 +29,7 @@ A lightweight proxy that routes Claude Code's Anthropic API calls to **NVIDIA NI
 
 | Feature                    | Description                                                                                     |
 | -------------------------- | ----------------------------------------------------------------------------------------------- |
-| **Zero Cost**              | 40 req/min free on NVIDIA NIM. Free models on OpenRouter. Fully local with LM Studio            |
+| **Zero Cost**              | 40 req/min free on NVIDIA NIM. Free models on OpenRouter. Fully local with LM Studio, Ollama, or llama.cpp |
 | **Drop-in Replacement**    | Set 2 env vars. No modifications to Claude Code CLI or VSCode extension needed                  |
 | **6 Providers**            | NVIDIA NIM, OpenRouter, DeepSeek, LM Studio (local), llama.cpp (`llama-server`), Ollama         |
 | **Per-Model Mapping**      | Route Opus / Sonnet / Haiku to different models and providers. Mix providers freely             |
@@ -45,12 +45,13 @@ A lightweight proxy that routes Claude Code's Anthropic API calls to **NVIDIA NI
 
 ### Prerequisites
 
-1. Get an API key (or use LM Studio / llama.cpp locally):
+1. Get an API key (or use a local provider):
    - **NVIDIA NIM**: [build.nvidia.com/settings/api-keys](https://build.nvidia.com/settings/api-keys)
    - **OpenRouter**: [openrouter.ai/keys](https://openrouter.ai/keys)
    - **DeepSeek**: [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys)
    - **LM Studio**: No API key needed. Run locally with [LM Studio](https://lmstudio.ai)
    - **llama.cpp**: No API key needed. Run `llama-server` locally.
+   - **Ollama**: No API key needed. Run locally with [Ollama](https://ollama.com) (`ollama serve`).
 2. Install [Claude Code](https://github.com/anthropics/claude-code)
 
 ### Install `uv`
@@ -163,6 +164,22 @@ MODEL_SONNET="llamacpp/local-model"
 MODEL_HAIKU="llamacpp/local-model"
 MODEL="llamacpp/local-model"
 ```
+
+</details>
+
+<details>
+<summary><b>Ollama</b> (fully local, no API key)</summary>
+
+```dotenv
+OLLAMA_BASE_URL="http://localhost:11434"
+
+MODEL_OPUS="ollama/llama3.1"
+MODEL_SONNET="ollama/llama3.1"
+MODEL_HAIKU="ollama/llama3.1"
+MODEL="ollama/llama3.1"                             # fallback
+```
+
+Install: [ollama.com](https://ollama.com). Pull a model (`ollama pull llama3.1`) and keep the server running (`ollama serve` or the desktop app). Use the same model tag in `MODEL*` that appears in `ollama list` (for example `ollama/llama3.1:8b`).
 
 </details>
 
@@ -345,7 +362,7 @@ free-claude-code    # starts the server
 - **Transparent proxy**: Claude Code sends standard Anthropic API requests; the proxy forwards them to your configured provider
 - **Per-model routing**: Opus / Sonnet / Haiku requests resolve to their model-specific backend, with `MODEL` as fallback
 - **Request optimization**: 5 categories of trivial requests (quota probes, title generation, prefix detection, suggestions, filepath extraction) are intercepted and responded to locally without using API quota
-- **Format handling**: OpenRouter, LM Studio, and llama.cpp use native Anthropic Messages endpoints; NIM and DeepSeek use shared OpenAI chat translation
+- **Format handling**: OpenRouter, LM Studio, llama.cpp, and Ollama use native Anthropic Messages endpoints; NIM and DeepSeek use shared OpenAI chat translation
 - **Thinking tokens**: `<think>` tags and `reasoning_content` fields are converted into native Claude thinking blocks when the resolved model's thinking switch is enabled
 
 The proxy also exposes Claude-compatible probe routes: `GET /v1/models`, `POST /v1/messages`, `POST /v1/messages/count_tokens`, plus `HEAD`/`OPTIONS` support for the common probe endpoints.
@@ -442,28 +459,19 @@ See the Unsloth docs for detailed instructions and capable models:
 </details>
 
 <details>
-<summary><b>Ollama</b> (fully local, no API key)</summary>
+<summary><b>Ollama models</b></summary>
 
-```dotenv
-OLLAMA_BASE_URL="http://localhost:11434"
+Run models locally with [Ollama](https://ollama.com). Pull a model, then set `MODEL` to `ollama/<tag>` where `<tag>` matches the name in `ollama list` (for example `ollama/llama3.1:8b` or `ollama/qwen2.5-coder:7b`).
 
-MODEL_OPUS="ollama/llama3.1:70b"
-MODEL_SONNET="ollama/llama3.1:8b"
-MODEL_HAIKU="ollama/llama3.1:8b"
-MODEL="ollama/llama3.1:8b"
-```
+- `OLLAMA_BASE_URL` is the **Ollama server root** (default `http://localhost:11434`). Do not append `/v1`; the proxy uses Ollama's native Anthropic Messages support at that host.
+- Override `OLLAMA_BASE_URL` only if Ollama listens on another address or port.
 
-Install Ollama: [ollama.com](https://ollama.com)
-
-Pull a model:
 ```bash
 ollama pull llama3.1
+ollama serve   # or use the desktop app, which keeps the server running
 ```
 
-Start Ollama server:
-```bash
-ollama serve
-```
+Browse: [ollama.com/library](https://ollama.com/library)
 
 </details>
 
