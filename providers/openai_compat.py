@@ -409,11 +409,15 @@ class OpenAIChatTransport(BaseProvider):
         for event in sse.close_all_blocks():
             yield event
 
-        output_tokens = (
-            usage_info.completion_tokens
-            if usage_info and hasattr(usage_info, "completion_tokens")
-            else sse.estimate_output_tokens()
+        completion = (
+            getattr(usage_info, "completion_tokens", None)
+            if usage_info is not None
+            else None
         )
+        if isinstance(completion, int):
+            output_tokens = completion
+        else:
+            output_tokens = sse.estimate_output_tokens()
         if usage_info and hasattr(usage_info, "prompt_tokens"):
             provider_input = usage_info.prompt_tokens
             if isinstance(provider_input, int):

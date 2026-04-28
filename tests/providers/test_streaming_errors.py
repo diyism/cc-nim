@@ -303,6 +303,46 @@ class TestStreamingExceptionHandling:
         assert "message_stop" in event_text
 
     @pytest.mark.asyncio
+    async def test_upstream_completion_tokens_null_emits_int_usage(self):
+        """NIM/GLM may send usage.completion_tokens=null; final SSE must not use JSON null."""
+        provider = _make_provider()
+        request = _make_request()
+
+        delta = SimpleNamespace(
+            content="hello",
+            tool_calls=None,
+            reasoning_content=None,
+        )
+        choice = SimpleNamespace(delta=delta, finish_reason="stop")
+        usage = SimpleNamespace(completion_tokens=None, prompt_tokens=None)
+        chunk = SimpleNamespace(choices=[choice], usage=usage)
+        stream_mock = AsyncStreamMock([chunk])
+
+        with (
+            patch.object(
+                provider._client.chat.completions,
+                "create",
+                new_callable=AsyncMock,
+                return_value=stream_mock,
+            ),
+            patch.object(
+                provider._global_rate_limiter,
+                "wait_if_blocked",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+        ):
+            events = await _collect_stream(provider, request)
+
+        parsed = parse_sse_text("".join(events))
+        delta_events = [e for e in parsed if e.event == "message_delta"]
+        assert len(delta_events) == 1
+        usage_out = delta_events[0].data.get("usage", {})
+        assert isinstance(usage_out.get("output_tokens"), int)
+        assert usage_out["output_tokens"] is not None
+        assert '"output_tokens": null' not in "".join(events)
+
+    @pytest.mark.asyncio
     async def test_reasoning_only_stream_emits_placeholder_text(self):
         """When the model streams only ``reasoning_content`` (no ``content``), add text block.
 

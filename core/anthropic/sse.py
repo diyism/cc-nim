@@ -37,6 +37,11 @@ def map_stop_reason(openai_reason: str | None) -> str:
     )
 
 
+def _safe_usage_int(value: object) -> int:
+    """Coerce streamed usage counters to int; non-integers become 0."""
+    return value if isinstance(value, int) else 0
+
+
 def format_sse_event(event_type: str, data: dict) -> str:
     """Format one Anthropic-style SSE event (no logging)."""
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
@@ -191,7 +196,8 @@ class SSEBuilder:
         return event_str
 
     def message_start(self) -> str:
-        usage = {"input_tokens": self.input_tokens, "output_tokens": 1}
+        safe_input = _safe_usage_int(self.input_tokens)
+        usage = {"input_tokens": safe_input, "output_tokens": 1}
         return self._format_event(
             "message_start",
             {
@@ -209,15 +215,17 @@ class SSEBuilder:
             },
         )
 
-    def message_delta(self, stop_reason: str, output_tokens: int) -> str:
+    def message_delta(self, stop_reason: str, output_tokens: int | None) -> str:
+        safe_in = _safe_usage_int(self.input_tokens)
+        safe_out = output_tokens if isinstance(output_tokens, int) else 0
         return self._format_event(
             "message_delta",
             {
                 "type": "message_delta",
                 "delta": {"stop_reason": stop_reason, "stop_sequence": None},
                 "usage": {
-                    "input_tokens": self.input_tokens,
-                    "output_tokens": output_tokens,
+                    "input_tokens": safe_in,
+                    "output_tokens": safe_out,
                 },
             },
         )
