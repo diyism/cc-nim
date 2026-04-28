@@ -530,8 +530,10 @@ Run them in that order before pushing. CI enforces the same checks.
 
 - Report bugs and feature requests in [Issues](https://github.com/Alishahryar1/free-claude-code/issues).
 - Keep changes small and covered by focused tests.
-- Do not add Docker integration unless maintainers ask for it.
+- Do not open Docker integration PRs.
+- Do not open README change PRs just open an issue for it.
 - Run the full check sequence before opening a pull request.
+- The syntax Except X, Y is brought back in python 3.14 final version (not in 3.14 alpha). Keep in mind before opening PRs.
 
 ## License
 
