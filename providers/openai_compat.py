@@ -332,7 +332,7 @@ class OpenAIChatTransport(BaseProvider):
                             for event in self._process_tool_call(tc_info, sse):
                                 yield event
 
-            except asyncio.CancelledError, GeneratorExit:
+            except (asyncio.CancelledError, GeneratorExit):
                 raise
             except Exception as e:
                 self._log_stream_transport_error(tag, req_tag, e)
